@@ -1,21 +1,6 @@
-import { useEffect, useState } from 'react';
-import { useColorScheme as useRNColorScheme } from 'react-native';
-
 /**
- * To support static rendering, this value needs to be re-calculated on the client side for web
+ * 항상 light 모드를 반환하도록 수정 (시스템 설정 무시)
  */
 export function useColorScheme() {
-  const [hasHydrated, setHasHydrated] = useState(false);
-
-  useEffect(() => {
-    setHasHydrated(true);
-  }, []);
-
-  const colorScheme = useRNColorScheme();
-
-  if (hasHydrated) {
-    return colorScheme;
-  }
-
   return 'light';
 }
