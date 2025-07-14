@@ -677,4 +677,123 @@ export const updateProfileImage = async (
       error: error instanceof Error ? error.message : '프로필 이미지를 업로드하는 중 오류가 발생했습니다.' 
     };
   }
+};
+
+/**
+ * 사용자가 작성한 게시글 목록 조회
+ */
+export const getUserPosts = async (userId: string, page = 1, pageSize = 10): Promise<Post[]> => {
+  try {
+    const postsQuery = query(
+      collection(db, 'posts'),
+      where('authorId', '==', userId),
+      where('status.isDeleted', '==', false),
+      orderBy('createdAt', 'desc'),
+      limit(pageSize)
+    );
+    
+    const querySnapshot = await getDocs(postsQuery);
+    const posts: Post[] = [];
+    
+    querySnapshot.forEach((doc) => {
+      const postData = doc.data();
+      posts.push({
+        id: doc.id,
+        title: postData.title,
+        content: postData.content,
+        authorId: postData.authorId,
+        createdAt: postData.createdAt,
+        updatedAt: postData.updatedAt,
+        status: postData.status,
+        stats: postData.stats
+      } as Post);
+    });
+    
+    return posts;
+  } catch (error) {
+    console.error('사용자 게시글 목록 조회 오류:', error);
+    throw new Error('게시글 목록을 가져오는 중 오류가 발생했습니다.');
+  }
+};
+
+/**
+ * 사용자가 작성한 댓글 목록 조회
+ */
+export const getUserComments = async (userId: string, page = 1, pageSize = 10): Promise<Comment[]> => {
+  try {
+    const commentsQuery = query(
+      collection(db, 'comments'),
+      where('authorId', '==', userId),
+      where('status.isDeleted', '==', false),
+      orderBy('createdAt', 'desc'),
+      limit(pageSize)
+    );
+    
+    const querySnapshot = await getDocs(commentsQuery);
+    const comments: Comment[] = [];
+    
+    querySnapshot.forEach((doc) => {
+      const commentData = doc.data();
+      comments.push({
+        id: doc.id,
+        content: commentData.content,
+        authorId: commentData.authorId,
+        postId: commentData.postId,
+        createdAt: commentData.createdAt,
+        status: commentData.status
+      } as Comment);
+    });
+    
+    return comments;
+  } catch (error) {
+    console.error('사용자 댓글 목록 조회 오류:', error);
+    throw new Error('댓글 목록을 가져오는 중 오류가 발생했습니다.');
+  }
+};
+
+/**
+ * 사용자가 좋아요한 게시글 목록 조회
+ */
+export const getUserLikedPosts = async (userId: string, page = 1, pageSize = 10): Promise<Post[]> => {
+  try {
+    // 사용자가 좋아요한 게시글 ID 목록 조회
+    const likesRef = collection(db, 'posts');
+    const likesQuery = query(
+      collection(db, 'posts'),
+      where('stats.likeCount', '>', 0),
+      orderBy('createdAt', 'desc'),
+      limit(100) // 임시로 많은 수를 가져와서 필터링
+    );
+    
+    const likesSnapshot = await getDocs(likesQuery);
+    const likedPosts: Post[] = [];
+    
+    // 각 게시글의 좋아요 목록에서 해당 사용자가 좋아요했는지 확인
+    for (const postDoc of likesSnapshot.docs) {
+      const postData = postDoc.data();
+      const likesSubRef = collection(db, 'posts', postDoc.id, 'likes');
+      const userLikeQuery = query(likesSubRef, where('userId', '==', userId));
+      const userLikeSnapshot = await getDocs(userLikeQuery);
+      
+      if (!userLikeSnapshot.empty) {
+        likedPosts.push({
+          id: postDoc.id,
+          title: postData.title,
+          content: postData.content,
+          authorId: postData.authorId,
+          createdAt: postData.createdAt,
+          updatedAt: postData.updatedAt,
+          status: postData.status,
+          stats: postData.stats
+        } as Post);
+      }
+      
+      if (likedPosts.length >= pageSize) break;
+    }
+    
+    return likedPosts;
+  } catch (error) {
+    console.error('좋아요한 게시글 목록 조회 오류:', error);
+    throw new Error('좋아요한 게시글 목록을 가져오는 중 오류가 발생했습니다.');
+  }
 }; 

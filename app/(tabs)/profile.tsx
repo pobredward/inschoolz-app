@@ -4,6 +4,7 @@ import { useAuthStore } from '../../store/authStore';
 import { router } from 'expo-router';
 import { checkAttendance, UserAttendance } from '../../lib/attendance';
 import { getUserActivitySummary, getUserById } from '../../lib/users';
+import { getBookmarkedPostsCount } from '../../lib/boards';
 // 기본 날짜 함수
 const getKoreanDateString = (date: Date = new Date()): string => {
   const year = date.getFullYear();
@@ -37,6 +38,7 @@ export default function ProfileScreen() {
     nextLevelXP: 10
   });
   const [loading, setLoading] = useState(true);
+  const [bookmarkCount, setBookmarkCount] = useState(0);
 
   const loadData = async () => {
     if (!user?.uid) return;
@@ -55,6 +57,10 @@ export default function ProfileScreen() {
       // 사용자 활동 통계 로드
       const stats = await getUserActivitySummary(user.uid);
       setUserStats(stats);
+
+      // 북마크 개수 로드
+      const bookmarkCountResult = await getBookmarkedPostsCount(user.uid);
+      setBookmarkCount(bookmarkCountResult);
     } catch (error) {
       console.error('데이터 로드 오류:', error);
     } finally {
@@ -136,10 +142,10 @@ export default function ProfileScreen() {
   };
 
   const menuItems = [
-    { icon: '📝', name: '내가 쓴 글', count: userStats.totalPosts, onPress: () => Alert.alert('준비중', '내가 쓴 글 기능은 준비중입니다.') },
-    { icon: '💬', name: '내 댓글', count: userStats.totalComments, onPress: () => Alert.alert('준비중', '내 댓글 기능은 준비중입니다.') },
-    { icon: '❤️', name: '좋아요한 글', count: userStats.totalLikes, onPress: () => Alert.alert('준비중', '좋아요한 글 기능은 준비중입니다.') },
-    { icon: '🔖', name: '스크랩', count: 0, onPress: () => Alert.alert('준비중', '스크랩 기능은 준비중입니다.') },
+    { icon: '📝', name: '내가 쓴 글', count: userStats.totalPosts, onPress: () => router.push('/my-posts' as any) },
+    { icon: '💬', name: '내 댓글', count: userStats.totalComments, onPress: () => router.push('/my-comments' as any) },
+    { icon: '❤️', name: '좋아요한 글', count: userStats.totalLikes, onPress: () => router.push('/my-likes' as any) },
+    { icon: '🔖', name: '스크랩', count: bookmarkCount, onPress: () => router.push('/my-bookmarks' as any) },
   ];
 
   const settingItems = [

@@ -11,7 +11,10 @@ import {
   updateDoc,
   deleteDoc,
   limit,
-  Timestamp
+  Timestamp,
+  writeBatch,
+  increment,
+  serverTimestamp
 } from 'firebase/firestore';
 import { Board, BoardType, Post } from '../types';
 
@@ -716,5 +719,156 @@ export const createPost = async (userId: string, params: CreatePostParams): Prom
   } catch (error) {
     console.error('게시글 작성 오류:', error);
     throw new Error('게시글 작성 중 오류가 발생했습니다.');
+  }
+};
+
+/**
+ * 댓글 좋아요 토글
+ */
+export const toggleCommentLike = async (postId: string, commentId: string, userId: string): Promise<boolean> => {
+  try {
+    // 좋아요 중복 체크
+    const likeRef = doc(db, 'posts', postId, 'comments', commentId, 'likes', userId);
+    const likeDoc = await getDoc(likeRef);
+    const batch = writeBatch(db);
+    
+    let isLiked = false;
+    
+    if (likeDoc.exists()) {
+      // 좋아요 취소
+      batch.delete(likeRef);
+      // 댓글 좋아요 수 감소
+      batch.update(doc(db, 'posts', postId, 'comments', commentId), {
+        'stats.likeCount': increment(-1)
+      });
+    } else {
+      // 좋아요 추가
+      batch.set(likeRef, {
+        createdAt: serverTimestamp()
+      });
+      // 댓글 좋아요 수 증가
+      batch.update(doc(db, 'posts', postId, 'comments', commentId), {
+        'stats.likeCount': increment(1)
+      });
+      isLiked = true;
+    }
+    
+    await batch.commit();
+    return isLiked;
+  } catch (error) {
+    console.error('댓글 좋아요 토글 오류:', error);
+    throw new Error('좋아요 처리 중 오류가 발생했습니다.');
+  }
+};
+
+/**
+ * 게시글 북마크/스크랩 토글
+ */
+export const togglePostBookmark = async (postId: string, userId: string): Promise<boolean> => {
+  try {
+    // 사용자 문서에서 스크랩 목록 가져오기
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    
+    if (!userDoc.exists()) {
+      throw new Error('사용자를 찾을 수 없습니다.');
+    }
+    
+    const userData = userDoc.data();
+    const scraps = userData.scraps || [];
+    const isBookmarked = scraps.includes(postId);
+    
+    let updatedScraps: string[];
+    
+    if (isBookmarked) {
+      // 북마크 제거
+      updatedScraps = scraps.filter((id: string) => id !== postId);
+    } else {
+      // 북마크 추가
+      updatedScraps = [...scraps, postId];
+    }
+    
+    // 사용자 문서 업데이트
+    await updateDoc(userRef, {
+      scraps: updatedScraps,
+      updatedAt: Date.now()
+    });
+    
+    return !isBookmarked; // 새로운 북마크 상태 반환
+  } catch (error) {
+    console.error('게시글 북마크 토글 오류:', error);
+    throw new Error('북마크 처리 중 오류가 발생했습니다.');
+  }
+};
+
+/**
+ * 사용자가 북마크한 게시글 목록 가져오기
+ */
+export const getBookmarkedPosts = async (userId: string): Promise<Post[]> => {
+  try {
+    // 사용자 문서에서 스크랩 목록 가져오기
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    
+    if (!userDoc.exists()) {
+      return [];
+    }
+    
+    const userData = userDoc.data();
+    const scraps = userData.scraps || [];
+    
+    if (scraps.length === 0) {
+      return [];
+    }
+    
+    // 스크랩한 게시글들 가져오기
+    const posts: Post[] = [];
+    for (const postId of scraps) {
+      try {
+        const postRef = doc(db, 'posts', postId);
+        const postDoc = await getDoc(postRef);
+        
+        if (postDoc.exists()) {
+          const postData = postDoc.data();
+          if (!postData.status?.isDeleted) {
+            posts.push({
+              id: postDoc.id,
+              ...postData
+            } as Post);
+          }
+        }
+      } catch (error) {
+        console.warn(`게시글 ${postId} 조회 실패:`, error);
+      }
+    }
+    
+    // 최신순으로 정렬
+    return posts.sort((a, b) => b.createdAt - a.createdAt);
+  } catch (error) {
+    console.error('북마크 목록 조회 오류:', error);
+    throw new Error('북마크 목록을 가져오는 중 오류가 발생했습니다.');
+  }
+};
+
+/**
+ * 사용자가 북마크한 게시글 개수 가져오기
+ */
+export const getBookmarkedPostsCount = async (userId: string): Promise<number> => {
+  try {
+    // 사용자 문서에서 스크랩 목록 가져오기
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    
+    if (!userDoc.exists()) {
+      return 0;
+    }
+    
+    const userData = userDoc.data();
+    const scraps = userData.scraps || [];
+    
+    return scraps.length;
+  } catch (error) {
+    console.error('북마크 개수 조회 오류:', error);
+    return 0;
   }
 }; 
