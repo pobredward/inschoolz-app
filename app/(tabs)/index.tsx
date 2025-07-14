@@ -12,6 +12,9 @@ import { School, Post } from '../../types';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { syncUserExperienceData } from '../../lib/experience';
+import { SafeScreenContainer } from '../../components/SafeScreenContainer';
+import { Ionicons } from '@expo/vector-icons';
+
 // 기본 시간 포맷팅 함수
 const formatSmartTime = (timestamp: any) => {
   const date = new Date(timestamp?.seconds * 1000 || Date.now());
@@ -22,43 +25,16 @@ const formatSmartTime = (timestamp: any) => {
   if (diffInHours < 24) return `${diffInHours}시간 전`;
   return `${Math.floor(diffInHours / 24)}일 전`;
 };
-import { SafeScreenContainer } from '../../components/SafeScreenContainer';
 
+// 랭킹 미리보기 타입
 interface RankingPreview {
-  national: Array<{
-    id: string;
-    userName: string;
-    stats: {
-      totalExperience: number;
-      level: number;
-    };
-    school?: {
-      name: string;
-    };
-  }>;
-  regional: Array<{
-    id: string;
-    userName: string;
-    stats: {
-      totalExperience: number;
-      level: number;
-    };
-    school?: {
-      name: string;
-    };
-  }>;
-  school: Array<{
-    id: string;
-    userName: string;
-    stats: {
-      totalExperience: number;
-      level: number;
-    };
-  }>;
+  national: any[];
+  regional: any[];
+  school: any[];
 }
 
 export default function HomeScreen() {
-  const { user } = useAuthStore();
+  const { user, isLoading: authLoading } = useAuthStore();
   const [refreshing, setRefreshing] = useState(false);
   const [userData, setUserData] = useState<any>(null);
   const [attendance, setAttendance] = useState<UserAttendance | null>(null);
@@ -73,7 +49,7 @@ export default function HomeScreen() {
   });
   const [popularPosts, setPopularPosts] = useState<Post[]>([]);
   const [rankingPreview, setRankingPreview] = useState<RankingPreview | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // 경험치 진행률 계산
   const expProgress = React.useMemo(() => {
@@ -89,46 +65,49 @@ export default function HomeScreen() {
 
   // 사용자 데이터 및 출석 정보 로드
   const loadUserData = async () => {
-    if (!user?.uid) return;
-    
     try {
       setLoading(true);
       
-      // 경험치 데이터 동기화
-      await syncUserExperienceData(user.uid);
-      
-      const [
-        attendanceInfo, 
-        mainSchoolInfo, 
-        gameStatsResponse,
-        posts,
-        rankings
-      ] = await Promise.all([
-        checkAttendance(user.uid),
-        getMainSchool(user.uid),
-        getUserGameStats(user.uid),
-        getPopularPostsForHome(3),
-        getRankingPreview(
-          user.uid,
-          user.school?.id,
-          user.regions?.sido,
-          user.regions?.sigungu
-        )
-      ]);
-      
-      setAttendance(attendanceInfo);
-      setMainSchool(mainSchoolInfo);
-      setPopularPosts(posts);
-      setRankingPreview(rankings);
-      
-      if (gameStatsResponse.success && gameStatsResponse.data) {
-        setGameStats({
-          bestReactionTimes: gameStatsResponse.data.bestReactionTimes,
-          todayPlays: gameStatsResponse.data.todayPlays
-        });
+      // 로그인된 경우에만 개인 데이터 로드
+      if (user?.uid) {
+        // 경험치 데이터 동기화
+        await syncUserExperienceData(user.uid);
+        
+        const [
+          attendanceInfo, 
+          mainSchoolInfo, 
+          gameStatsResponse,
+          rankings
+        ] = await Promise.all([
+          checkAttendance(user.uid),
+          getMainSchool(user.uid),
+          getUserGameStats(user.uid),
+          getRankingPreview(
+            user.uid,
+            user.school?.id,
+            user.regions?.sido,
+            user.regions?.sigungu
+          )
+        ]);
+        
+        setAttendance(attendanceInfo);
+        setMainSchool(mainSchoolInfo);
+        setRankingPreview(rankings);
+        
+        if (gameStatsResponse.success && gameStatsResponse.data) {
+          setGameStats({
+            bestReactionTimes: gameStatsResponse.data.bestReactionTimes,
+            todayPlays: gameStatsResponse.data.todayPlays
+          });
+        }
       }
+      
+      // 인기 게시글은 로그인 여부와 관계없이 로드
+      const posts = await getPopularPostsForHome(3);
+      setPopularPosts(posts);
+      
     } catch (error) {
-      console.error('사용자 데이터 로드 오류:', error);
+      console.error('데이터 로드 오류:', error);
     } finally {
       setLoading(false);
     }
@@ -138,10 +117,14 @@ export default function HomeScreen() {
   // 로컬 상태는 AuthStore의 user 데이터를 직접 사용
 
   useEffect(() => {
-    loadUserData();
-  }, [user?.uid]);
+    if (!authLoading) {
+      loadUserData();
+    }
+  }, [user?.uid, authLoading]);
 
   const onRefresh = async () => {
+    if (!user?.uid) return;
+    
     setRefreshing(true);
     await loadUserData();
     setRefreshing(false);
@@ -152,11 +135,11 @@ export default function HomeScreen() {
     
     setIsCheckingAttendance(true);
     try {
-      const result = await checkAttendance(user.uid);
+      const result = await checkAttendance(user.uid, true);
       setAttendance(result);
       
       if (result.checkedToday) {
-        Alert.alert('출석 완료!', '경험치 +10을 획득했습니다! 🎉');
+        Alert.alert('출석 완료!', `경험치 +${result.expGained || 10}을 획득했습니다! 🎉`);
       }
     } catch (error) {
       console.error('출석 체크 오류:', error);
@@ -193,9 +176,158 @@ export default function HomeScreen() {
   };
 
   const navigateToRanking = () => {
-    router.push('/ranking' as any);
+    router.push('/(tabs)/ranking');
   };
 
+  const navigateToLogin = () => {
+    router.push('/auth' as any);
+  };
+
+  // 인증 로딩 중
+  if (authLoading) {
+    return (
+      <SafeScreenContainer>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#10B981" />
+          <Text style={styles.loadingText}>앱을 시작하는 중...</Text>
+        </View>
+      </SafeScreenContainer>
+    );
+  }
+
+  // 로그인하지 않은 상태
+  if (!user) {
+    return (
+      <SafeScreenContainer>
+        <ScrollView style={styles.container}>
+          <View style={styles.header}>
+            <Text style={styles.title}>📚 Inschoolz</Text>
+            <Text style={styles.subtitle}>학생들을 위한 커뮤니티</Text>
+          </View>
+
+          <View style={styles.loginPrompt}>
+            <Ionicons name="person-circle-outline" size={64} color="#9CA3AF" />
+            <Text style={styles.loginPromptTitle}>로그인이 필요합니다</Text>
+            <Text style={styles.loginPromptDescription}>
+              Inschoolz의 모든 기능을 이용하려면 로그인해주세요.
+            </Text>
+            <TouchableOpacity style={styles.loginButton} onPress={navigateToLogin}>
+              <Text style={styles.loginButtonText}>로그인하기</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 로그인 없이도 볼 수 있는 컨텐츠 */}
+          
+          {/* 인기 게시글 */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>🔥 인기 게시글</Text>
+              <TouchableOpacity onPress={() => navigateToCommunity('national')}>
+                <Text style={styles.moreButton}>더보기</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {popularPosts.length > 0 ? (
+              popularPosts.map((post, index) => (
+                <TouchableOpacity 
+                  key={post.id} 
+                  style={styles.postCard}
+                  onPress={() => navigateToPost(post)}
+                >
+                  <View style={styles.postHeader}>
+                    <View style={styles.postBadgeContainer}>
+                      <Text style={styles.postTypeBadge}>전국</Text>
+                      <Text style={styles.postBoardBadge}>{(post as any).boardName || post.boardCode}</Text>
+                    </View>
+                    <Text style={styles.postDate}>{formatSmartTime(post.createdAt)}</Text>
+                  </View>
+                  
+                  <Text style={styles.postTitle} numberOfLines={2}>
+                    {post.title}
+                  </Text>
+                  
+                  {(post as any).previewContent && (
+                    <Text style={styles.postPreview} numberOfLines={2}>
+                      {(post as any).previewContent}
+                    </Text>
+                  )}
+                  
+                  <View style={styles.postStats}>
+                    <View style={styles.postStatsLeft}>
+                      <Text style={styles.postStatItem}>👍 {post.stats?.likeCount || 0}</Text>
+                      <Text style={styles.postStatItem}>💬 {post.stats?.commentCount || 0}</Text>
+                      <Text style={styles.postStatItem}>👁 {post.stats?.viewCount || 0}</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>아직 인기 게시글이 없습니다</Text>
+              </View>
+            )}
+          </View>
+          
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🎮 미니게임</Text>
+            <View style={styles.gameGrid}>
+              <TouchableOpacity 
+                style={styles.gameCard}
+                onPress={() => Alert.alert('로그인 필요', '게임을 플레이하려면 로그인해주세요.')}
+              >
+                <Text style={styles.gameIcon}>⚡</Text>
+                <Text style={styles.gameTitle}>반응속도</Text>
+                <Text style={styles.gameDesc}>로그인 후 플레이</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.gameCard}
+                onPress={() => Alert.alert('준비 중', '곧 출시될 예정입니다! 🚀')}
+              >
+                <Text style={styles.gameIcon}>🧩</Text>
+                <Text style={styles.gameTitle}>타일 맞추기</Text>
+                <Text style={styles.gameDesc}>준비 중</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📝 커뮤니티</Text>
+            <View style={styles.communityGrid}>
+              <TouchableOpacity 
+                style={styles.communityCard}
+                onPress={() => navigateToCommunity('national')}
+              >
+                <Text style={styles.communityIcon}>🌍</Text>
+                <Text style={styles.communityTitle}>전국</Text>
+                <Text style={styles.communityDesc}>전국 학생들과 소통</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.communityCard}
+                onPress={() => Alert.alert('로그인 필요', '학교 커뮤니티를 이용하려면 로그인해주세요.')}
+              >
+                <Text style={styles.communityIcon}>🏫</Text>
+                <Text style={styles.communityTitle}>학교</Text>
+                <Text style={styles.communityDesc}>로그인 후 이용</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.communityCard}
+                onPress={() => Alert.alert('로그인 필요', '지역 커뮤니티를 이용하려면 로그인해주세요.')}
+              >
+                <Text style={styles.communityIcon}>🏘️</Text>
+                <Text style={styles.communityTitle}>지역</Text>
+                <Text style={styles.communityDesc}>로그인 후 이용</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeScreenContainer>
+    );
+  }
+
+  // 로그인된 상태에서 데이터 로딩 중
   if (loading) {
     return (
       <SafeScreenContainer>
@@ -207,82 +339,76 @@ export default function HomeScreen() {
     );
   }
 
+  // 로그인된 상태의 메인 화면
   return (
-    <SafeScreenContainer 
-      scrollable={true}
-      contentContainerStyle={{
-        paddingHorizontal: 0, // 기본 패딩 제거 (각 섹션에서 개별 설정)
-      }}
-    >
+    <SafeScreenContainer>
       <ScrollView 
-        style={{ flex: 1 }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        style={styles.container}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
-
-
-      {/* 헤더 - 사용자 정보 & 경험치 */}
-      <View style={styles.header}>
-        <View style={styles.userInfo}>
-          <Text style={styles.welcomeText}>안녕하세요!</Text>
-          <Text style={styles.userName}>{user?.profile?.userName || '사용자'}님</Text>
-        </View>
-        <View style={styles.expContainer}>
-          <View style={styles.levelBadge}>
-            <Text style={styles.levelText}>Lv.{user?.stats?.level || 1}</Text>
+        {/* 헤더 */}
+        <View style={styles.header}>
+          <Text style={styles.title}>📚 Inschoolz</Text>
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>{user.profile?.userName || '익명'}</Text>
+            <View style={styles.expBar}>
+              <View style={styles.expBarBackground}>
+                <View style={[styles.expBarFill, { width: `${expProgress.percentage}%` }]} />
+              </View>
+              <Text style={styles.expText}>
+                Lv.{user.stats?.level || 1} ({expProgress.current}/{expProgress.required})
+              </Text>
+            </View>
           </View>
-          <View style={styles.expBar}>
-            <View style={[styles.expFill, { width: `${expProgress.percentage}%` }]} />
+        </View>
+
+        {/* 출석 체크 */}
+        <View style={styles.section}>
+          <View style={styles.attendanceCard}>
+            <Text style={styles.attendanceTitle}>📅 출석 체크</Text>
+            {attendance?.checkedToday ? (
+              <Text style={styles.attendanceDesc}>
+                오늘 출석 완료! 연속 {attendance.streak}일째 출석 중! 🔥
+              </Text>
+            ) : (
+              <Text style={styles.attendanceDesc}>
+                {attendance?.streak ? `연속 ${attendance.streak}일째 출석 중!` : '출석체크로 경험치를 받으세요!'}
+              </Text>
+            )}
+            <TouchableOpacity 
+              style={[
+                styles.attendanceButton,
+                { 
+                  backgroundColor: attendance?.checkedToday ? '#10b981' : '#2563eb',
+                  opacity: isCheckingAttendance ? 0.7 : 1
+                }
+              ]}
+              onPress={handleAttendanceCheck}
+              disabled={attendance?.checkedToday || isCheckingAttendance}
+            >
+              <Text style={styles.attendanceButtonText}>
+                {isCheckingAttendance 
+                  ? '처리중...' 
+                  : attendance?.checkedToday 
+                    ? '✅ 출석 완료' 
+                    : '출석 체크하기 (+10 XP)'
+                }
+              </Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.expText}>{expProgress.current}/{expProgress.required} XP</Text>
         </View>
-      </View>
 
-      {/* 출석 체크 */}
-      <View style={styles.section}>
-        <View style={styles.attendanceCard}>
-          <Text style={styles.attendanceTitle}>📅 출석 체크</Text>
-          {attendance?.checkedToday ? (
-            <Text style={styles.attendanceDesc}>
-              오늘 출석 완료! 연속 {attendance.streak}일째 출석 중! 🔥
-            </Text>
-          ) : (
-            <Text style={styles.attendanceDesc}>
-              {attendance?.streak ? `연속 ${attendance.streak}일째 출석 중!` : '출석체크로 경험치를 받으세요!'}
-            </Text>
-          )}
-          <TouchableOpacity 
-            style={[
-              styles.attendanceButton,
-              { 
-                backgroundColor: attendance?.checkedToday ? '#10b981' : '#2563eb',
-                opacity: isCheckingAttendance ? 0.7 : 1
-              }
-            ]}
-            onPress={handleAttendanceCheck}
-            disabled={attendance?.checkedToday || isCheckingAttendance}
-          >
-            <Text style={styles.attendanceButtonText}>
-              {isCheckingAttendance 
-                ? '처리중...' 
-                : attendance?.checkedToday 
-                  ? '✅ 출석 완료' 
-                  : '출석 체크하기 (+10 XP)'
-              }
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* 인기 게시글 */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>🔥 실시간 인기 글</Text>
-          <TouchableOpacity onPress={() => navigateToCommunity('national')}>
-            <Text style={styles.moreText}>더보기</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.popularPostsContainer}>
+        {/* 인기 게시글 */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>🔥 인기 게시글</Text>
+            <TouchableOpacity onPress={() => navigateToCommunity('national')}>
+              <Text style={styles.moreButton}>더보기</Text>
+            </TouchableOpacity>
+          </View>
+          
           {popularPosts.length > 0 ? (
             popularPosts.map((post, index) => (
               <TouchableOpacity 
@@ -290,135 +416,108 @@ export default function HomeScreen() {
                 style={styles.postCard}
                 onPress={() => navigateToPost(post)}
               >
-                <View style={styles.postContentContainer}>
-                  <View style={styles.postRank}>
-                    <Text style={styles.postRankText}>{index + 1}</Text>
+                <View style={styles.postHeader}>
+                  <View style={styles.postBadgeContainer}>
+                    <Text style={styles.postTypeBadge}>전국</Text>
+                    <Text style={styles.postBoardBadge}>{(post as any).boardName || post.boardCode}</Text>
                   </View>
-                  <View style={styles.postInfo}>
-                    <Text style={styles.postTitle} numberOfLines={2}>{post.title}</Text>
-                    <Text style={styles.postContent} numberOfLines={2}>
-                      {(post as any).previewContent || post.content?.replace(/<[^>]*>/g, '').slice(0, 150) || ''}
-                    </Text>
-                    <View style={styles.postMeta}>
-                      <Text style={styles.postStat}>❤️ {post.stats.likeCount}</Text>
-                      <Text style={styles.postStat}>💬 {post.stats.commentCount}</Text>
-                      <Text style={styles.postMetaText}>•</Text>
-                      <Text style={styles.postMetaText}>
-                        {post.authorInfo.isAnonymous ? '익명' : post.authorInfo.displayName}
-                      </Text>
-                      <Text style={styles.postMetaText}>•</Text>
-                      <Text style={styles.postMetaText}>{formatSmartTime(post.createdAt)}</Text>
-                    </View>
+                  <Text style={styles.postDate}>{formatSmartTime(post.createdAt)}</Text>
+                </View>
+                
+                <Text style={styles.postTitle} numberOfLines={2}>
+                  {post.title}
+                </Text>
+                
+                {(post as any).previewContent && (
+                  <Text style={styles.postPreview} numberOfLines={2}>
+                    {(post as any).previewContent}
+                  </Text>
+                )}
+                
+                <View style={styles.postStats}>
+                  <View style={styles.postStatsLeft}>
+                    <Text style={styles.postStatItem}>👍 {post.stats?.likeCount || 0}</Text>
+                    <Text style={styles.postStatItem}>💬 {post.stats?.commentCount || 0}</Text>
+                    <Text style={styles.postStatItem}>👁 {post.stats?.viewCount || 0}</Text>
                   </View>
                 </View>
               </TouchableOpacity>
             ))
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>아직 인기 글이 없습니다</Text>
+              <Text style={styles.emptyStateText}>아직 인기 게시글이 없습니다</Text>
             </View>
           )}
         </View>
-      </View>
 
-      {/* 랭킹 */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>🏆 랭킹</Text>
-          <TouchableOpacity onPress={navigateToRanking}>
-            <Text style={styles.moreText}>전체보기</Text>
-          </TouchableOpacity>
-        </View>
-        
-        {/* 전국 랭킹 */}
-        <View style={styles.rankingSection}>
-          <Text style={styles.rankingTitle}>🌍 전국 랭킹</Text>
-          {rankingPreview?.national.slice(0, 3).map((user, index) => (
-            <View key={user.id} style={styles.rankingItem}>
-              <Text style={styles.rankingRank}>{getRankIcon(index + 1)}</Text>
-              <Text style={styles.rankingName}>{user.userName}</Text>
-              <Text style={styles.rankingLevel}>Lv.{user.stats.level}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* 지역 랭킹 */}
-        {rankingPreview?.regional && rankingPreview.regional.length > 0 && (
-          <View style={styles.rankingSection}>
-            <Text style={styles.rankingTitle}>🏘️ 지역 랭킹</Text>
-            {rankingPreview.regional.slice(0, 3).map((user, index) => (
-              <View key={user.id} style={styles.rankingItem}>
-                <Text style={styles.rankingRank}>{getRankIcon(index + 1)}</Text>
-                <Text style={styles.rankingName}>{user.userName}</Text>
-                <Text style={styles.rankingLevel}>Lv.{user.stats.level}</Text>
-              </View>
-            ))}
+        {/* 미니게임 */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🎮 미니게임</Text>
+          <View style={styles.gameGrid}>
+            <TouchableOpacity 
+              style={styles.gameCard}
+              onPress={() => navigateToGame('reaction')}
+            >
+              <Text style={styles.gameIcon}>⚡</Text>
+              <Text style={styles.gameTitle}>반응속도</Text>
+              <Text style={styles.gameDesc}>
+                {gameStats.bestReactionTimes.reactionGame 
+                  ? `최고: ${gameStats.bestReactionTimes.reactionGame}ms` 
+                  : '도전해보세요!'
+                }
+              </Text>
+              <Text style={styles.gamePlayCount}>
+                오늘 {gameStats.todayPlays.reactionGame || 0}/5 플레이
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.gameCard}
+              onPress={() => Alert.alert('준비 중', '곧 출시될 예정입니다! 🚀')}
+            >
+              <Text style={styles.gameIcon}>🧩</Text>
+              <Text style={styles.gameTitle}>타일 맞추기</Text>
+              <Text style={styles.gameDesc}>준비 중</Text>
+            </TouchableOpacity>
           </View>
-        )}
-
-        {/* 학교 랭킹 */}
-        {rankingPreview?.school && rankingPreview.school.length > 0 && (
-          <View style={styles.rankingSection}>
-            <Text style={styles.rankingTitle}>🏫 학교 랭킹</Text>
-            {rankingPreview.school.slice(0, 3).map((user, index) => (
-              <View key={user.id} style={styles.rankingItem}>
-                <Text style={styles.rankingRank}>{getRankIcon(index + 1)}</Text>
-                <Text style={styles.rankingName}>{user.userName}</Text>
-                <Text style={styles.rankingLevel}>Lv.{user.stats.level}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-      </View>
-
-      {/* 미니게임 섹션 */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>🎮 미니게임</Text>
-        <View style={styles.gameGrid}>
-          <TouchableOpacity 
-            style={styles.gameCard}
-            onPress={() => navigateToGame('reaction')}
-          >
-            <Text style={styles.gameIcon}>⚡</Text>
-            <Text style={styles.gameName}>반응속도</Text>
-            <Text style={styles.gameScore}>
-              최고: {gameStats.bestReactionTimes.reactionGame ? `${gameStats.bestReactionTimes.reactionGame}ms` : '-'}
-            </Text>
-            <Text style={styles.gameReward}>+15 XP</Text>
-            <Text style={styles.gamePlays}>오늘: {gameStats.todayPlays.reactionGame}/5</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.gameCard, styles.gameCardDisabled]}
-            onPress={() => navigateToGame('tile')}
-          >
-            <Text style={styles.gameIcon}>🧩</Text>
-            <Text style={styles.gameName}>타일 맞추기</Text>
-            <Text style={styles.gameScore}>곧 출시</Text>
-            <Text style={styles.gameReward}>+20 XP</Text>
-            <Text style={styles.gamePlays}>준비 중</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.gameCard, styles.gameCardDisabled]}
-            onPress={() => navigateToGame('calculation')}
-          >
-            <Text style={styles.gameIcon}>🧮</Text>
-            <Text style={styles.gameName}>빠른 계산</Text>
-            <Text style={styles.gameScore}>곧 출시</Text>
-            <Text style={styles.gameReward}>+18 XP</Text>
-            <Text style={styles.gamePlays}>준비 중</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.gameCard, styles.gameCardDisabled]}
-            onPress={() => navigateToGame('word')}
-          >
-            <Text style={styles.gameIcon}>📝</Text>
-            <Text style={styles.gameName}>단어 맞추기</Text>
-            <Text style={styles.gameScore}>곧 출시</Text>
-            <Text style={styles.gameReward}>+25 XP</Text>
-            <Text style={styles.gamePlays}>준비 중</Text>
-          </TouchableOpacity>
         </View>
-      </View>
+
+        {/* 커뮤니티 바로가기 */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📝 커뮤니티</Text>
+          <View style={styles.communityGrid}>
+            <TouchableOpacity 
+              style={styles.communityCard}
+              onPress={() => navigateToCommunity('national')}
+            >
+              <Text style={styles.communityIcon}>🌍</Text>
+              <Text style={styles.communityTitle}>전국</Text>
+              <Text style={styles.communityDesc}>전국 학생들과 소통</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.communityCard}
+              onPress={() => navigateToCommunity('regional')}
+            >
+              <Text style={styles.communityIcon}>🏘️</Text>
+              <Text style={styles.communityTitle}>지역</Text>
+              <Text style={styles.communityDesc}>
+                {user.regions?.sigungu || '지역 설정 필요'}
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.communityCard}
+              onPress={() => navigateToCommunity('school')}
+            >
+              <Text style={styles.communityIcon}>🏫</Text>
+              <Text style={styles.communityTitle}>학교</Text>
+              <Text style={styles.communityDesc}>
+                {mainSchool?.KOR_NAME || '학교 설정 필요'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </ScrollView>
     </SafeScreenContainer>
   );
@@ -435,7 +534,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6b7280',
   },
-
+  container: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+  },
   header: {
     backgroundColor: 'white',
     marginHorizontal: 16,
@@ -449,43 +551,40 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  userInfo: {
-    marginBottom: 16,
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    textAlign: 'center',
+    marginBottom: 8,
   },
-  welcomeText: {
+  subtitle: {
     fontSize: 16,
     color: '#6b7280',
-    marginBottom: 4,
+    textAlign: 'center',
+  },
+  userInfo: {
+    marginTop: 16,
   },
   userName: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#1f2937',
   },
-  expContainer: {
+  expBar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    marginTop: 8,
   },
-  levelBadge: {
-    backgroundColor: '#10b981',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  levelText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  expBar: {
+  expBarBackground: {
     flex: 1,
     height: 8,
     backgroundColor: '#e5e7eb',
     borderRadius: 4,
     overflow: 'hidden',
   },
-  expFill: {
+  expBarFill: {
     height: '100%',
     backgroundColor: '#10b981',
     borderRadius: 4,
@@ -494,6 +593,45 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6b7280',
     fontWeight: '500',
+  },
+  loginPrompt: {
+    backgroundColor: 'white',
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 24,
+    padding: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  loginPromptTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  loginPromptDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  loginButton: {
+    backgroundColor: '#10b981',
+    paddingVertical: 14,
+    paddingHorizontal: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  loginButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   section: {
     marginHorizontal: 16,
@@ -509,8 +647,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#1f2937',
+    marginBottom: 12,
   },
-  moreText: {
+  moreButton: {
     fontSize: 14,
     color: '#10b981',
     fontWeight: '500',
@@ -557,30 +696,47 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   postCard: {
+    backgroundColor: 'white',
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  postContentContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  postRank: {
-    width: 24,
-    height: 24,
-    backgroundColor: '#f3f4f6',
     borderRadius: 12,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  postHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: 8,
   },
-  postRankText: {
+  postBadgeContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  postTypeBadge: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#6b7280',
+    fontWeight: 'bold',
+    color: '#1f2937',
+    backgroundColor: '#e0e7ff',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
   },
-  postInfo: {
-    flex: 1,
+  postBoardBadge: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    backgroundColor: '#d1fae5',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  postDate: {
+    fontSize: 12,
+    color: '#6b7280',
   },
   postTitle: {
     fontSize: 16,
@@ -589,24 +745,23 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     lineHeight: 22,
   },
-  postContent: {
+  postPreview: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#4b5563',
     marginBottom: 8,
-    lineHeight: 20,
   },
-  postMeta: {
+  postStats: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
   },
-  postStat: {
+  postStatsLeft: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  postStatItem: {
     fontSize: 12,
     color: '#6b7280',
-  },
-  postMetaText: {
-    fontSize: 12,
-    color: '#9ca3af',
   },
   emptyState: {
     padding: 32,
@@ -639,7 +794,7 @@ const styles = StyleSheet.create({
     fontSize: 32,
     marginBottom: 8,
   },
-  communityName: {
+  communityTitle: {
     fontSize: 14,
     fontWeight: '600',
     color: '#1f2937',
@@ -650,11 +805,14 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
   },
-  rankingSection: {
+  rankingGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  rankingCard: {
     backgroundColor: 'white',
     padding: 16,
     borderRadius: 12,
-    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -668,23 +826,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   rankingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  rankingRank: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    width: 40,
-  },
-  rankingName: {
-    flex: 1,
     fontSize: 14,
     color: '#1f2937',
-  },
-  rankingLevel: {
-    fontSize: 12,
-    color: '#6b7280',
+    marginBottom: 8,
   },
   gameGrid: {
     flexDirection: 'row',
@@ -710,24 +854,18 @@ const styles = StyleSheet.create({
     fontSize: 32,
     marginBottom: 8,
   },
-  gameName: {
+  gameTitle: {
     fontSize: 14,
     fontWeight: '600',
     color: '#1f2937',
     marginBottom: 4,
   },
-  gameScore: {
+  gameDesc: {
     fontSize: 12,
     color: '#6b7280',
     marginBottom: 4,
   },
-  gameReward: {
-    fontSize: 12,
-    color: '#10b981',
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  gamePlays: {
+  gamePlayCount: {
     fontSize: 11,
     color: '#9ca3af',
   },

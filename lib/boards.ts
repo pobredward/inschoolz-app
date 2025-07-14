@@ -595,6 +595,9 @@ export const getPopularPostsForHome = async (count = 10): Promise<Post[]> => {
     const querySnapshot = await getDocs(q);
     const posts: Post[] = [];
     
+    // 게시판 정보를 캐시할 맵
+    const boardsMap = new Map<string, Board>();
+    
     querySnapshot.forEach((doc) => {
       const postData = doc.data();
       posts.push({
@@ -617,13 +620,28 @@ export const getPopularPostsForHome = async (count = 10): Promise<Post[]> => {
       } as Post);
     });
     
+    // 게시판 정보 가져오기
+    for (const post of posts) {
+      if (post.boardCode && !boardsMap.has(post.boardCode)) {
+        try {
+          const board = await getBoardByCode(post.boardCode, 'national');
+          if (board) {
+            boardsMap.set(post.boardCode, board);
+          }
+        } catch (error) {
+          console.warn(`게시판 정보 조회 실패: ${post.boardCode}`, error);
+        }
+      }
+    }
+    
     // 조회수 기준으로 정렬하고 상위 게시글만 선택 (클라이언트 사이드)
     const sortedPosts = posts
       .sort((a, b) => (b.stats?.viewCount || 0) - (a.stats?.viewCount || 0))
       .slice(0, count)
       .map(post => ({
         ...post,
-        previewContent: post.content?.replace(/<[^>]*>/g, '').slice(0, 150) || ''
+        boardName: boardsMap.get(post.boardCode)?.name || post.boardCode,
+        previewContent: post.content?.replace(/<[^>]*>/g, '').slice(0, 100) || ''
       }));
     
     return sortedPosts;

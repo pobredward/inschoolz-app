@@ -249,7 +249,6 @@ function CustomHeader() {
 }
 
 export default function TabLayout() {
-  const colorScheme = 'light'; // 기본값으로 설정
   const insets = useSafeAreaInsets();
   const segments = useSegments();
   const { user } = useAuthStore();
@@ -257,9 +256,8 @@ export default function TabLayout() {
   // 현재 활성 탭 감지
   const currentTab = segments[1] || 'index';
 
-  // Firebase 실시간 리스너는 AuthStore에서 중앙 관리됨
-  // 관리자 권한 확인 - AuthStore의 user 데이터 사용
-  const isAdmin = user?.role === 'admin';
+  // 관리자 권한 확인 - 로그인된 상태이고 role이 admin인 경우에만
+  const isAdmin = user && user.role === 'admin';
 
   return (
     <>
@@ -358,21 +356,20 @@ export default function TabLayout() {
           }}
         />
         {/* 관리자 탭 - 관리자만 표시 */}
-        {isAdmin && (
-          <Tabs.Screen
-            name="admin"
-            options={{
-              title: '관리자',
-              tabBarIcon: ({ color, focused }) => (
-                <IconSymbol 
-                  size={24} 
-                  name={focused ? "shield.fill" : "shield"} 
-                  color={color} 
-                />
-              ),
-            }}
-          />
-        )}
+        <Tabs.Screen
+          name="admin"
+          options={{
+            title: '관리자',
+            href: isAdmin ? undefined : null, // admin이 아닌 경우 탭에서 완전히 숨김
+            tabBarIcon: ({ color, focused }) => (
+              <IconSymbol 
+                size={24} 
+                name={focused ? "shield.fill" : "shield"} 
+                color={color} 
+              />
+            ),
+          }}
+        />
         {/* 기존 explore 탭 숨김 */}
         <Tabs.Screen
           name="explore"

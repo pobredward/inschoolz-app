@@ -224,7 +224,7 @@ export default function PostDetailScreen() {
       const commentsQuery = query(
         collection(db, 'posts', postId, 'comments'),
         where('parentId', '==', null),
-        orderBy('createdAt', 'desc')
+        orderBy('createdAt', 'asc')
       );
       const commentsSnapshot = await getDocs(commentsQuery);
       const commentsData: CommentWithAuthor[] = [];
@@ -567,11 +567,6 @@ export default function PostDetailScreen() {
     return (
       <View key={comment.id} style={[styles.commentContainer, isReply && styles.replyContainer]}>
         <View style={styles.commentWrapper}>
-          {/* 대댓글 연결선 */}
-          {isReply && (
-            <View style={styles.replyConnector} />
-          )}
-          
           <View style={styles.commentAvatar}>
             <Text style={styles.avatarText}>
               {authorName.charAt(0)}
@@ -1054,6 +1049,9 @@ const styles = StyleSheet.create({
   replyContainer: {
     marginLeft: 24,
     marginTop: 8,
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 12,
   },
   commentWrapper: {
     flexDirection: 'row',
@@ -1171,17 +1169,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  replyConnector: {
-    position: 'absolute',
-    left: 16,
-    top: -8,
-    width: 20,
-    height: 20,
-    borderLeftWidth: 2,
-    borderBottomWidth: 2,
-    borderColor: '#e2e8f0',
-    borderBottomLeftRadius: 8,
-  },
+
   replyToIndicator: {
     backgroundColor: '#e0f2fe', // 답글 힌트 배경색
     paddingHorizontal: 8,

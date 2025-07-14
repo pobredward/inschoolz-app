@@ -28,7 +28,7 @@ export default function MyLikesScreen() {
     if (!user?.uid) return;
 
     try {
-      const likedPosts = await getUserLikedPosts(user.uid);
+      const likedPosts = await getUserLikedPosts(user.uid, 1, 20);
       setPosts(likedPosts);
     } catch (error) {
       console.error('좋아요한 글 로드 오류:', error);

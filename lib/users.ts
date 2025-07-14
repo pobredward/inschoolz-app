@@ -18,6 +18,7 @@ import { db } from './firebase';
 import { User } from '../types'; // 통일된 타입 사용
 import { storage } from './firebase'; // storage 추가
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'; // storage 관련 함수 추가
+import { getBoard } from './boards'; // 게시판 정보 조회를 위해 추가
 
 interface Post {
   id: string;
@@ -26,6 +27,14 @@ interface Post {
   authorId: string;
   createdAt: number;
   updatedAt?: number;
+  boardCode: string;
+  type: string;
+  schoolId?: string;
+  regions?: {
+    sido: string;
+    sigungu: string;
+  };
+  attachments?: any[];
   status: {
     isDeleted: boolean;
   };
@@ -34,6 +43,8 @@ interface Post {
     likeCount: number;
     commentCount: number;
   };
+  boardName?: string;
+  previewContent?: string;
 }
 
 interface Comment {
@@ -44,6 +55,16 @@ interface Comment {
   createdAt: number;
   status: {
     isDeleted: boolean;
+  };
+  postData?: {
+    title: string;
+    type: string;
+    boardCode: string;
+    schoolId?: string;
+    regions?: {
+      sido: string;
+      sigungu: string;
+    };
   };
 }
 
@@ -682,21 +703,72 @@ export const updateProfileImage = async (
 /**
  * 사용자가 작성한 게시글 목록 조회
  */
-export const getUserPosts = async (userId: string, page = 1, pageSize = 10): Promise<Post[]> => {
+export const getUserPosts = async (
+  userId: string, 
+  page = 1, 
+  pageSize = 10,
+  sortBy: 'latest' | 'popular' = 'latest'
+): Promise<{ posts: Post[], totalCount: number, hasMore: boolean }> => {
   try {
-    const postsQuery = query(
-      collection(db, 'posts'),
-      where('authorId', '==', userId),
-      where('status.isDeleted', '==', false),
-      orderBy('createdAt', 'desc'),
-      limit(pageSize)
-    );
+    if (!userId) {
+      return {
+        posts: [],
+        totalCount: 0,
+        hasMore: false
+      };
+    }
+
+    let postsQuery;
+    
+    if (sortBy === 'latest') {
+      postsQuery = query(
+        collection(db, 'posts'),
+        where('authorId', '==', userId),
+        where('status.isDeleted', '==', false),
+        orderBy('createdAt', 'desc'),
+        limit(pageSize * page)
+      );
+    } else {
+      postsQuery = query(
+        collection(db, 'posts'),
+        where('authorId', '==', userId),
+        where('status.isDeleted', '==', false),
+        orderBy('stats.likeCount', 'desc'),
+        limit(pageSize * page)
+      );
+    }
     
     const querySnapshot = await getDocs(postsQuery);
     const posts: Post[] = [];
     
-    querySnapshot.forEach((doc) => {
+    // 게시판 정보 캐시
+    const boardCache: { [key: string]: string } = {};
+    
+    for (const doc of querySnapshot.docs) {
       const postData = doc.data();
+      
+      // 게시판 이름 조회
+      let boardName = '게시판';
+      if (postData.boardCode) {
+        if (boardCache[postData.boardCode]) {
+          boardName = boardCache[postData.boardCode];
+        } else {
+          try {
+            const board = await getBoard(postData.boardCode);
+            boardName = board?.name || `게시판 (${postData.boardCode})`;
+            boardCache[postData.boardCode] = boardName;
+          } catch (error) {
+            console.error('게시판 정보 조회 실패:', error);
+            boardName = `게시판 (${postData.boardCode})`;
+          }
+        }
+      }
+      
+      // 미리보기 콘텐츠 생성
+      const previewContent = postData.content 
+        ? postData.content.replace(/<[^>]*>/g, '').substring(0, 100)
+        : '';
+      
       posts.push({
         id: doc.id,
         title: postData.title,
@@ -704,12 +776,37 @@ export const getUserPosts = async (userId: string, page = 1, pageSize = 10): Pro
         authorId: postData.authorId,
         createdAt: postData.createdAt,
         updatedAt: postData.updatedAt,
+        boardCode: postData.boardCode,
+        type: postData.type,
+        schoolId: postData.schoolId,
+        regions: postData.regions,
+        attachments: postData.attachments || [],
         status: postData.status,
-        stats: postData.stats
+        stats: postData.stats,
+        boardName,
+        previewContent
       } as Post);
-    });
+    }
     
-    return posts;
+    // 전체 게시글 수 가져오기
+    const countQuery = query(
+      collection(db, 'posts'),
+      where('authorId', '==', userId),
+      where('status.isDeleted', '==', false)
+    );
+    
+    const countSnapshot = await getDocs(countQuery);
+    const totalCount = countSnapshot.size;
+    
+    // 페이징 처리
+    const startIndex = (page - 1) * pageSize;
+    const paginatedPosts = posts.slice(startIndex, startIndex + pageSize);
+    
+    return {
+      posts: paginatedPosts,
+      totalCount,
+      hasMore: totalCount > page * pageSize
+    };
   } catch (error) {
     console.error('사용자 게시글 목록 조회 오류:', error);
     throw new Error('게시글 목록을 가져오는 중 오류가 발생했습니다.');
@@ -719,32 +816,74 @@ export const getUserPosts = async (userId: string, page = 1, pageSize = 10): Pro
 /**
  * 사용자가 작성한 댓글 목록 조회
  */
-export const getUserComments = async (userId: string, page = 1, pageSize = 10): Promise<Comment[]> => {
+export const getUserComments = async (
+  userId: string,
+  page = 1,
+  pageSize = 10
+): Promise<{ comments: Comment[], totalCount: number, hasMore: boolean }> => {
   try {
-    const commentsQuery = query(
-      collection(db, 'comments'),
-      where('authorId', '==', userId),
-      where('status.isDeleted', '==', false),
-      orderBy('createdAt', 'desc'),
-      limit(pageSize)
-    );
+    if (!userId) {
+      return {
+        comments: [],
+        totalCount: 0,
+        hasMore: false
+      };
+    }
     
-    const querySnapshot = await getDocs(commentsQuery);
-    const comments: Comment[] = [];
+    // Firestore에서는 하위 컬렉션에 대한 전체 쿼리가 불가능하므로 
+    // 실제 구현에서는 별도의 comments 컬렉션을 만들거나 다른 방법 필요
+    // 여기서는 개념적으로 구현
     
-    querySnapshot.forEach((doc) => {
-      const commentData = doc.data();
-      comments.push({
-        id: doc.id,
-        content: commentData.content,
-        authorId: commentData.authorId,
-        postId: commentData.postId,
-        createdAt: commentData.createdAt,
-        status: commentData.status
-      } as Comment);
-    });
+    // 모든 게시글의 comments 하위 컬렉션을 조회해야 함
+    // 실제로는 사용자의 댓글을 추적하는 별도 컬렉션을 사용하는 것이 좋음
+    const postsRef = collection(db, 'posts');
+    const postsSnapshot = await getDocs(postsRef);
     
-    return comments;
+    const allComments: Comment[] = [];
+    
+    // 각 게시글의 comments 하위 컬렉션 조회
+    for (const postDoc of postsSnapshot.docs) {
+      const commentsRef = collection(db, `posts/${postDoc.id}/comments`);
+      const commentsQuery = query(
+        commentsRef,
+        where('authorId', '==', userId),
+        where('status.isDeleted', '==', false),
+        orderBy('createdAt', 'desc')
+      );
+      
+      const commentsSnapshot = await getDocs(commentsQuery);
+      
+      commentsSnapshot.forEach((commentDoc) => {
+        const postData = postDoc.data();
+        allComments.push({ 
+          id: commentDoc.id, 
+          ...commentDoc.data(),
+          postId: postDoc.id,  // 명시적으로 postId 추가
+          postData: {
+            title: postData.title,
+            type: postData.type,
+            boardCode: postData.boardCode,
+            schoolId: postData.schoolId,
+            regions: postData.regions
+          }
+        } as Comment);
+      });
+    }
+    
+    // 생성일 기준 정렬 (최신 댓글이 위에)
+    allComments.sort((a, b) => b.createdAt - a.createdAt);
+    
+    // 페이징 처리
+    const totalCount = allComments.length;
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginatedComments = allComments.slice(startIndex, endIndex);
+    
+    return {
+      comments: paginatedComments,
+      totalCount,
+      hasMore: totalCount > endIndex
+    };
   } catch (error) {
     console.error('사용자 댓글 목록 조회 오류:', error);
     throw new Error('댓글 목록을 가져오는 중 오류가 발생했습니다.');
@@ -754,7 +893,11 @@ export const getUserComments = async (userId: string, page = 1, pageSize = 10): 
 /**
  * 사용자가 좋아요한 게시글 목록 조회
  */
-export const getUserLikedPosts = async (userId: string, page = 1, pageSize = 10): Promise<Post[]> => {
+export const getUserLikedPosts = async (
+  userId: string,
+  page = 1,
+  pageSize = 10
+): Promise<Post[]> => {
   try {
     // 사용자가 좋아요한 게시글 ID 목록 조회
     const likesRef = collection(db, 'posts');
@@ -781,7 +924,7 @@ export const getUserLikedPosts = async (userId: string, page = 1, pageSize = 10)
           title: postData.title,
           content: postData.content,
           authorId: postData.authorId,
-          createdAt: postData.createdAt,
+          createdAt: postData.createdAt?.seconds ? postData.createdAt.seconds : postData.createdAt,
           updatedAt: postData.updatedAt,
           status: postData.status,
           stats: postData.stats
@@ -791,7 +934,11 @@ export const getUserLikedPosts = async (userId: string, page = 1, pageSize = 10)
       if (likedPosts.length >= pageSize) break;
     }
     
-    return likedPosts;
+    // 페이지네이션 적용
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    
+    return likedPosts.slice(startIndex, endIndex);
   } catch (error) {
     console.error('좋아요한 게시글 목록 조회 오류:', error);
     throw new Error('좋아요한 게시글 목록을 가져오는 중 오류가 발생했습니다.');

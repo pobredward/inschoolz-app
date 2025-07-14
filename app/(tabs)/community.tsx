@@ -289,6 +289,26 @@ export default function CommunityScreen() {
     </View>
   );
 
+  // 로그인이 필요한 탭에서 로그인 안내 화면
+  const renderLoginRequired = () => (
+    <View style={styles.loginRequiredContainer}>
+      <Text style={styles.loginRequiredIcon}>🔒</Text>
+      <Text style={styles.loginRequiredTitle}>로그인이 필요합니다</Text>
+      <Text style={styles.loginRequiredSubtitle}>
+        {selectedTab === 'school' ? '학교' : '지역'} 게시판을 보려면 로그인해주세요.
+      </Text>
+      <TouchableOpacity 
+        style={styles.loginButton}
+        onPress={() => router.push('/auth')}
+      >
+        <Text style={styles.loginButtonText}>로그인하기</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  // 로그인이 필요한 탭인지 확인
+  const isLoginRequired = (selectedTab === 'school' || selectedTab === 'regional') && !user;
+
   return (
     <SafeScreenContainer>
       {renderTabs()}
@@ -303,31 +323,41 @@ export default function CommunityScreen() {
           }}
         /> */
       )}
-      {renderCategoryFilter()}
-      {renderSortHeader()}
-
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#10B981" />
-        </View>
+      
+      {/* 로그인이 필요한 탭에서는 로그인 안내 화면 표시 */}
+      {isLoginRequired ? (
+        renderLoginRequired()
       ) : (
-        <FlatList
-          data={posts}
-          renderItem={renderPostCard}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.postList}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          ListEmptyComponent={renderEmptyState}
-        />
-      )}
+        <>
+          {renderCategoryFilter()}
+          {renderSortHeader()}
 
-      {/* 글쓰기 버튼 */}
-      <TouchableOpacity style={styles.writeButton} onPress={handleWritePress}>
-        <Ionicons name="add" size={24} color="white" />
-      </TouchableOpacity>
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#10B981" />
+            </View>
+          ) : (
+            <FlatList
+              data={posts}
+              renderItem={renderPostCard}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.postList}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+              }
+              ListEmptyComponent={renderEmptyState}
+            />
+          )}
+
+          {/* 글쓰기 버튼 - 로그인된 경우에만 표시 */}
+          {user && (
+            <TouchableOpacity style={styles.writeButton} onPress={handleWritePress}>
+              <Ionicons name="add" size={24} color="white" />
+            </TouchableOpacity>
+          )}
+        </>
+      )}
 
       {/* 게시판 선택 모달 */}
       <BoardSelector
@@ -548,5 +578,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 12,
+  },
+  loginRequiredContainer: {
+    alignItems: 'center',
+    paddingVertical: 48,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    margin: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  loginRequiredIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  loginRequiredTitle: {
+    fontSize: 18,
+    color: '#374151',
+    marginBottom: 4,
+  },
+  loginRequiredSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 20,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  loginButton: {
+    backgroundColor: '#10B981',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  loginButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 }); 

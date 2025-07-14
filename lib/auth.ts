@@ -63,6 +63,7 @@ export const registerWithEmail = async (
       uid: firebaseUser.uid,
       email: firebaseUser.email || '',
       role: 'student',
+      status: 'active', // 기본 상태를 'active'로 설정
       isVerified: false,
       
       // 프로필 정보

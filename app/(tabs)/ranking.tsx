@@ -1,52 +1,64 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  ScrollView, 
   View, 
   Text, 
-  TouchableOpacity, 
   StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
   RefreshControl, 
-  TextInput, 
-  Alert,
+  TextInput,
   ActivityIndicator,
-  FlatList
+  Alert
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/authStore';
-import { getRankings, RankingUser, RankingType } from '../../lib/ranking';
-import { DocumentSnapshot } from 'firebase/firestore';
-// 기본 logger 함수
-const logger = {
-  debug: (message: string, ...args: any[]) => {
-    if (__DEV__) {
-      console.log(`🔍 [DEBUG] ${message}`, ...args);
-    }
-  },
-  error: (message: string, ...args: any[]) => {
-    console.error(`❌ [ERROR] ${message}`, ...args);
-  }
-};
-import { SafeScreenContainer } from '../../components/SafeScreenContainer';
+import { getRankings } from '../../lib/ranking';
+import { logger } from '../../utils/logger';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+
+// 랭킹 타입 정의
+type RankingType = 'national' | 'regional' | 'school';
+
+interface RankingUser {
+  id: string;
+  userName: string;
+  stats: {
+    totalExperience: number;
+    level: number;
+    currentExp: number;
+  };
+  school?: {
+    id: string;
+    name: string;
+  };
+  regions?: {
+    sido: string;
+    sigungu: string;
+  };
+  profile?: {
+    avatar?: string;
+    displayName?: string;
+  };
+}
 
 interface RankingState {
   users: RankingUser[];
   hasMore: boolean;
-  lastDoc?: DocumentSnapshot;
   isLoading: boolean;
+  lastDoc?: any;
   error?: string;
 }
 
-
-
 export default function RankingScreen() {
-  const { user } = useAuthStore();
+  const { user, isLoading: authLoading } = useAuthStore();
   const [selectedType, setSelectedType] = useState<RankingType>('national');
   const [searchQuery, setSearchQuery] = useState('');
 
   const [rankingState, setRankingState] = useState<RankingState>({
     users: [],
     hasMore: false,
-    isLoading: true,
+    isLoading: false,
   });
 
   const rankingTypes = [
@@ -55,11 +67,12 @@ export default function RankingScreen() {
     { id: 'school' as RankingType, name: '학교', color: '#3b82f6', icon: 'school' },
   ];
 
-
-
   // 랭킹 데이터 로드
   const loadRankings = async (reset = false) => {
-    if (!user) return;
+    if (!user) {
+      console.log('로그인되지 않아 랭킹 데이터 로드를 건너뜁니다.');
+      return;
+    }
 
     try {
       logger.debug('랭킹 데이터 로드 시작:', { type: selectedType, reset, searchQuery });
@@ -103,15 +116,19 @@ export default function RankingScreen() {
 
   // 초기 로드 및 타입/검색 변경 시 리로드
   useEffect(() => {
-    loadRankings(true);
-  }, [selectedType, searchQuery, user]);
+    if (!authLoading && user) {
+      loadRankings(true);
+    }
+  }, [selectedType, searchQuery, user, authLoading]);
 
   const handleRefresh = () => {
-    loadRankings(true);
+    if (user) {
+      loadRankings(true);
+    }
   };
 
   const handleLoadMore = () => {
-    if (!rankingState.isLoading && rankingState.hasMore) {
+    if (!rankingState.isLoading && rankingState.hasMore && user) {
       loadRankings(false);
     }
   };
@@ -139,6 +156,8 @@ export default function RankingScreen() {
   };
 
   const canShowRanking = () => {
+    if (!user) return false;
+    
     if (selectedType === 'school') {
       return user?.school?.id;
     }
@@ -158,179 +177,220 @@ export default function RankingScreen() {
     return searchQuery ? '검색 결과가 없습니다.' : '랭킹 데이터가 없습니다.';
   };
 
-  // 사용자 순위 표시 컴포넌트
-  const renderUserRankBadge = () => {
-    const currentUserIndex = rankingState.users.findIndex(u => u.id === user?.uid);
-    if (currentUserIndex === -1) return null;
-    
-    const rank = currentUserIndex + 1;
-    return (
-      <View style={styles.userRankBadge}>
-        <Ionicons name="trophy" size={16} color="#10b981" />
-        <Text style={styles.userRankText}>내 순위: #{rank}</Text>
-      </View>
-    );
+  const navigateToLogin = () => {
+    router.push('/auth');
   };
 
-  const renderRankingItem = ({ item, index }: { item: RankingUser; index: number }) => {
-    const rank = index + 1;
-    const isCurrentUser = item.id === user?.uid;
-    
+  // 인증 로딩 중
+  if (authLoading) {
     return (
-      <View style={[styles.rankCard, isCurrentUser && styles.myRankCard]}>
-        <View style={styles.rankPosition}>
-          <Text style={styles.rankIcon}>{getRankIcon(rank)}</Text>
-          <Text style={[styles.rankText, { color: getRankColor(rank) }]}>
-            {rank}등
-          </Text>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#10B981" />
+          <Text style={styles.loadingText}>로딩 중...</Text>
         </View>
-        <View style={styles.userInfo}>
-          <Text style={[styles.userName, isCurrentUser && styles.myUserName]}>
-            {item.userName}
-            {isCurrentUser && ' (나)'}
-          </Text>
-          {selectedType !== 'school' && item.school?.name && (
-            <Text style={styles.userSchool}>{item.school.name}</Text>
-          )}
-          {item.regions && (
-            <Text style={styles.userRegion}>
-              {item.regions.sido} {item.regions.sigungu}
-            </Text>
-          )}
-        </View>
-        <View style={styles.userStats}>
-          <View style={styles.levelBadge}>
-            <Text style={styles.levelBadgeText}>Lv.{item.stats.level}</Text>
-          </View>
-          <Text style={styles.xpText}>{item.stats.totalExperience.toLocaleString()}</Text>
-        </View>
-      </View>
+      </SafeAreaView>
     );
-  };
+  }
 
+  // 로그인하지 않은 상태
   if (!user) {
     return (
-      <SafeScreenContainer>
-        <View style={styles.emptyContainer}>
-          <Ionicons name="person-outline" size={64} color="#9ca3af" />
-          <Text style={styles.emptyTitle}>로그인이 필요합니다</Text>
-          <Text style={styles.emptyMessage}>랭킹을 확인하려면 로그인해주세요.</Text>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContainer}>
+          <Ionicons name="trophy-outline" size={64} color="#9CA3AF" />
+          <Text style={styles.centerTitle}>로그인이 필요합니다</Text>
+          <Text style={styles.centerDescription}>
+            랭킹을 확인하려면 먼저 로그인해주세요.
+          </Text>
+          <TouchableOpacity style={styles.loginButton} onPress={navigateToLogin}>
+            <Text style={styles.loginButtonText}>로그인하기</Text>
+          </TouchableOpacity>
         </View>
-      </SafeScreenContainer>
+      </SafeAreaView>
     );
   }
 
   return (
-    <SafeScreenContainer>
-      {/* 랭킹 타입 선택 */}
-      <View style={styles.typeSelector}>
-        {rankingTypes.map((type) => (
-          <TouchableOpacity
-            key={type.id}
-            style={[
-              styles.typeButton,
-              { backgroundColor: selectedType === type.id ? type.color : '#f3f4f6' }
-            ]}
-            onPress={() => setSelectedType(type.id)}
-          >
-            <Ionicons 
-              name={type.icon as any} 
-              size={16} 
-              color={selectedType === type.id ? 'white' : '#374151'} 
-            />
-            <Text style={[
-              styles.typeButtonText,
-              { color: selectedType === type.id ? 'white' : '#374151' }
-            ]}>
-              {type.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>🏆 랭킹</Text>
+        
+        {/* 랭킹 타입 선택 */}
+        <View style={styles.typeSelector}>
+          {rankingTypes.map((type) => (
+            <TouchableOpacity
+              key={type.id}
+              style={[
+                styles.typeButton,
+                selectedType === type.id && styles.typeButtonActive,
+                { borderColor: type.color }
+              ]}
+              onPress={() => setSelectedType(type.id)}
+            >
+              <Ionicons 
+                name={type.icon as any} 
+                size={16} 
+                color={selectedType === type.id ? 'white' : type.color} 
+              />
+              <Text style={[
+                styles.typeButtonText,
+                selectedType === type.id && styles.typeButtonTextActive
+              ]}>
+                {type.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-
-
-      {/* 검색 입력 */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#9ca3af" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="사용자 이름으로 검색..."
-          value={searchQuery}
-          onChangeText={handleSearchChange}
-          placeholderTextColor="#9ca3af"
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Ionicons name="close-circle" size={20} color="#9ca3af" />
-          </TouchableOpacity>
-        )}
+        {/* 검색 */}
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color="#9CA3AF" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="사용자 이름으로 검색"
+            value={searchQuery}
+            onChangeText={handleSearchChange}
+          />
+        </View>
       </View>
 
       {/* 랭킹 리스트 */}
-      {!canShowRanking() ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="information-circle-outline" size={64} color="#9ca3af" />
-          <Text style={styles.emptyTitle}>정보가 필요합니다</Text>
-          <Text style={styles.emptyMessage}>{getEmptyMessage()}</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={rankingState.users}
-          renderItem={renderRankingItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.rankingList}
-          refreshControl={
-            <RefreshControl 
-              refreshing={rankingState.isLoading && rankingState.users.length === 0} 
-              onRefresh={handleRefresh} 
-            />
+      <ScrollView 
+        style={styles.listContainer}
+        refreshControl={
+          <RefreshControl refreshing={rankingState.isLoading} onRefresh={handleRefresh} />
+        }
+        onMomentumScrollEnd={({ nativeEvent }) => {
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          const paddingToBottom = 20;
+          if (layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom) {
+            handleLoadMore();
           }
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.5}
-          ListHeaderComponent={renderUserRankBadge}
-          ListEmptyComponent={() => (
-            rankingState.isLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#10b981" />
-                <Text style={styles.loadingText}>랭킹을 불러오는 중...</Text>
+        }}
+      >
+        {canShowRanking() ? (
+          rankingState.users.length > 0 ? (
+            rankingState.users.map((user, index) => (
+              <View key={user.id} style={styles.rankingItem}>
+                <View style={styles.rankContainer}>
+                  <Text style={[styles.rankIcon, { color: getRankColor(index + 1) }]}>
+                    {getRankIcon(index + 1)}
+                  </Text>
+                  <Text style={[styles.rankNumber, { color: getRankColor(index + 1) }]}>
+                    {index + 1}
+                  </Text>
+                </View>
+                
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>{user.userName}</Text>
+                  <Text style={styles.userLevel}>Lv.{user.stats.level}</Text>
+                  {user.school && (
+                    <Text style={styles.userSchool}>{user.school.name}</Text>
+                  )}
+                </View>
+                
+                <View style={styles.expContainer}>
+                  <Text style={styles.expText}>{user.stats.totalExperience.toLocaleString()} XP</Text>
+                </View>
               </View>
-            ) : rankingState.error ? (
-              <View style={styles.emptyContainer}>
-                <Ionicons name="alert-circle-outline" size={64} color="#ef4444" />
-                <Text style={styles.emptyTitle}>오류가 발생했습니다</Text>
-                <Text style={styles.emptyMessage}>{rankingState.error}</Text>
-                <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
-                  <Text style={styles.retryButtonText}>다시 시도</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.emptyContainer}>
-                <Ionicons name="trophy-outline" size={64} color="#9ca3af" />
-                <Text style={styles.emptyTitle}>랭킹이 없습니다</Text>
-                <Text style={styles.emptyMessage}>{getEmptyMessage()}</Text>
-              </View>
-            )
-          )}
-          ListFooterComponent={() => (
-            rankingState.isLoading && rankingState.users.length > 0 ? (
-              <View style={styles.loadMoreContainer}>
-                <ActivityIndicator size="small" color="#10b981" />
-                <Text style={styles.loadMoreText}>더 많은 랭킹을 불러오는 중...</Text>
-              </View>
-            ) : null
-          )}
-        />
-      )}
-    </SafeScreenContainer>
+            ))
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>{getEmptyMessage()}</Text>
+            </View>
+          )
+        ) : (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>{getEmptyMessage()}</Text>
+            <TouchableOpacity 
+              style={styles.settingsButton}
+              onPress={() => router.push('/profile-edit')}
+            >
+              <Text style={styles.settingsButtonText}>설정하러 가기</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {rankingState.hasMore && (
+          <TouchableOpacity 
+            style={styles.loadMoreButton}
+            onPress={handleLoadMore}
+            disabled={rankingState.isLoading}
+          >
+            <Text style={styles.loadMoreText}>
+              {rankingState.isLoading ? '로딩 중...' : '더 보기'}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  centerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  centerDescription: {
+    fontSize: 16,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+  loginButton: {
+    backgroundColor: '#10B981',
+    paddingVertical: 14,
+    paddingHorizontal: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  loginButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  header: {
+    backgroundColor: 'white',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
   typeSelector: {
     flexDirection: 'row',
-    padding: 16,
-    gap: 8,
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
   typeButton: {
     flex: 1,
@@ -340,63 +400,63 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
-    gap: 4,
+    borderWidth: 1,
+    marginHorizontal: 4,
+  },
+  typeButtonActive: {
+    backgroundColor: '#10b981',
+    borderColor: '#10b981',
   },
   typeButtonText: {
+    marginLeft: 8,
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
-
+  typeButtonTextActive: {
+    color: 'white',
+  },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    backgroundColor: '#f3f4f6',
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  searchIcon: {
-    marginRight: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   searchInput: {
     flex: 1,
+    marginLeft: 8,
     fontSize: 16,
     color: '#1f2937',
   },
-  rankingList: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+  listContainer: {
+    flex: 1,
+    padding: 16,
   },
-  rankCard: {
+  rankingItem: {
+    backgroundColor: 'white',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
     padding: 16,
     marginBottom: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  myRankCard: {
-    borderColor: '#10b981',
-    borderWidth: 2,
-    backgroundColor: '#f0fdf4',
-  },
-  rankPosition: {
+  rankContainer: {
     alignItems: 'center',
     marginRight: 16,
-    minWidth: 60,
+    minWidth: 50,
   },
   rankIcon: {
-    fontSize: 24,
+    fontSize: 20,
     marginBottom: 4,
   },
-  rankText: {
-    fontSize: 12,
+  rankNumber: {
+    fontSize: 14,
     fontWeight: 'bold',
   },
   userInfo: {
@@ -406,107 +466,59 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#1f2937',
+    marginBottom: 4,
   },
-  myUserName: {
+  userLevel: {
+    fontSize: 14,
     color: '#10b981',
+    fontWeight: '600',
+    marginBottom: 2,
   },
   userSchool: {
     fontSize: 12,
     color: '#6b7280',
-    marginTop: 2,
   },
-  userRegion: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 2,
-  },
-  userStats: {
+  expContainer: {
     alignItems: 'flex-end',
   },
-  levelBadge: {
-    backgroundColor: '#10b981',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 4,
-  },
-  levelBadgeText: {
-    fontSize: 12,
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  xpText: {
+  expText: {
     fontSize: 14,
-    color: '#10b981',
     fontWeight: 'bold',
+    color: '#2563eb',
   },
   emptyContainer: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-    padding: 32,
+    alignItems: 'center',
+    paddingVertical: 64,
   },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyMessage: {
-    fontSize: 14,
+  emptyText: {
+    fontSize: 16,
     color: '#6b7280',
     textAlign: 'center',
-    lineHeight: 20,
+    marginBottom: 16,
   },
-  loadingContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginTop: 12,
-  },
-  loadMoreContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-  },
-  loadMoreText: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 8,
-  },
-  retryButton: {
+  settingsButton: {
     backgroundColor: '#10b981',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  settingsButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  loadMoreButton: {
+    backgroundColor: 'white',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
     marginTop: 16,
   },
-  retryButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  userRankBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0fdf4',
-    marginHorizontal: 16,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#10b981',
-  },
-  userRankText: {
-    fontSize: 14,
-    fontWeight: 'bold',
+  loadMoreText: {
+    fontSize: 16,
     color: '#10b981',
-    marginLeft: 6,
+    fontWeight: '600',
   },
 }); 

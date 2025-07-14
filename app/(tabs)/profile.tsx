@@ -1,23 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { ScrollView, View, Text, TouchableOpacity, StyleSheet, RefreshControl, Alert, Image } from 'react-native';
-import { useAuthStore } from '../../store/authStore';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, RefreshControl, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
+import { useAuthStore } from '../../store/authStore';
 import { checkAttendance, UserAttendance } from '../../lib/attendance';
-import { getUserActivitySummary, getUserById } from '../../lib/users';
+import { getUserActivitySummary } from '../../lib/users';
 import { getBookmarkedPostsCount } from '../../lib/boards';
-// 기본 날짜 함수
-const getKoreanDateString = (date: Date = new Date()): string => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
+import { getKoreanDateString } from '../../utils/timeUtils';
+import { Ionicons } from '@expo/vector-icons';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { SafeScreenContainer } from '../../components/SafeScreenContainer';
 
 export default function ProfileScreen() {
-  const { user, clearAuth } = useAuthStore();
+  const { user, clearAuth, isLoading: authLoading } = useAuthStore();
   const [refreshing, setRefreshing] = useState(false);
   const [userData, setUserData] = useState<any>(null);
   const [attendanceData, setAttendanceData] = useState<UserAttendance>({
@@ -37,13 +32,18 @@ export default function ProfileScreen() {
     currentExp: 0,
     nextLevelXP: 10
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [bookmarkCount, setBookmarkCount] = useState(0);
 
   const loadData = async () => {
-    if (!user?.uid) return;
+    if (!user?.uid) {
+      console.log('로그인되지 않아 프로필 데이터 로드를 건너뜁니다.');
+      return;
+    }
 
     try {
+      setLoading(true);
+      
       // 사용자 데이터 직접 로드
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (userDoc.exists()) {
@@ -69,10 +69,17 @@ export default function ProfileScreen() {
   };
 
   useEffect(() => {
-    loadData();
-  }, [user?.uid]);
+    if (!authLoading) {
+      if (user) {
+        loadData();
+      }
+      // 로그인하지 않은 경우 리디렉션 제거 - 대신 UI에서 처리
+    }
+  }, [user?.uid, authLoading]);
 
   const onRefresh = async () => {
+    if (!user?.uid) return;
+    
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
@@ -141,25 +148,38 @@ export default function ProfileScreen() {
     );
   };
 
-  const menuItems = [
-    { icon: '📝', name: '내가 쓴 글', count: userStats.totalPosts, onPress: () => router.push('/my-posts' as any) },
-    { icon: '💬', name: '내 댓글', count: userStats.totalComments, onPress: () => router.push('/my-comments' as any) },
-    { icon: '❤️', name: '좋아요한 글', count: userStats.totalLikes, onPress: () => router.push('/my-likes' as any) },
-    { icon: '🔖', name: '스크랩', count: bookmarkCount, onPress: () => router.push('/my-bookmarks' as any) },
-  ];
+  // 인증 로딩 중
+  if (authLoading) {
+    return (
+      <SafeScreenContainer>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#10B981" />
+          <Text style={styles.loadingText}>로딩 중...</Text>
+        </View>
+      </SafeScreenContainer>
+    );
+  }
 
-  const settingItems = [
-    { icon: '✏️', name: '프로필 수정', onPress: () => router.push('/profile-edit') },
-    { icon: '🔔', name: '알림 설정', onPress: () => Alert.alert('준비중', '알림 설정 기능은 준비중입니다.') },
-    { icon: '🏫', name: '즐겨찾기 학교', onPress: () => router.push('/favorite-schools') },
-    { icon: '❓', name: '도움말', onPress: () => Alert.alert('준비중', '도움말 기능은 준비중입니다.') },
-    { icon: '📞', name: '고객센터', onPress: () => Alert.alert('준비중', '고객센터 기능은 준비중입니다.') },
-    { icon: '🚪', name: '로그아웃', onPress: handleSignOut, isLogout: true },
-  ];
-
-  // 경험치 바 계산
-  const expPercentage = userStats.nextLevelXP > 0 ? 
-    Math.min((userStats.currentExp / userStats.nextLevelXP) * 100, 100) : 0;
+  // 로그인하지 않은 상태에서 로그인 안내 화면
+  if (!user) {
+    return (
+      <SafeScreenContainer>
+        <View style={styles.loginRequiredContainer}>
+          <Text style={styles.loginRequiredIcon}>👤</Text>
+          <Text style={styles.loginRequiredTitle}>로그인이 필요합니다</Text>
+          <Text style={styles.loginRequiredSubtitle}>
+            마이페이지를 보려면 로그인해주세요.
+          </Text>
+          <TouchableOpacity 
+            style={styles.loginButton}
+            onPress={() => router.push('/auth')}
+          >
+            <Text style={styles.loginButtonText}>로그인하기</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeScreenContainer>
+    );
+  }
 
   // 실제 출석 기록을 기반으로 주간 달력 생성
   const generateWeeklyCalendar = () => {
@@ -190,79 +210,64 @@ export default function ProfileScreen() {
   const weeklyCalendar = generateWeeklyCalendar();
 
   return (
-    <SafeScreenContainer 
-      scrollable={true}
-      contentContainerStyle={{
-        paddingHorizontal: 0, // 기본 패딩 제거
-      }}
-    >
-      <ScrollView 
-        style={{ flex: 1 }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+    <SafeScreenContainer>
+      <ScrollView
+        style={styles.container}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         {/* 프로필 헤더 */}
         <View style={styles.profileHeader}>
-          <View style={styles.avatarContainer}>
-            {(userData?.profile?.profileImageUrl || user?.profile?.profileImageUrl) ? (
-              <Image 
-                source={{ uri: userData?.profile?.profileImageUrl || user?.profile?.profileImageUrl }} 
-                style={styles.avatarImage}
-              />
-            ) : (
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {userData?.profile?.userName?.charAt(0) || user?.profile?.userName?.charAt(0) || 'U'}
-                </Text>
-              </View>
-            )}
-            <View style={styles.levelBadge}>
-              <Text style={styles.levelText}>Lv.{userStats.level}</Text>
-            </View>
+          <View style={styles.profileImageContainer}>
+            <Ionicons name="person-circle" size={80} color="#10B981" />
           </View>
-          <View style={styles.profileInfo}>
-            <Text style={styles.userName}>{userData?.profile?.userName || user?.profile?.userName || '사용자'}</Text>
-            <Text style={styles.userSchool}>{userData?.school?.name || '학교 미설정'}</Text>
-            <View style={styles.expSection}>
-              <View style={styles.expBar}>
-                <View style={[styles.expFill, { width: `${expPercentage}%` }]} />
+          <Text style={styles.userName}>{user.profile?.userName || '익명'}</Text>
+          <Text style={styles.userEmail}>{user.email}</Text>
+          
+          {/* 레벨 및 경험치 */}
+          <View style={styles.levelContainer}>
+            <Text style={styles.levelText}>Lv.{userStats.level}</Text>
+            <View style={styles.expBar}>
+              <View style={styles.expBarBackground}>
+                <View 
+                  style={[
+                    styles.expBarFill, 
+                    { width: `${Math.min((userStats.currentExp / userStats.nextLevelXP) * 100, 100)}%` }
+                  ]} 
+                />
               </View>
-              <Text style={styles.expText}>{userStats.currentExp}/{userStats.nextLevelXP} XP</Text>
+              <Text style={styles.expText}>
+                {userStats.currentExp}/{userStats.nextLevelXP} XP
+              </Text>
             </View>
           </View>
         </View>
 
-        {/* 상세 정보 카드 */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>📋 내 정보</Text>
-          <View style={styles.infoContent}>
+        {/* 기본 정보 */}
+        <View style={styles.infoSection}>
+          <Text style={styles.sectionTitle}>📋 기본 정보</Text>
+          <View style={styles.infoCard}>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>이름:</Text>
               <Text style={styles.infoValue}>{userData?.profile?.realName || '미설정'}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>성별:</Text>
-              <Text style={styles.infoValue}>
-                {userData?.profile?.gender === 'male' ? '남성' : 
-                 userData?.profile?.gender === 'female' ? '여성' :
-                 userData?.profile?.gender === 'other' ? '기타' : '미설정'}
-              </Text>
+              <Text style={styles.infoValue}>{userData?.profile?.gender || '미설정'}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>생년월일:</Text>
               <Text style={styles.infoValue}>
-                {userData?.profile?.birthYear 
-                  ? `${userData.profile.birthYear}년 ${userData.profile.birthMonth}월 ${userData.profile.birthDay}일` 
-                  : '미설정'}
+                {userData?.profile?.birthYear && userData?.profile?.birthMonth && userData?.profile?.birthDay
+                  ? `${userData.profile.birthYear}년 ${userData.profile.birthMonth}월 ${userData.profile.birthDay}일`
+                  : '미설정'
+                }
               </Text>
             </View>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>이메일:</Text>
-              <Text style={styles.infoValue}>{userData?.email || user?.email || '미설정'}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>연락처:</Text>
-              <Text style={styles.infoValue}>{userData?.profile?.phoneNumber || '미설정'}</Text>
+              <Text style={styles.infoLabel}>학교:</Text>
+              <Text style={styles.infoValue}>{userData?.school?.name || '미설정'}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>주소:</Text>
@@ -307,55 +312,32 @@ export default function ProfileScreen() {
           </TouchableOpacity>
           
           {/* 주간 출석 달력 */}
-          <View style={styles.weeklyCalendarContainer}>
-            <Text style={styles.calendarTitle}>최근 7일 출석 현황</Text>
-            <View style={styles.weeklyCalendar}>
+          <View style={styles.weeklyCalendar}>
+            <Text style={styles.calendarTitle}>이번 주 출석 현황</Text>
+            <View style={styles.calendarGrid}>
               {weeklyCalendar.map((day, index) => (
-                <View 
-                  key={index} 
-                  style={[
-                    styles.calendarDay,
-                    { 
-                      backgroundColor: day.isChecked ? '#10b981' : '#ffffff',
-                      borderColor: day.isToday ? '#2563eb' : '#d1d5db',
-                      borderWidth: day.isToday ? 2 : 1
-                    }
-                  ]}
-                >
+                <View key={index} style={styles.calendarDay}>
                   <Text style={[
-                    styles.calendarDayText,
-                    { 
-                      color: day.isChecked ? '#ffffff' : '#000000',
-                      textShadowColor: day.isChecked ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.8)',
-                      textShadowOffset: { width: 0, height: 1 },
-                      textShadowRadius: 2
-                    }
+                    styles.dayText,
+                    day.isToday && styles.todayText
                   ]}>
                     {day.day}
                   </Text>
-                  <Text style={[
-                    styles.calendarDateText,
-                    { 
-                      color: day.isChecked ? '#ffffff' : '#000000',
-                      textShadowColor: day.isChecked ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.8)',
-                      textShadowOffset: { width: 0, height: 1 },
-                      textShadowRadius: 2
-                    }
+                  <View style={[
+                    styles.dayCircle,
+                    day.isChecked && styles.checkedDay,
+                    day.isToday && styles.todayCircle
                   ]}>
-                    {day.date}
-                  </Text>
+                    <Text style={[
+                      styles.dayNumber,
+                      day.isChecked && styles.checkedDayNumber,
+                      day.isToday && styles.todayNumber
+                    ]}>
+                      {day.date}
+                    </Text>
+                  </View>
                 </View>
               ))}
-            </View>
-          </View>
-          
-          {/* 출석 보상 안내 */}
-          <View style={styles.rewardInfo}>
-            <Text style={styles.rewardTitle}>🎁 출석 보상</Text>
-            <View style={styles.rewardList}>
-              <Text style={styles.rewardItem}>• 매일 출석: +10 XP</Text>
-              <Text style={styles.rewardItem}>• 7일 연속: +50 XP 보너스</Text>
-              <Text style={styles.rewardItem}>• 30일 연속: +200 XP 보너스</Text>
             </View>
           </View>
         </View>
@@ -364,56 +346,68 @@ export default function ProfileScreen() {
         <View style={styles.statsSection}>
           <Text style={styles.sectionTitle}>📊 활동 통계</Text>
           <View style={styles.statsGrid}>
-            {menuItems.map((item, index) => (
-              <TouchableOpacity key={index} style={styles.statItem} onPress={item.onPress}>
-                <Text style={styles.statIcon}>{item.icon}</Text>
-                <Text style={styles.statCount}>{item.count}</Text>
-                <Text style={styles.statName}>{item.name}</Text>
-              </TouchableOpacity>
-            ))}
+            <TouchableOpacity 
+              style={styles.statCard}
+              onPress={() => router.push('/my-posts')}
+            >
+              <Text style={styles.statNumber}>{userStats.totalPosts}</Text>
+              <Text style={styles.statLabel}>내가 쓴 글</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.statCard}
+              onPress={() => router.push('/my-comments')}
+            >
+              <Text style={styles.statNumber}>{userStats.totalComments}</Text>
+              <Text style={styles.statLabel}>내 댓글</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.statCard}
+              onPress={() => router.push('/my-likes')}
+            >
+              <Text style={styles.statNumber}>{userStats.totalLikes}</Text>
+              <Text style={styles.statLabel}>좋아요한 글</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.statCard}
+              onPress={() => router.push('/my-bookmarks')}
+            >
+              <Text style={styles.statNumber}>{bookmarkCount}</Text>
+              <Text style={styles.statLabel}>스크랩</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* 설정 메뉴 */}
-        <View style={styles.settingsSection}>
+        {/* 설정 */}
+        <View style={styles.menuSection}>
           <Text style={styles.sectionTitle}>⚙️ 설정</Text>
-          <View style={styles.settingsMenu}>
-            {settingItems.map((item, index) => (
-              <TouchableOpacity 
-                key={index} 
-                style={[
-                  styles.settingItem,
-                  item.isLogout && styles.logoutItem
-                ]} 
-                onPress={item.onPress}
-              >
-                <Text style={[
-                  styles.settingIcon,
-                  item.isLogout && styles.logoutText
-                ]}>
-                  {item.icon}
-                </Text>
-                <Text style={[
-                  styles.settingName,
-                  item.isLogout && styles.logoutText
-                ]}>
-                  {item.name}
-                </Text>
-                <Text style={[
-                  styles.settingArrow,
-                  item.isLogout && styles.logoutText
-                ]}>
-                  {item.isLogout ? '' : '›'}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.menuCard}>
+            <TouchableOpacity 
+              style={styles.menuItem}
+              onPress={() => router.push('/profile-edit')}
+            >
+              <Ionicons name="person-outline" size={20} color="#6b7280" />
+              <Text style={styles.menuText}>프로필 수정</Text>
+              <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.menuItem}
+              onPress={() => router.push('/favorite-schools')}
+            >
+              <Ionicons name="school-outline" size={20} color="#6b7280" />
+              <Text style={styles.menuText}>즐겨찾기 학교</Text>
+              <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.menuItem, styles.signOutItem]}
+              onPress={handleSignOut}
+            >
+              <Ionicons name="log-out-outline" size={20} color="#ef4444" />
+              <Text style={[styles.menuText, styles.signOutText]}>로그아웃</Text>
+              <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
+            </TouchableOpacity>
           </View>
-        </View>
-
-        {/* 앱 정보 */}
-        <View style={styles.appInfo}>
-          <Text style={styles.appInfoText}>InSchoolz v1.0.0</Text>
-          <Text style={styles.appInfoText}>© 2024 InSchoolz. All rights reserved.</Text>
         </View>
       </ScrollView>
     </SafeScreenContainer>
@@ -421,12 +415,26 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#6b7280',
+  },
   profileHeader: {
     backgroundColor: 'white',
     margin: 20,
     padding: 20,
     borderRadius: 12,
-    flexDirection: 'row',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: {
@@ -437,82 +445,64 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  avatarContainer: {
-    position: 'relative',
-    marginRight: 16,
-  },
-  avatar: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#2563eb',
-    alignItems: 'center',
+  profileImageContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#e0f2fe',
     justifyContent: 'center',
-  },
-  avatarImage: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-  },
-  avatarText: {
-    color: 'white',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  levelBadge: {
-    position: 'absolute',
-    bottom: -5,
-    right: -5,
-    backgroundColor: '#10b981',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderWidth: 2,
-    borderColor: 'white',
-  },
-  levelText: {
-    color: 'white',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  profileInfo: {
-    flex: 1,
+    alignItems: 'center',
+    marginBottom: 10,
   },
   userName: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
+    color: '#111827',
     marginBottom: 4,
   },
-  userSchool: {
+  userEmail: {
     fontSize: 14,
     color: '#6b7280',
     marginBottom: 12,
   },
-  expSection: {
-    flexDirection: 'row',
+  levelContainer: {
     alignItems: 'center',
-    gap: 8,
+  },
+  levelText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#10B981',
+    marginBottom: 8,
   },
   expBar: {
-    flex: 1,
-    height: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    height: 10,
     backgroundColor: '#e5e7eb',
-    borderRadius: 4,
+    borderRadius: 5,
+    overflow: 'hidden',
   },
-  expFill: {
+  expBarBackground: {
     height: '100%',
-    backgroundColor: '#10b981',
-    borderRadius: 4,
+    backgroundColor: '#d1d5db',
+    borderRadius: 5,
+  },
+  expBarFill: {
+    height: '100%',
+    backgroundColor: '#10B981',
+    borderRadius: 5,
   },
   expText: {
     fontSize: 12,
     color: '#6b7280',
     fontWeight: '500',
+    marginLeft: 8,
   },
-  infoCard: {
-    backgroundColor: 'white',
+  infoSection: {
     margin: 20,
     padding: 20,
+    backgroundColor: 'white',
     borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: {
@@ -523,13 +513,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    color: '#111827',
-  },
-  infoContent: {
+  infoCard: {
     gap: 8,
   },
   infoRow: {
@@ -604,7 +588,7 @@ const styles = StyleSheet.create({
   attendanceButtonTextDisabled: {
     color: '#6b7280',
   },
-  weeklyCalendarContainer: {
+  weeklyCalendar: {
     marginBottom: 16,
   },
   calendarTitle: {
@@ -614,43 +598,50 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     textAlign: 'center',
   },
-  weeklyCalendar: {
+  calendarGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
   calendarDay: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: '14%', // 7일 달력이므로 각 요일 너비 계산
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  calendarDayText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  calendarDateText: {
-    fontSize: 10,
-    marginTop: 4,
-  },
-  rewardInfo: {
-    backgroundColor: '#f0fdf4',
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 8,
-  },
-  rewardTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#059669',
     marginBottom: 8,
   },
-  rewardList: {
-    gap: 4,
-  },
-  rewardItem: {
+  dayText: {
     fontSize: 12,
-    color: '#065f46',
+    fontWeight: 'bold',
+    color: '#6b7280',
+  },
+  todayText: {
+    color: '#10B981',
+  },
+  dayCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#e0f2fe',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  checkedDay: {
+    backgroundColor: '#10B981',
+  },
+  todayCircle: {
+    borderWidth: 2,
+    borderColor: '#10B981',
+  },
+  dayNumber: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#10B981',
+  },
+  checkedDayNumber: {
+    color: 'white',
+  },
+  todayNumber: {
+    color: '#10B981',
   },
   statsSection: {
     backgroundColor: 'white',
@@ -672,63 +663,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
-  statItem: {
+  statCard: {
     backgroundColor: '#f9fafb',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
     width: '48%',
   },
-  statIcon: {
-    fontSize: 24,
-    marginBottom: 8,
-  },
-  statCount: {
+  statNumber: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#2563eb',
   },
-  statName: {
+  statLabel: {
     fontSize: 12,
     color: '#6b7280',
+    marginTop: 4,
   },
-  activitySection: {
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    color: '#111827',
-  },
-  activityGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  activityCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    width: '48%',
-  },
-  activityIcon: {
-    fontSize: 24,
-    marginBottom: 8,
-  },
-  activityName: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  activityCount: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2563eb',
-  },
-  settingsSection: {
+  menuSection: {
     backgroundColor: 'white',
     margin: 20,
     padding: 20,
@@ -742,58 +694,70 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  settingsMenu: {
+  menuCard: {
     gap: 8,
   },
-  settingItem: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-    padding: 16,
+  menuItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    padding: 16,
   },
-  logoutItem: {
+  menuText: {
+    fontSize: 16,
+    color: '#374151',
+    flex: 1,
+    marginLeft: 12,
+  },
+  signOutItem: {
     backgroundColor: '#fef2f2',
     borderWidth: 1,
     borderColor: '#fecaca',
   },
-  settingLeft: {
-    flexDirection: 'row',
+     signOutText: {
+     color: '#ef4444',
+   },
+   sectionTitle: {
+     fontSize: 18,
+     fontWeight: 'bold',
+     marginBottom: 12,
+     color: '#111827',
+   },
+   loginRequiredContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-  },
-  settingIcon: {
-    fontSize: 16,
-    marginRight: 12,
-  },
-  settingName: {
-    fontSize: 16,
-  },
-  logoutText: {
-    color: '#ef4444',
-  },
-  settingArrow: {
-    fontSize: 18,
-    color: '#9ca3af',
-  },
-  appInfo: {
-    backgroundColor: 'white',
-    margin: 20,
     padding: 20,
-    borderRadius: 12,
+    backgroundColor: '#f9fafb',
+  },
+  loginRequiredIcon: {
+    fontSize: 60,
+    marginBottom: 15,
+  },
+  loginRequiredTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  loginRequiredSubtitle: {
+    fontSize: 16,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 25,
+  },
+  loginButton: {
+    backgroundColor: '#10B981',
+    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 25,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
   },
-  appInfoText: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginBottom: 4,
+  loginButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
-}); 
+ }); 

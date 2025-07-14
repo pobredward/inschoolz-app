@@ -5,12 +5,23 @@ import { useAuthStore } from '../store/authStore';
 import { getUserComments } from '../lib/users';
 import { SafeScreenContainer } from '../components/SafeScreenContainer';
 import { Ionicons } from '@expo/vector-icons';
+import { formatRelativeTime } from '../utils/timeUtils';
 
 interface Comment {
   id: string;
   content: string;
   postId: string;
   createdAt: number;
+  postData?: {
+    title: string;
+    type: string;
+    boardCode: string;
+    schoolId?: string;
+    regions?: {
+      sido: string;
+      sigungu: string;
+    };
+  };
 }
 
 export default function MyCommentsScreen() {
@@ -23,8 +34,8 @@ export default function MyCommentsScreen() {
     if (!user?.uid) return;
 
     try {
-      const userComments = await getUserComments(user.uid);
-      setComments(userComments);
+      const result = await getUserComments(user.uid, 1, 20);
+      setComments(result.comments);
     } catch (error) {
       console.error('내 댓글 로드 오류:', error);
       Alert.alert('오류', '댓글을 불러오는데 실패했습니다.');
@@ -44,33 +55,50 @@ export default function MyCommentsScreen() {
   };
 
   const formatDate = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
-    if (diffInHours < 1) return '방금 전';
-    if (diffInHours < 24) return `${diffInHours}시간 전`;
-    return `${Math.floor(diffInHours / 24)}일 전`;
+    return formatRelativeTime(timestamp);
   };
 
   const handleCommentPress = (comment: Comment) => {
-    // 댓글이 있는 게시글로 이동 (추후 구현)
-    Alert.alert('댓글 보기', '게시글 상세 페이지는 준비중입니다.');
+    if (!comment.postData) return;
+
+    // 게시글 타입별 라우팅
+    let route = '';
+    const { type, boardCode, schoolId, regions } = comment.postData;
+    
+    if (type === 'national') {
+      route = `/board/national/${boardCode}/${comment.postId}`;
+    } else if (type === 'regional' && regions) {
+      route = `/board/regional/${regions.sido}/${regions.sigungu}/${boardCode}/${comment.postId}`;
+    } else if (type === 'school' && schoolId) {
+      route = `/board/school/${schoolId}/${boardCode}/${comment.postId}`;
+    }
+    
+    if (route) {
+      router.push(route as any);
+    }
   };
 
   const renderComment = ({ item }: { item: Comment }) => (
     <TouchableOpacity style={styles.commentCard} onPress={() => handleCommentPress(item)}>
       <View style={styles.commentHeader}>
-        <Text style={styles.commentLabel}>댓글</Text>
+        <View style={styles.commentBadge}>
+          <Text style={styles.commentBadgeText}>댓글</Text>
+        </View>
         <Text style={styles.commentDate}>{formatDate(item.createdAt)}</Text>
       </View>
-      <Text style={styles.commentContent} numberOfLines={4}>
-        {item.content.replace(/<[^>]*>/g, '')}
+      
+      <Text style={styles.commentContent} numberOfLines={3}>
+        {item.content}
       </Text>
-      <View style={styles.commentFooter}>
-        <Ionicons name="chatbubble-outline" size={14} color="#6b7280" />
-        <Text style={styles.postLink}>원글 보기</Text>
-      </View>
+      
+      {item.postData && (
+        <View style={styles.commentFooter}>
+          <Ionicons name="document-text-outline" size={12} color="#6B7280" />
+          <Text style={styles.postLink} numberOfLines={1}>
+            {item.postData.title}
+          </Text>
+        </View>
+      )}
     </TouchableOpacity>
   );
 
@@ -82,25 +110,52 @@ export default function MyCommentsScreen() {
     </View>
   );
 
-  return (
-    <SafeScreenContainer>
+  const renderHeader = () => (
+    <View style={styles.headerContainer}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color="#1F2937" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>내 댓글</Text>
         <View style={styles.placeholder} />
       </View>
+      <View style={styles.countContainer}>
+        <Text style={styles.commentCount}>총 {comments.length}개</Text>
+      </View>
+    </View>
+  );
 
+  if (loading) {
+    return (
+      <SafeScreenContainer>
+        <View style={styles.headerContainer}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={24} color="#1F2937" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>내 댓글</Text>
+            <View style={styles.placeholder} />
+          </View>
+        </View>
+        <View style={styles.loadingContainer}>
+          <Text>로딩 중...</Text>
+        </View>
+      </SafeScreenContainer>
+    );
+  }
+
+  return (
+    <SafeScreenContainer>
       <FlatList
         data={comments}
         renderItem={renderComment}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContainer}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={renderEmptyState}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        ListEmptyComponent={!loading ? renderEmptyState : null}
+        contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       />
     </SafeScreenContainer>
@@ -108,44 +163,60 @@ export default function MyCommentsScreen() {
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flexGrow: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerContainer: {
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    paddingBottom: 12,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   backButton: {
     padding: 4,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontWeight: '600',
+    color: '#1F2937',
   },
   placeholder: {
     width: 32,
   },
-  listContainer: {
-    padding: 20,
-    flexGrow: 1,
+  countContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  commentCount: {
+    fontSize: 14,
+    color: '#6B7280',
   },
   commentCard: {
     backgroundColor: 'white',
     borderRadius: 12,
     padding: 16,
+    marginHorizontal: 16,
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 1,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowRadius: 2,
+    elevation: 2,
   },
   commentHeader: {
     flexDirection: 'row',
@@ -153,18 +224,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  commentLabel: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#10b981',
-    backgroundColor: '#dcfce7',
+  commentBadge: {
+    backgroundColor: '#DBEAFE',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 6,
+  },
+  commentBadgeText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#1E40AF',
   },
   commentDate: {
     fontSize: 12,
-    color: '#6b7280',
+    color: '#9CA3AF',
   },
   commentContent: {
     fontSize: 14,
@@ -179,13 +252,13 @@ const styles = StyleSheet.create({
   },
   postLink: {
     fontSize: 12,
-    color: '#6b7280',
+    color: '#6B7280',
+    flex: 1,
   },
   emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 80,
+    paddingVertical: 64,
+    paddingHorizontal: 16,
   },
   emptyIcon: {
     fontSize: 48,
@@ -193,13 +266,14 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontWeight: '600',
+    color: '#374151',
     marginBottom: 8,
+    textAlign: 'center',
   },
   emptyDescription: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#6B7280',
     textAlign: 'center',
   },
 }); 
