@@ -19,6 +19,7 @@ import { User } from '../types'; // 통일된 타입 사용
 import { storage } from './firebase'; // storage 추가
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'; // storage 관련 함수 추가
 import { getBoard } from './boards'; // 게시판 정보 조회를 위해 추가
+import { getSchoolById } from './schools'; // 학교 정보 조회를 위해 추가
 
 interface Post {
   id: string;
@@ -45,6 +46,7 @@ interface Post {
   };
   boardName?: string;
   previewContent?: string;
+  schoolName?: string;
 }
 
 interface Comment {
@@ -743,6 +745,8 @@ export const getUserPosts = async (
     
     // 게시판 정보 캐시
     const boardCache: { [key: string]: string } = {};
+    // 학교 정보 캐시
+    const schoolCache: { [key: string]: string } = {};
     
     for (const doc of querySnapshot.docs) {
       const postData = doc.data();
@@ -760,6 +764,23 @@ export const getUserPosts = async (
           } catch (error) {
             console.error('게시판 정보 조회 실패:', error);
             boardName = `게시판 (${postData.boardCode})`;
+          }
+        }
+      }
+      
+      // 학교 이름 조회 (학교 게시글인 경우)
+      let schoolName = undefined;
+      if (postData.type === 'school' && postData.schoolId) {
+        if (schoolCache[postData.schoolId]) {
+          schoolName = schoolCache[postData.schoolId];
+        } else {
+          try {
+            const school = await getSchoolById(postData.schoolId);
+            schoolName = school?.KOR_NAME || '학교';
+            schoolCache[postData.schoolId] = schoolName;
+          } catch (error) {
+            console.error('학교 정보 조회 실패:', error);
+            schoolName = '학교';
           }
         }
       }
@@ -784,7 +805,8 @@ export const getUserPosts = async (
         status: postData.status,
         stats: postData.stats,
         boardName,
-        previewContent
+        previewContent,
+        schoolName
       } as Post);
     }
     

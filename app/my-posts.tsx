@@ -27,6 +27,7 @@ interface Post {
   };
   boardName?: string;
   previewContent?: string;
+  schoolName?: string;
 }
 
 type BoardType = 'all' | 'national' | 'regional' | 'school';
@@ -100,12 +101,20 @@ export default function MyPostsScreen() {
     setSelectedType(type);
   };
 
-  const getTypeLabel = (type: BoardType) => {
+  const getTypeLabel = (type: BoardType, post?: Post) => {
     switch (type) {
       case 'all': return '전체';
       case 'national': return '전국';
-      case 'regional': return '지역';
-      case 'school': return '학교';
+      case 'regional': 
+        if (post?.regions?.sido && post?.regions?.sigungu) {
+          return `${post.regions.sido} ${post.regions.sigungu}`;
+        }
+        return '지역';
+      case 'school': 
+        if (post?.schoolName) {
+          return post.schoolName;
+        }
+        return '학교';
       default: return '전체';
     }
   };
@@ -145,8 +154,13 @@ export default function MyPostsScreen() {
   const renderPost = ({ item }: { item: Post }) => (
     <TouchableOpacity style={styles.postCard} onPress={() => handlePostPress(item)}>
       <View style={styles.postHeader}>
-        <View style={styles.boardBadge}>
-          <Text style={styles.boardBadgeText}>{item.boardName || '게시판'}</Text>
+        <View style={styles.boardBadgeContainer}>
+          <View style={styles.typeBadge}>
+            <Text style={styles.typeBadgeText}>{getTypeLabel(item.type as BoardType, item)}</Text>
+          </View>
+          <View style={styles.boardBadge}>
+            <Text style={styles.boardBadgeText}>{item.boardName || '게시판'}</Text>
+          </View>
         </View>
         {item.attachments && item.attachments.length > 0 && (
           <View style={styles.imageBadge}>
@@ -337,6 +351,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  boardBadgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  typeBadge: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  typeBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   boardBadge: {
     backgroundColor: '#F3F4F6',

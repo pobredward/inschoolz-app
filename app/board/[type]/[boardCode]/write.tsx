@@ -211,6 +211,14 @@ export default function WritePostPage() {
           displayName: getUserDisplayName(),
           isAnonymous: isAnonymous,
         },
+        // 학교와 지역 정보 추가
+        ...(type === 'school' && user.school?.id && { schoolId: user.school.id }),
+        ...(type === 'regional' && user.regions && {
+          regions: {
+            sido: user.regions.sido,
+            sigungu: user.regions.sigungu
+          }
+        }),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         status: {

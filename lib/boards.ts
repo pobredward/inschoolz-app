@@ -478,19 +478,34 @@ export const toggleBoardStatus = async (boardId: string, isActive: boolean): Pro
 export const getPostsByBoardType = async (
   type: BoardType,
   code: string,
-  pageSize = 20
+  pageSize = 20,
+  schoolId?: string,
+  regions?: { sido: string; sigungu: string }
 ): Promise<Post[]> => {
   try {
-    const q = query(
+    let q = query(
       collection(db, 'posts'),
       where('type', '==', type),
       where('boardCode', '==', code),
       where('status.isDeleted', '==', false),
-      where('status.isHidden', '==', false),
-      orderBy('status.isPinned', 'desc'),
-      orderBy('createdAt', 'desc'),
-      limit(pageSize)
+      where('status.isHidden', '==', false)
     );
+    
+    // 학교 커뮤니티인 경우 schoolId 필터링 추가
+    if (type === 'school' && schoolId) {
+      q = query(q, where('schoolId', '==', schoolId));
+    }
+    
+    // 지역 커뮤니티인 경우 지역 필터링 추가
+    if (type === 'regional' && regions?.sido && regions?.sigungu) {
+      q = query(q, where('regions.sido', '==', regions.sido));
+      q = query(q, where('regions.sigungu', '==', regions.sigungu));
+    }
+    
+    // 정렬 조건 추가
+    q = query(q, orderBy('status.isPinned', 'desc'));
+    q = query(q, orderBy('createdAt', 'desc'));
+    q = query(q, limit(pageSize));
     
     const querySnapshot = await getDocs(q);
     const posts: Post[] = [];
@@ -571,6 +586,110 @@ export const getAllPostsByType = async (
   } catch (error) {
     console.error('전체 게시글 목록 가져오기 오류:', error);
     throw new Error('게시글 목록을 가져오는 중 오류가 발생했습니다.');
+  }
+};
+
+/**
+ * 특정 학교의 게시글 목록 가져오기 (커뮤니티 페이지용)
+ */
+export const getAllPostsBySchool = async (
+  schoolId: string,
+  pageSize = 50
+): Promise<Post[]> => {
+  try {
+    const q = query(
+      collection(db, 'posts'),
+      where('type', '==', 'school'),
+      where('schoolId', '==', schoolId),
+      where('status.isDeleted', '==', false),
+      where('status.isHidden', '==', false),
+      orderBy('status.isPinned', 'desc'),
+      orderBy('createdAt', 'desc'),
+      limit(pageSize)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const posts: Post[] = [];
+    
+    querySnapshot.forEach((doc) => {
+      const postData = doc.data();
+      posts.push({
+        id: doc.id,
+        title: postData.title,
+        content: postData.content,
+        authorId: postData.authorId,
+        authorInfo: postData.authorInfo,
+        boardCode: postData.boardCode || postData.code,
+        type: postData.type || postData.boardType,
+        category: postData.category,
+        createdAt: postData.createdAt,
+        updatedAt: postData.updatedAt,
+        schoolId: postData.schoolId,
+        regions: postData.regions,
+        attachments: postData.attachments || [],
+        tags: postData.tags || [],
+        stats: postData.stats,
+        status: postData.status
+      } as Post);
+    });
+    
+    return posts;
+  } catch (error) {
+    console.error('학교 게시글 목록 가져오기 오류:', error);
+    throw new Error('학교 게시글 목록을 가져오는 중 오류가 발생했습니다.');
+  }
+};
+
+/**
+ * 특정 지역의 게시글 목록 가져오기 (커뮤니티 페이지용)
+ */
+export const getAllPostsByRegion = async (
+  sido: string,
+  sigungu: string,
+  pageSize = 50
+): Promise<Post[]> => {
+  try {
+    const q = query(
+      collection(db, 'posts'),
+      where('type', '==', 'regional'),
+      where('regions.sido', '==', sido),
+      where('regions.sigungu', '==', sigungu),
+      where('status.isDeleted', '==', false),
+      where('status.isHidden', '==', false),
+      orderBy('status.isPinned', 'desc'),
+      orderBy('createdAt', 'desc'),
+      limit(pageSize)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const posts: Post[] = [];
+    
+    querySnapshot.forEach((doc) => {
+      const postData = doc.data();
+      posts.push({
+        id: doc.id,
+        title: postData.title,
+        content: postData.content,
+        authorId: postData.authorId,
+        authorInfo: postData.authorInfo,
+        boardCode: postData.boardCode || postData.code,
+        type: postData.type || postData.boardType,
+        category: postData.category,
+        createdAt: postData.createdAt,
+        updatedAt: postData.updatedAt,
+        schoolId: postData.schoolId,
+        regions: postData.regions,
+        attachments: postData.attachments || [],
+        tags: postData.tags || [],
+        stats: postData.stats,
+        status: postData.status
+      } as Post);
+    });
+    
+    return posts;
+  } catch (error) {
+    console.error('지역 게시글 목록 가져오기 오류:', error);
+    throw new Error('지역 게시글 목록을 가져오는 중 오류가 발생했습니다.');
   }
 };
 
