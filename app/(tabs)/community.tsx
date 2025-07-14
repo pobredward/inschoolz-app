@@ -42,7 +42,7 @@ import { getBoardsByType, getPostsByBoardType, getAllPostsByType } from '@/lib/b
 import { useAuthStore } from '../../store/authStore';
 import { Board, BoardType, Post } from '../../types';
 import BoardSelector from '@/components/board/BoardSelector';
-// import SchoolSelector from '../../src/components/board/SchoolSelector'; // 삭제된 컴포넌트
+import SchoolSelector from '@/components/board/SchoolSelector';
 import { Timestamp } from 'firebase/firestore';
 import { SafeScreenContainer } from '../../components/SafeScreenContainer';
 
@@ -313,15 +313,14 @@ export default function CommunityScreen() {
     <SafeScreenContainer>
       {renderTabs()}
       {selectedTab === 'school' && (
-        <></>
-        /* <SchoolSelector 
+        <SchoolSelector 
           style={styles.schoolSelector}
           onSchoolChange={() => {
             // 학교 변경 시 게시글 다시 로드
             loadBoards();
             loadPosts();
           }}
-        /> */
+        />
       )}
       
       {/* 로그인이 필요한 탭에서는 로그인 안내 화면 표시 */}
