@@ -16,19 +16,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
 import { updateUserProfile, updateProfileImage } from '../lib/users';
-// 지역 정보 임시 데이터 (추후 Firebase에서 가져오도록 변경 필요)
-const REGIONS_DATA = {
-  provinces: [
-    '서울특별시', '부산광역시', '대구광역시', '인천광역시', '광주광역시', 
-    '대전광역시', '울산광역시', '세종특별자치시', '경기도', '강원도', 
-    '충청북도', '충청남도', '전라북도', '전라남도', '경상북도', '경상남도', '제주특별자치도'
-  ],
-  districts: {
-    '서울특별시': ['강남구', '강동구', '강북구', '강서구', '관악구', '광진구', '구로구', '금천구', '노원구', '도봉구', '동대문구', '동작구', '마포구', '서대문구', '서초구', '성동구', '성북구', '송파구', '양천구', '영등포구', '용산구', '은평구', '종로구', '중구', '중랑구'],
-    '부산광역시': ['강서구', '금정구', '기장군', '남구', '동구', '동래구', '부산진구', '북구', '사상구', '사하구', '서구', '수영구', '연제구', '영도구', '중구', '해운대구'],
-    '경기도': ['가평군', '고양시', '과천시', '광명시', '광주시', '구리시', '군포시', '김포시', '남양주시', '동두천시', '부천시', '성남시', '수원시', '시흥시', '안산시', '안성시', '안양시', '양주시', '여주시', '연천군', '오산시', '용인시', '의왕시', '의정부시', '이천시', '파주시', '평택시', '포천시', '하남시', '화성시']
-  }
-};
+import { getAllRegions, getDistrictsByRegion } from '../lib/regions';
 import * as ImagePicker from 'expo-image-picker';
 
 export default function ProfileEditScreen() {
@@ -56,18 +44,41 @@ export default function ProfileEditScreen() {
 
   // 시/도 목록 불러오기
   useEffect(() => {
-    setProvinces(REGIONS_DATA.provinces);
+    const fetchProvinces = async () => {
+      setRegionsLoading(true);
+      try {
+        const regions = await getAllRegions();
+        setProvinces(regions);
+      } catch (error) {
+        console.error('시/도 목록 불러오기 오류:', error);
+      } finally {
+        setRegionsLoading(false);
+      }
+    };
+
+    fetchProvinces();
   }, []);
 
   // 시/군/구 목록 불러오기
   useEffect(() => {
-    if (!formData.sido) {
-      setCities([]);
-      return;
-    }
+    const fetchCities = async () => {
+      if (!formData.sido) {
+        setCities([]);
+        return;
+      }
 
-    const districts = REGIONS_DATA.districts[formData.sido as keyof typeof REGIONS_DATA.districts] || [];
-    setCities(districts);
+      setRegionsLoading(true);
+      try {
+        const districts = await getDistrictsByRegion(formData.sido);
+        setCities(districts);
+      } catch (error) {
+        console.error('시/군/구 목록 불러오기 오류:', error);
+      } finally {
+        setRegionsLoading(false);
+      }
+    };
+
+    fetchCities();
   }, [formData.sido]);
 
   useEffect(() => {
