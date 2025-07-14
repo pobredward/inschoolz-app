@@ -10,7 +10,18 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { parseContentText, truncateText } from '@/utils/textUtils';
+// 기본 텍스트 처리 함수
+const parseContentText = (content: string) => {
+  if (!content) return '';
+  return content.replace(/<[^>]*>/g, '');
+};
+
+const truncateText = (text: string, maxLength: number = 100) => {
+  if (!text) return '';
+  const cleanText = parseContentText(text);
+  if (cleanText.length <= maxLength) return cleanText;
+  return cleanText.substring(0, maxLength) + '...';
+};
 
 // 파스텔 그린 색상 팔레트
 const pastelGreenColors = {

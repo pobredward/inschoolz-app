@@ -1,7 +1,22 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
 import { ReferralSearch } from '../../components/ReferralSearch';
-import { logger } from '../../utils/logger';
+// 기본 logger 함수
+const logger = {
+  debug: (message: string, ...args: any[]) => {
+    if (__DEV__) {
+      console.log(`🔍 [DEBUG] ${message}`, ...args);
+    }
+  },
+  warn: (message: string, ...args: any[]) => {
+    if (__DEV__) {
+      console.warn(`⚠️ [WARN] ${message}`, ...args);
+    }
+  },
+  error: (message: string, ...args: any[]) => {
+    console.error(`❌ [ERROR] ${message}`, ...args);
+  }
+};
 
 interface Step4ProfileProps {
   formData: any;

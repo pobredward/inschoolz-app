@@ -23,8 +23,49 @@ import { getBoardsByType } from '@/lib/boards';
 import { useAuthStore } from '@/store/authStore';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, getDocs, addDoc, query, where, orderBy, Timestamp, updateDoc, deleteDoc } from 'firebase/firestore';
-import { formatRelativeTime } from '@/utils/timeUtils';
-import { parseContentText, extractAllImageUrls } from '@/utils/textUtils';
+// 삭제된 유틸리티 파일들 - 기본 함수로 대체
+const formatRelativeTime = (timestamp: any) => {
+  const date = new Date(timestamp?.seconds * 1000 || Date.now());
+  const now = new Date();
+  const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+  
+  if (diffInHours < 1) return '방금 전';
+  if (diffInHours < 24) return `${diffInHours}시간 전`;
+  return `${Math.floor(diffInHours / 24)}일 전`;
+};
+
+const parseContentText = (content: string) => {
+  if (!content) return '';
+  try {
+    const parsed = JSON.parse(content);
+    if (parsed.type === 'doc' && parsed.content) {
+      return extractTextFromTipTap(parsed);
+    }
+    return content;
+  } catch {
+    return content.replace(/<[^>]*>/g, '');
+  }
+};
+
+const extractTextFromTipTap = (node: any): string => {
+  if (!node || typeof node !== 'object') return '';
+  if (node.type === 'text') return node.text || '';
+  if (node.type === 'hardBreak') return '\n';
+  if (node.content && Array.isArray(node.content)) {
+    return node.content.map(extractTextFromTipTap).join('');
+  }
+  return '';
+};
+
+const extractAllImageUrls = (content: string): string[] => {
+  if (!content) return [];
+  const imageUrls: string[] = [];
+  const imgTagMatches = content.matchAll(/<img[^>]+src="([^"]+)"/gi);
+  for (const match of imgTagMatches) {
+    imageUrls.push(match[1]);
+  }
+  return [...new Set(imageUrls)];
+};
 import HtmlRenderer from '@/components/HtmlRenderer';
 import { awardCommentExperience } from '@/lib/experience-service';
 import { ReportButton } from '@/components/ui/ReportButton';

@@ -12,7 +12,16 @@ import { School, Post } from '../../types';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { syncUserExperienceData } from '../../lib/experience';
-import { formatSmartTime } from '../../utils/timeUtils';
+// 기본 시간 포맷팅 함수
+const formatSmartTime = (timestamp: any) => {
+  const date = new Date(timestamp?.seconds * 1000 || Date.now());
+  const now = new Date();
+  const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+  
+  if (diffInHours < 1) return '방금 전';
+  if (diffInHours < 24) return `${diffInHours}시간 전`;
+  return `${Math.floor(diffInHours / 24)}일 전`;
+};
 import { SafeScreenContainer } from '../../components/SafeScreenContainer';
 
 interface RankingPreview {

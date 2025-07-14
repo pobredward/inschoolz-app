@@ -5,11 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useSegments, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-import { HapticTab } from '@/components/HapticTab';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAuthStore } from '../../store/authStore';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -252,7 +249,7 @@ function CustomHeader() {
 }
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const colorScheme = 'light'; // 기본값으로 설정
   const insets = useSafeAreaInsets();
   const segments = useSegments();
   const { user } = useAuthStore();
@@ -272,7 +269,7 @@ export default function TabLayout() {
           tabBarActiveTintColor: pastelGreenColors[600],
           tabBarInactiveTintColor: '#374151', // 기존 '#6b7280'에서 더 진한 회색으로 변경
           headerShown: false,
-          tabBarButton: HapticTab,
+          // tabBarButton: HapticTab, // 삭제된 컴포넌트
           tabBarBackground: TabBarBackground,
           tabBarStyle: {
             height: 60 + insets.bottom,

@@ -3,7 +3,27 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert, SafeAreaView, StatusBa
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { registerWithEmail } from '../../lib/auth';
-import { logger } from '../../utils/logger';
+// 기본 logger 함수
+const logger = {
+  debug: (message: string, ...args: any[]) => {
+    if (__DEV__) {
+      console.log(`🔍 [DEBUG] ${message}`, ...args);
+    }
+  },
+  info: (message: string, ...args: any[]) => {
+    if (__DEV__) {
+      console.log(`ℹ️ [INFO] ${message}`, ...args);
+    }
+  },
+  warn: (message: string, ...args: any[]) => {
+    if (__DEV__) {
+      console.warn(`⚠️ [WARN] ${message}`, ...args);
+    }
+  },
+  error: (message: string, ...args: any[]) => {
+    console.error(`❌ [ERROR] ${message}`, ...args);
+  }
+};
 
 import Step1BasicInfo from './step1-basic-info';
 import Step2School from './step2-school';

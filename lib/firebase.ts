@@ -3,7 +3,22 @@ import { getAuth, initializeAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { logger } from '../utils/logger';
+// 기본 logger 함수
+const logger = {
+  debug: (message: string, ...args: any[]) => {
+    if (__DEV__) {
+      console.log(`🔍 [DEBUG] ${message}`, ...args);
+    }
+  },
+  warn: (message: string, ...args: any[]) => {
+    if (__DEV__) {
+      console.warn(`⚠️ [WARN] ${message}`, ...args);
+    }
+  },
+  error: (message: string, ...args: any[]) => {
+    console.error(`❌ [ERROR] ${message}`, ...args);
+  }
+};
 
 // React Native용 persistence - Firebase v11에서 지원하는 방식
 let getReactNativePersistence: any;

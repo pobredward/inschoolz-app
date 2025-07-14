@@ -16,13 +16,33 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { formatRelativeTime } from '@/utils/timeUtils';
-import { parseContentText, truncateText } from '@/utils/textUtils';
+// 기본 유틸리티 함수들
+const formatRelativeTime = (timestamp: any) => {
+  const date = new Date(timestamp?.seconds * 1000 || Date.now());
+  const now = new Date();
+  const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+  
+  if (diffInHours < 1) return '방금 전';
+  if (diffInHours < 24) return `${diffInHours}시간 전`;
+  return `${Math.floor(diffInHours / 24)}일 전`;
+};
+
+const parseContentText = (content: string) => {
+  if (!content) return '';
+  return content.replace(/<[^>]*>/g, '');
+};
+
+const truncateText = (text: string, maxLength: number = 100) => {
+  if (!text) return '';
+  const cleanText = parseContentText(text);
+  if (cleanText.length <= maxLength) return cleanText;
+  return cleanText.substring(0, maxLength) + '...';
+};
 import { getBoardsByType, getPostsByBoardType, getAllPostsByType } from '@/lib/boards';
 import { useAuthStore } from '../../store/authStore';
 import { Board, BoardType, Post } from '../../types';
 import BoardSelector from '@/components/board/BoardSelector';
-import SchoolSelector from '../../src/components/board/SchoolSelector';
+// import SchoolSelector from '../../src/components/board/SchoolSelector'; // 삭제된 컴포넌트
 import { Timestamp } from 'firebase/firestore';
 import { SafeScreenContainer } from '../../components/SafeScreenContainer';
 
@@ -273,14 +293,15 @@ export default function CommunityScreen() {
     <SafeScreenContainer>
       {renderTabs()}
       {selectedTab === 'school' && (
-        <SchoolSelector 
+        <></>
+        /* <SchoolSelector 
           style={styles.schoolSelector}
           onSchoolChange={() => {
             // 학교 변경 시 게시글 다시 로드
             loadBoards();
             loadPosts();
           }}
-        />
+        /> */
       )}
       {renderCategoryFilter()}
       {renderSortHeader()}

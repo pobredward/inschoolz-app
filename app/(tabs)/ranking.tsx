@@ -15,7 +15,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/authStore';
 import { getRankings, RankingUser, RankingType } from '../../lib/ranking';
 import { DocumentSnapshot } from 'firebase/firestore';
-import { logger } from '../../utils/logger';
+// 기본 logger 함수
+const logger = {
+  debug: (message: string, ...args: any[]) => {
+    if (__DEV__) {
+      console.log(`🔍 [DEBUG] ${message}`, ...args);
+    }
+  },
+  error: (message: string, ...args: any[]) => {
+    console.error(`❌ [ERROR] ${message}`, ...args);
+  }
+};
 import { SafeScreenContainer } from '../../components/SafeScreenContainer';
 
 interface RankingState {

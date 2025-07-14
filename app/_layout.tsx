@@ -6,10 +6,7 @@ import 'react-native-reanimated';
 import { useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 
-import { useColorScheme } from '@/hooks/useColorScheme';
-
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     // 잼민이체 스타일 (귀여운 손글씨) - 기존 SpaceMono를 재활용하되 스타일 적용
