@@ -350,28 +350,24 @@ export default function ProfileScreen() {
               style={styles.statCard}
               onPress={() => router.push('/my-posts')}
             >
-              <Text style={styles.statNumber}>{userStats.totalPosts}</Text>
               <Text style={styles.statLabel}>내가 쓴 글</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.statCard}
               onPress={() => router.push('/my-comments')}
             >
-              <Text style={styles.statNumber}>{userStats.totalComments}</Text>
               <Text style={styles.statLabel}>내 댓글</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.statCard}
               onPress={() => router.push('/my-likes')}
             >
-              <Text style={styles.statNumber}>{userStats.totalLikes}</Text>
               <Text style={styles.statLabel}>좋아요한 글</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.statCard}
               onPress={() => router.push('/my-bookmarks')}
             >
-              <Text style={styles.statNumber}>{bookmarkCount}</Text>
               <Text style={styles.statLabel}>스크랩</Text>
             </TouchableOpacity>
           </View>
@@ -676,9 +672,10 @@ const styles = StyleSheet.create({
     color: '#2563eb',
   },
   statLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '500',
+    textAlign: 'center',
   },
   menuSection: {
     backgroundColor: 'white',
