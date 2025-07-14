@@ -463,26 +463,26 @@ const styles = StyleSheet.create({
   },
   levelContainer: {
     alignItems: 'center',
+    width: '100%',
   },
   levelText: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#10B981',
     marginBottom: 8,
+    textAlign: 'center',
   },
   expBar: {
-    flexDirection: 'row',
+    width: '100%',
     alignItems: 'center',
+  },
+  expBarBackground: {
     width: '100%',
     height: 10,
     backgroundColor: '#e5e7eb',
     borderRadius: 5,
     overflow: 'hidden',
-  },
-  expBarBackground: {
-    height: '100%',
-    backgroundColor: '#d1d5db',
-    borderRadius: 5,
+    marginBottom: 8,
   },
   expBarFill: {
     height: '100%',
@@ -493,7 +493,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6b7280',
     fontWeight: '500',
-    marginLeft: 8,
+    textAlign: 'center',
   },
   infoSection: {
     margin: 20,

@@ -355,45 +355,29 @@ export const checkDailyLimit = async (userId: string, activityType: 'posts' | 'c
 };
 
 /**
- * 활동 카운트 업데이트
+ * 활동 카운트 업데이트 (단순화된 버전)
+ * 접속 시점에 이미 리셋되었으므로 단순히 카운트만 증가
  */
 export const updateActivityCount = async (userId: string, activityType: 'posts' | 'comments', gameType?: 'flappyBird' | 'reactionGame' | 'tileGame'): Promise<void> => {
-  const today = new Date().toISOString().split('T')[0];
   const userRef = doc(db, 'users', userId);
   
   const userDoc = await getDoc(userRef);
   if (!userDoc.exists()) return;
   
-  const userData = userDoc.data() as User;
-  const activityLimits = (userData as any).activityLimits; // 임시로 any 타입 사용
-  const needsReset = activityLimits?.lastResetDate !== today;
+  // 활동 카운트 증가만 수행 (날짜 체크 불필요)
+  const updateData: Record<string, FieldValue> = {};
   
-  // 리셋이 필요한 경우
-  if (needsReset) {
-    await updateDoc(userRef, {
-      'activityLimits.lastResetDate': today,
-      'activityLimits.dailyCounts.posts': activityType === 'posts' ? 1 : 0,
-      'activityLimits.dailyCounts.comments': activityType === 'comments' ? 1 : 0,
-      'activityLimits.dailyCounts.games.flappyBird': gameType === 'flappyBird' ? 1 : 0,
-      'activityLimits.dailyCounts.games.reactionGame': gameType === 'reactionGame' ? 1 : 0,
-      'activityLimits.dailyCounts.games.tileGame': gameType === 'tileGame' ? 1 : 0
-    });
-  } else {
-    // 기존 카운트 증가
-    if (activityType === 'posts') {
-      await updateDoc(userRef, {
-        'activityLimits.dailyCounts.posts': increment(1)
-      });
-    } else if (activityType === 'comments') {
-      await updateDoc(userRef, {
-        'activityLimits.dailyCounts.comments': increment(1)
-      });
-    } else if (gameType) {
-      await updateDoc(userRef, {
-        [`activityLimits.dailyCounts.games.${gameType}`]: increment(1)
-      });
-    }
+  if (activityType === 'posts') {
+    updateData[`activityLimits.dailyCounts.posts`] = increment(1);
+  } else if (activityType === 'comments') {
+    updateData[`activityLimits.dailyCounts.comments`] = increment(1);
   }
+  
+  if (gameType) {
+    updateData[`activityLimits.dailyCounts.games.${gameType}`] = increment(1);
+  }
+  
+  await updateDoc(userRef, updateData);
 };
 
 /**
@@ -1067,5 +1051,48 @@ export const getHomeStats = async (): Promise<{
   } catch (error) {
     console.error('홈 통계 조회 오류:', error);
     throw new Error('홈 통계 데이터를 가져오는 중 오류가 발생했습니다.');
+  }
+}; 
+
+/**
+ * 사용자 접속 시 일일 활동 제한 자동 리셋
+ * 00시 정각 이후 첫 접속 시 activityLimits를 모두 0으로 초기화
+ */
+export const resetDailyActivityLimits = async (userId: string): Promise<void> => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    
+    if (!userDoc.exists()) {
+      console.warn('사용자 문서를 찾을 수 없습니다:', userId);
+      return;
+    }
+    
+    const userData = userDoc.data() as User;
+    const today = new Date().toISOString().split('T')[0];
+    
+    // 활동 제한 데이터 확인
+    const activityLimits = userData.activityLimits;
+    
+    // 새로운 날이거나 데이터가 없으면 리셋
+    if (!activityLimits || activityLimits.lastResetDate !== today) {
+      console.log('일일 활동 제한 리셋 실행:', { userId, today, lastResetDate: activityLimits?.lastResetDate });
+      
+      const resetData = {
+        'activityLimits.lastResetDate': today,
+        'activityLimits.dailyCounts.posts': 0,
+        'activityLimits.dailyCounts.comments': 0,
+        'activityLimits.dailyCounts.games.flappyBird': 0,
+        'activityLimits.dailyCounts.games.reactionGame': 0,
+        'activityLimits.dailyCounts.games.tileGame': 0,
+        'activityLimits.dailyCounts.adViewedCount': 0,
+        // adRewards는 날짜별로 별도 관리되므로 리셋하지 않음
+      };
+      
+      await updateDoc(userRef, resetData);
+      console.log('일일 활동 제한 리셋 완료:', userId);
+    }
+  } catch (error) {
+    console.error('일일 활동 제한 리셋 오류:', error);
   }
 }; 

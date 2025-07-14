@@ -6,7 +6,7 @@ import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 // @ts-ignore - Firebase auth 타입 이슈
 import { auth, db } from '../lib/firebase';
 import { User } from '../types';
-import { checkLevelUp, getExpRequiredForNextLevel } from '../lib/experience';
+import { checkLevelUp, getExpRequiredForNextLevel, resetDailyActivityLimits } from '../lib/experience';
 import { logger } from '../utils/logger';
 
 // 인증 상태 타입 정의
@@ -66,6 +66,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
               
               if (userDoc.exists()) {
+                // 일일 활동 제한 자동 리셋 실행
+                await resetDailyActivityLimits(firebaseUser.uid);
+                
                 const userData = userDoc.data() as User;
                 userData.uid = firebaseUser.uid;
                 
