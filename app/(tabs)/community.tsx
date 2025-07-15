@@ -398,23 +398,27 @@ export default function CommunityScreen() {
   const renderPostCard = ({ item: post }: { item: CommunityPost }) => (
     <TouchableOpacity style={styles.postCard} onPress={() => handlePostPress(post)}>
       <View style={styles.postHeader}>
-        <View style={styles.boardBadge}>
-          <Text style={styles.boardBadgeText}>{post.boardName}</Text>
+        <View style={styles.postBadgeContainer}>
+          <Text style={styles.postTypeBadge}>
+            {selectedTab === 'national' ? '전국' : 
+             selectedTab === 'regional' ? '지역' : '학교'}
+          </Text>
+          <Text style={styles.postBoardBadge}>{post.boardName}</Text>
+          {post.attachments.length > 0 && (
+            <Text style={styles.imageBadge}>📷</Text>
+          )}
         </View>
-        {post.attachments.length > 0 && (
-          <View style={styles.imageBadge}>
-            <Text style={styles.imageBadgeText}>📷</Text>
-          </View>
-        )}
       </View>
 
       <Text style={styles.postTitle} numberOfLines={2}>
         {post.title}
       </Text>
 
-      <Text style={styles.postPreview} numberOfLines={2}>
-        {post.previewContent}
-      </Text>
+      {post.previewContent && (
+        <Text style={styles.postPreview} numberOfLines={2}>
+          {post.previewContent}
+        </Text>
+      )}
 
       <View style={styles.postMeta}>
         <View style={styles.authorSection}>
@@ -424,16 +428,13 @@ export default function CommunityScreen() {
         </View>
         <View style={styles.postStats}>
           <View style={styles.statItem}>
-            <Ionicons name="chatbubble-outline" size={12} color="#6B7280" />
-            <Text style={styles.statText}>{post.stats.commentCount}</Text>
+            <Text style={styles.statText}>👁 {post.stats.viewCount || 0}</Text>
           </View>
           <View style={styles.statItem}>
-            <Ionicons name="heart-outline" size={12} color="#6B7280" />
-            <Text style={styles.statText}>{post.stats.likeCount}</Text>
+            <Text style={styles.statText}>👍 {post.stats.likeCount || 0}</Text>
           </View>
           <View style={styles.statItem}>
-            <Ionicons name="eye-outline" size={12} color="#6B7280" />
-            <Text style={styles.statText}>{post.stats.viewCount}</Text>
+            <Text style={styles.statText}>💬 {post.stats.commentCount || 0}</Text>
           </View>
         </View>
       </View>
@@ -647,13 +648,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
   },
+  postBadgeContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  postTypeBadge: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    backgroundColor: '#e0e7ff',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  postBoardBadge: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    backgroundColor: '#d1fae5',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
   imageBadge: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#F59E0B',
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    backgroundColor: '#fed7aa',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
   },
   imageBadgeText: {
     fontSize: 10,

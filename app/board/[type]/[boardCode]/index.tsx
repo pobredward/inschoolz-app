@@ -204,31 +204,36 @@ export default function BoardScreen() {
                 onPress={() => handlePostPress(post)}
               >
                 <View style={styles.postHeader}>
-                  {post.isHot && (
-                    <View style={styles.hotBadge}>
-                      <Text style={styles.hotBadgeText}>🔥 HOT</Text>
-                    </View>
-                  )}
-                  <Text style={styles.postTitle} numberOfLines={2}>
-                    {post.title}
-                  </Text>
+                  <View style={styles.postBadgeContainer}>
+                    <Text style={styles.postTypeBadge}>
+                      {type === 'national' ? '전국' : 
+                       type === 'regional' ? '지역' : '학교'}
+                    </Text>
+                    <Text style={styles.postBoardBadge}>{boardCode}</Text>
+                    {post.isHot && (
+                      <Text style={styles.hotBadge}>🔥 HOT</Text>
+                    )}
+                  </View>
                 </View>
+
+                <Text style={styles.postTitle} numberOfLines={2}>
+                  {post.title}
+                </Text>
                 
-                <Text style={styles.postContent} numberOfLines={2}>
+                <Text style={styles.postPreview} numberOfLines={2}>
                   {parseContentText(post.content)}
                 </Text>
                 
-                <View style={styles.postMeta}>
-                  <Text style={styles.postAuthor}>{post.author} | {post.timeAgo}</Text>
-                  <Text style={styles.postViews}>조회 {post.views}</Text>
-                </View>
-                
                 <View style={styles.postStats}>
-                  <View style={styles.statItem}>
-                    <Text style={styles.statText}>👍 {post.likes}</Text>
+                  <View style={styles.postStatsLeft}>
+                    <Text style={styles.postStatItem}>
+                      {post.author} | {post.timeAgo}
+                    </Text>
                   </View>
-                  <View style={styles.statItem}>
-                    <Text style={styles.statText}>💬 {post.comments}</Text>
+                  <View style={styles.postStatsRight}>
+                    <Text style={styles.postStatItem}>👁 {post.views}</Text>
+                    <Text style={styles.postStatItem}>👍 {post.likes}</Text>
+                    <Text style={styles.postStatItem}>💬 {post.comments}</Text>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -379,9 +384,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9ca3af',
   },
+  postBadgeContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  postTypeBadge: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    backgroundColor: '#e0e7ff',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  postBoardBadge: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    backgroundColor: '#d1fae5',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  postPreview: {
+    fontSize: 14,
+    color: '#4b5563',
+    marginBottom: 8,
+  },
   postStats: {
     flexDirection: 'row',
-    gap: 16,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  postStatsLeft: {
+    flex: 1,
+  },
+  postStatsRight: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  postStatItem: {
+    fontSize: 12,
+    color: '#6b7280',
   },
   statItem: {
     flexDirection: 'row',
