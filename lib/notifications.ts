@@ -10,7 +10,9 @@ import {
   orderBy, 
   limit,
   Timestamp,
-  getDoc
+  getDoc,
+  startAt,
+  endAt
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Notification, NotificationType } from '../types';
@@ -407,6 +409,269 @@ export async function getUnreadNotificationCount(userId: string): Promise<number
     return querySnapshot.size;
   } catch (error) {
     console.error('읽지 않은 알림 개수 조회 실패:', error);
+    throw error;
+  }
+}
+
+// 사용자 검색 함수
+export async function searchUsers(query: string): Promise<Array<{
+  id: string;
+  realName: string;
+  userName: string;
+  schoolName?: string;
+}>> {
+  try {
+    const usersRef = collection(db, 'users');
+    const snapshot = await getDocs(usersRef);
+    
+    const users = snapshot.docs
+      .map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          realName: data.profile?.realName || '',
+          userName: data.profile?.userName || '',
+          schoolName: data.school?.name || ''
+        };
+      })
+      .filter(user => 
+        user.realName.toLowerCase().includes(query.toLowerCase()) ||
+        user.userName.toLowerCase().includes(query.toLowerCase())
+      )
+      .slice(0, 50); // 최대 50명까지만 반환
+    
+    return users;
+  } catch (error) {
+    console.error('사용자 검색 오류:', error);
+    return [];
+  }
+}
+
+// 학교 검색 함수 (Firebase 쿼리 최적화)
+export async function searchSchools(searchQuery: string): Promise<Array<{
+  id: string;
+  name: string;
+  address?: string;
+  type?: string;
+}>> {
+  try {
+    // 최소 2글자 이상 입력해야 검색
+    if (searchQuery.length < 2) {
+      return [];
+    }
+
+    const queryTrimmed = searchQuery.trim();
+    
+    // Firebase 쿼리로 앞글자 기반 검색 (startAt ~ endAt 사용)
+    const schoolsRef = collection(db, 'schools');
+    
+    // 정확한 앞글자 매칭을 위한 쿼리
+    const exactStartQuery = query(
+      schoolsRef,
+      where('KOR_NAME', '>=', queryTrimmed),
+      where('KOR_NAME', '<=', queryTrimmed + '\uf8ff'),
+      orderBy('KOR_NAME'),
+      limit(20)
+    );
+    
+    // 대소문자 구분 없는 검색을 위한 추가 쿼리 (소문자)
+    const lowerCaseQuery = query(
+      schoolsRef,
+      where('KOR_NAME', '>=', queryTrimmed.toLowerCase()),
+      where('KOR_NAME', '<=', queryTrimmed.toLowerCase() + '\uf8ff'),
+      orderBy('KOR_NAME'),
+      limit(20)
+    );
+    
+    // 두 쿼리 실행
+    const [exactSnapshot, lowerSnapshot] = await Promise.all([
+      getDocs(exactStartQuery),
+      getDocs(lowerCaseQuery)
+    ]);
+    
+    // 결과 합치기 및 중복 제거
+    const schoolsMap = new Map<string, {
+      id: string;
+      name: string;
+      address?: string;
+      type?: string;
+    }>();
+    
+    // 정확한 매칭 결과 추가
+    exactSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const schoolName = data.KOR_NAME || data.name || '';
+      
+      if (schoolName.toLowerCase().startsWith(queryTrimmed.toLowerCase())) {
+        schoolsMap.set(doc.id, {
+          id: doc.id,
+          name: schoolName,
+          address: data.ADDR || data.address || '',
+          type: data.SCHUL_KND_SC_NM || data.type || ''
+        });
+      }
+    });
+    
+    // 소문자 매칭 결과 추가
+    lowerSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const schoolName = data.KOR_NAME || data.name || '';
+      
+      if (schoolName.toLowerCase().startsWith(queryTrimmed.toLowerCase()) && !schoolsMap.has(doc.id)) {
+        schoolsMap.set(doc.id, {
+          id: doc.id,
+          name: schoolName,
+          address: data.ADDR || data.address || '',
+          type: data.SCHUL_KND_SC_NM || data.type || ''
+        });
+      }
+    });
+    
+    // 결과를 배열로 변환하고 정렬
+    const schools = Array.from(schoolsMap.values())
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(0, 30); // 최대 30개
+    
+    return schools;
+  } catch (error) {
+    console.error('학교 검색 오류:', error);
+    return [];
+  }
+}
+
+// 관리자 전체 알림 발송
+export async function sendBroadcastNotification(data: {
+  type: NotificationType;
+  title: string;
+  message: string;
+  targetType?: 'all' | 'students' | 'admins' | 'specific_users' | 'specific_school';
+  targetUserIds?: string[];
+  targetSchoolId?: string;
+  data?: {
+    [key: string]: unknown;
+  };
+}): Promise<{ success: boolean; sentCount: number; errors: string[] }> {
+  try {
+    console.log('알림 발송 시작:', data);
+    
+    // 모든 사용자 조회
+    const usersQuery = collection(db, 'users');
+    const usersSnapshot = await getDocs(usersQuery);
+    
+    console.log(`총 ${usersSnapshot.docs.length}명의 사용자를 찾았습니다.`);
+    
+    const results = {
+      success: true,
+      sentCount: 0,
+      errors: [] as string[]
+    };
+
+    // 사용자 필터링
+    const targetUsers = [];
+    for (const userDoc of usersSnapshot.docs) {
+      const userData = userDoc.data();
+      const userId = userDoc.id;
+      
+      // 사용자 데이터 유효성 검사
+      if (!userData) {
+        results.errors.push(`사용자 ${userId}: 사용자 데이터가 없습니다`);
+        continue;
+      }
+      
+      // 대상 타입별 필터링
+      switch (data.targetType) {
+        case 'students':
+          if (userData.role === 'admin') continue;
+          break;
+        case 'admins':
+          if (userData.role !== 'admin') continue;
+          break;
+        case 'specific_users':
+          if (!data.targetUserIds?.includes(userId)) continue;
+          break;
+        case 'specific_school':
+          if (!data.targetSchoolId) continue;
+          const favoriteSchools = userData.favorites?.schools || [];
+          if (!favoriteSchools.includes(data.targetSchoolId)) continue;
+          break;
+        case 'all':
+        default:
+          // 모든 사용자 포함
+          break;
+      }
+      
+      targetUsers.push({ userId, userData });
+    }
+    
+    console.log(`필터링 후 ${targetUsers.length}명의 대상 사용자`);
+    
+    // 배치로 처리 (10명씩)
+    const batchSize = 10;
+    for (let i = 0; i < targetUsers.length; i += batchSize) {
+      const batch = targetUsers.slice(i, i + batchSize);
+      const batchPromises = [];
+      
+      for (const { userId, userData } of batch) {
+        try {
+          const notificationData: Omit<Notification, 'id'> = {
+            userId: userId,
+            type: data.type,
+            title: data.title,
+            message: data.message,
+            data: data.data || {},
+            isRead: false,
+            createdAt: Date.now(),
+          };
+
+          batchPromises.push(
+            addDoc(collection(db, 'notifications'), notificationData)
+              .then(() => ({ success: true, userId }))
+              .catch((error) => ({ success: false, userId, error }))
+          );
+        } catch (error) {
+          results.errors.push(`사용자 ${userId} 준비 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+        }
+      }
+      
+      // 배치 실행
+      if (batchPromises.length > 0) {
+        try {
+          const batchResults = await Promise.allSettled(batchPromises);
+          
+          for (const result of batchResults) {
+            if (result.status === 'fulfilled') {
+              const batchResult = result.value;
+              if (batchResult.success) {
+                results.sentCount++;
+              } else {
+                const error = 'error' in batchResult ? batchResult.error : '알 수 없는 오류';
+                results.errors.push(`사용자 ${batchResult.userId}: ${error instanceof Error ? error.message : error}`);
+              }
+            } else {
+              results.errors.push(`배치 처리 실패: ${result.reason}`);
+            }
+          }
+        } catch (error) {
+          results.errors.push(`배치 ${i / batchSize + 1} 실행 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+        }
+      }
+      
+      // 배치 간 딜레이 (500ms)
+      if (i + batchSize < targetUsers.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    console.log(`알림 발송 완료: 성공 ${results.sentCount}명, 실패 ${results.errors.length}건`);
+    
+    if (results.errors.length > 0) {
+      console.error('발송 실패 상세:', results.errors);
+      results.success = false;
+    }
+    
+    return results;
+  } catch (error) {
+    console.error('전체 알림 발송 실패:', error);
     throw error;
   }
 } 

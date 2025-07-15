@@ -116,6 +116,17 @@ export default function AdminScreen() {
       },
     },
     {
+      id: 'notifications',
+      title: '알림 설정',
+      description: '전체 사용자 알림 발송',
+      icon: 'notifications',
+      color: pastelGreenColors[400],
+      enabled: true,
+      onPress: () => {
+        router.push('/admin/notifications' as any);
+      },
+    },
+    {
       id: 'reports',
       title: '신고 관리',
       description: '신고 처리 및 제재',
