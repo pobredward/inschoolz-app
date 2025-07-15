@@ -309,19 +309,19 @@ export default function HomeScreen() {
               
               <TouchableOpacity 
                 style={styles.communityCard}
-                onPress={() => Alert.alert('로그인 필요', '학교 커뮤니티를 이용하려면 로그인해주세요.')}
+                onPress={() => Alert.alert('로그인 필요', '지역 커뮤니티를 이용하려면 로그인해주세요.')}
               >
-                <Text style={styles.communityIcon}>🏫</Text>
-                <Text style={styles.communityTitle}>학교</Text>
+                <Text style={styles.communityIcon}>🏘️</Text>
+                <Text style={styles.communityTitle}>지역</Text>
                 <Text style={styles.communityDesc}>로그인 후 이용</Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
                 style={styles.communityCard}
-                onPress={() => Alert.alert('로그인 필요', '지역 커뮤니티를 이용하려면 로그인해주세요.')}
+                onPress={() => Alert.alert('로그인 필요', '학교 커뮤니티를 이용하려면 로그인해주세요.')}
               >
-                <Text style={styles.communityIcon}>🏘️</Text>
-                <Text style={styles.communityTitle}>지역</Text>
+                <Text style={styles.communityIcon}>🏫</Text>
+                <Text style={styles.communityTitle}>학교</Text>
                 <Text style={styles.communityDesc}>로그인 후 이용</Text>
               </TouchableOpacity>
             </View>

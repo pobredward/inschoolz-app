@@ -322,9 +322,9 @@ export default function CommunityScreen() {
   const renderTabs = () => (
     <View style={styles.tabContainer}>
       {[
-        { value: 'school', label: '학교' },
+        { value: 'national', label: '전국' },
         { value: 'regional', label: '지역' },
-        { value: 'national', label: '전국' }
+        { value: 'school', label: '학교' }
       ].map((tab) => (
         <TouchableOpacity
           key={tab.value}
