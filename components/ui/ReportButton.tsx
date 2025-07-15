@@ -3,7 +3,7 @@ import { TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ReportType } from '../../types';
 import { ReportModal } from './ReportModal';
-import { hasUserReported, checkReportSpam } from '../../lib/reports';
+import { hasUserReported } from '../../lib/reports';
 import { useAuthStore } from '../../store/authStore';
 
 interface ReportButtonProps {
@@ -69,21 +69,7 @@ export function ReportButton({
       return;
     }
 
-    // 신고 스팸 방지 검사
-    try {
-      const spamCheck = await checkReportSpam(user.uid);
-      if (!spamCheck.canReport) {
-        const timeMessage = spamCheck.remainingTime 
-          ? ` (${spamCheck.remainingTime}${spamCheck.remainingTime > 60 ? '시간' : '분'} 후 다시 시도 가능)`
-          : '';
-        Alert.alert('알림', `${spamCheck.reason}${timeMessage}`);
-        return;
-      }
-    } catch (error) {
-      console.error('신고 스팸 검사 실패:', error);
-      // 검사 실패 시에도 신고 허용
-    }
-
+    // 신고 모달 바로 열기 (스팸 체크 제거)
     setIsModalVisible(true);
   };
 

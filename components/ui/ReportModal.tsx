@@ -199,17 +199,7 @@ export function ReportModal({
             <Text style={styles.characterCount}>{description.length}/500</Text>
           </View>
 
-          {/* 신고 대상 내용 미리보기 */}
-          {targetContent && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>신고 대상 내용</Text>
-              <ScrollView style={styles.targetContentPreview} nestedScrollEnabled>
-                <Text style={styles.targetContentText}>
-                  {targetContent}
-                </Text>
-              </ScrollView>
-            </View>
-          )}
+
 
           {/* 경고 문구 */}
           <View style={styles.warningSection}>
@@ -324,19 +314,7 @@ const styles = StyleSheet.create({
     minHeight: 80,
     textAlignVertical: 'top',
   },
-  targetContentPreview: {
-    backgroundColor: '#f9fafb',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    maxHeight: 120,
-  },
-  targetContentText: {
-    fontSize: 14,
-    color: '#6b7280',
-    lineHeight: 20,
-  },
+
   warningSection: {
     backgroundColor: '#fef3c7',
     padding: 12,

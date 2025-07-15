@@ -370,6 +370,12 @@ export default function ProfileScreen() {
             >
               <Text style={styles.statLabel}>스크랩</Text>
             </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.statCard}
+              onPress={() => router.push('/my-reports')}
+            >
+              <Text style={styles.statLabel}>신고 기록</Text>
+            </TouchableOpacity>
           </View>
         </View>
 

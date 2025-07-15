@@ -23,31 +23,39 @@ export async function createNotification(data: {
   type: NotificationType;
   title: string;
   message: string;
-  data?: {
-    reportId?: string;
-    postId?: string;
-    commentId?: string;
-    targetUserId?: string;
-    actionTaken?: string;
-    authorName?: string;
-    referrerName?: string;
-    postTitle?: string;
-    commentContent?: string;
-    [key: string]: unknown;
-  };
+  data?: Record<string, any>;
 }): Promise<Notification> {
   try {
+    console.log('createNotification 호출됨:', data);
+    
     const notificationData: Omit<Notification, 'id'> = {
       userId: data.userId,
       type: data.type,
       title: data.title,
       message: data.message,
-      data: data.data,
       isRead: false,
       createdAt: Date.now(),
     };
 
+    // data 필드가 유효할 때만 추가 (undefined 방지)
+    if (data.data && Object.keys(data.data).length > 0) {
+      // undefined 값들을 필터링
+      const filteredData = Object.fromEntries(
+        Object.entries(data.data).filter(([_, value]) => value !== undefined)
+      );
+      
+      console.log('data 필터링 결과:', { original: data.data, filtered: filteredData });
+      
+      if (Object.keys(filteredData).length > 0) {
+        notificationData.data = filteredData;
+      }
+    }
+
+    console.log('Firestore에 저장할 알림 데이터:', notificationData);
+
     const docRef = await addDoc(collection(db, 'notifications'), notificationData);
+    
+    console.log('알림 생성 성공:', docRef.id);
     
     return {
       id: docRef.id,
@@ -55,6 +63,7 @@ export async function createNotification(data: {
     };
   } catch (error) {
     console.error('알림 생성 실패:', error);
+    console.error('입력 데이터:', data);
     throw error;
   }
 }

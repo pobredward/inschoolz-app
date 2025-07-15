@@ -301,6 +301,7 @@ export interface Report {
   targetId: string;      // 신고 대상의 ID (postId, commentId, userId)
   targetType: ReportType;
   targetContent?: string; // 신고 대상의 내용 (스냅샷)
+  targetAuthorId?: string; // 신고받은 사용자 ID (게시글/댓글 작성자 또는 직접 신고받은 사용자)
   postId?: string;       // 댓글 신고 시 게시글 ID
   
   // 신고자 정보

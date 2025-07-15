@@ -132,9 +132,9 @@ export default function AdminScreen() {
       description: '신고 처리 및 제재',
       icon: 'report',
       color: '#ef4444',
-      enabled: false,
+      enabled: true,
       onPress: () => {
-        Alert.alert('개발 중', '신고 관리 기능은 개발 중입니다.');
+        router.push('/admin/reports');
       },
     },
     {

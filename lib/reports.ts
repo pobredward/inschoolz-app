@@ -18,86 +18,16 @@ import { db } from './firebase';
 import { Report, ReportType, ReportReason, ReportStatus, ReportStats, UserReportRecord } from '../types';
 import { createReportReceivedNotification } from './notifications';
 
-// 신고 스팸 방지 검사
+// 신고 스팸 방지 검사 (단순화된 버전 - Firebase 인덱스 없이)
 export async function checkReportSpam(reporterId: string): Promise<{
   canReport: boolean;
   reason?: string;
   remainingTime?: number;
 }> {
   try {
-    const now = Date.now();
-    const oneHour = 60 * 60 * 1000;
-    const oneDay = 24 * oneHour;
-    
-    // 최근 1시간 내 신고 횟수 확인
-    const recentReportsQuery = query(
-      collection(db, 'reports'),
-      where('reporterId', '==', reporterId),
-      where('createdAt', '>=', now - oneHour),
-      orderBy('createdAt', 'desc')
-    );
-    
-    const recentReportsSnap = await getDocs(recentReportsQuery);
-    const recentReports = recentReportsSnap.docs.map(doc => doc.data() as Report);
-    
-    // 1시간 내 5회 이상 신고 시 제한
-    if (recentReports.length >= 5) {
-      const oldestReport = recentReports[recentReports.length - 1];
-      const remainingTime = oneHour - (now - oldestReport.createdAt);
-      
-      return {
-        canReport: false,
-        reason: '너무 많은 신고를 했습니다. 잠시 후 다시 시도해주세요.',
-        remainingTime: Math.ceil(remainingTime / (60 * 1000)) // 분 단위
-      };
-    }
-    
-    // 최근 24시간 내 신고 횟수 확인
-    const dailyReportsQuery = query(
-      collection(db, 'reports'),
-      where('reporterId', '==', reporterId),
-      where('createdAt', '>=', now - oneDay),
-      orderBy('createdAt', 'desc')
-    );
-    
-    const dailyReportsSnap = await getDocs(dailyReportsQuery);
-    
-    // 24시간 내 20회 이상 신고 시 제한
-    if (dailyReportsSnap.size >= 20) {
-      return {
-        canReport: false,
-        reason: '오늘 신고 한도를 초과했습니다. 내일 다시 시도해주세요.',
-        remainingTime: Math.ceil((oneDay - (now - dailyReportsSnap.docs[dailyReportsSnap.docs.length - 1].data().createdAt)) / oneHour) // 시간 단위
-      };
-    }
-    
-    // 연속으로 반려된 신고가 5회 이상인 경우 제한
-    const rejectedReportsQuery = query(
-      collection(db, 'reports'),
-      where('reporterId', '==', reporterId),
-      where('status', '==', 'rejected'),
-      orderBy('createdAt', 'desc'),
-      limit(5)
-    );
-    
-    const rejectedReportsSnap = await getDocs(rejectedReportsQuery);
-    
-    if (rejectedReportsSnap.size >= 5) {
-      // 최근 5개 신고가 모두 반려된 경우
-      const recentRejected = rejectedReportsSnap.docs.map(doc => doc.data() as Report);
-      const allRecentlyRejected = recentRejected.every(report => 
-        report.resolvedAt && (now - report.resolvedAt) < (7 * oneDay) // 7일 이내
-      );
-      
-      if (allRecentlyRejected) {
-        return {
-          canReport: false,
-          reason: '최근 신고가 여러 번 반려되어 일시적으로 신고 기능이 제한되었습니다.',
-          remainingTime: 24 // 24시간 제한
-        };
-      }
-    }
-    
+    // 기본적으로 신고 허용
+    // 복잡한 스팸 체크는 서버사이드 Cloud Functions에서 처리
+    // 중복 신고는 hasUserReported 함수에서 별도 체크
     return { canReport: true };
   } catch (error) {
     console.error('신고 스팸 검사 실패:', error);
@@ -134,21 +64,45 @@ export async function createReport(data: {
       throw new Error(spamCheck.reason || '신고할 수 없습니다.');
     }
 
+    // 신고받은 사용자 ID 찾기
+    let targetAuthorId: string | null = null;
+    
+    if (data.targetType === 'user') {
+      targetAuthorId = data.targetId;
+    } else if (data.targetType === 'post') {
+      // 게시글 신고 시 게시글 작성자 ID 조회
+      const postDoc = await getDoc(doc(db, 'posts', data.targetId));
+      if (postDoc.exists()) {
+        targetAuthorId = postDoc.data()?.authorId;
+      }
+    } else if (data.targetType === 'comment') {
+      // 댓글 신고 시 댓글 작성자 ID 조회
+      if (data.postId) {
+        const commentDoc = await getDoc(doc(db, 'posts', data.postId, 'comments', data.targetId));
+        if (commentDoc.exists()) {
+          targetAuthorId = commentDoc.data()?.authorId;
+        }
+      }
+    }
+
+    // undefined 값들을 제거한 reportData 생성
     const reportData: Omit<Report, 'id'> = {
       reason: data.reason,
-      customReason: data.customReason,
-      description: data.description,
       targetId: data.targetId,
       targetType: data.targetType,
-      targetContent: data.targetContent,
-      postId: data.postId, // 댓글 신고 시 어떤 게시글의 댓글인지 추적
       reporterId: data.reporterId,
       reporterInfo: data.reporterInfo,
       status: 'pending',
       createdAt: Date.now(),
-      boardCode: data.boardCode,
-      schoolId: data.schoolId,
-      regions: data.regions,
+      // 조건부로 필드 추가 (undefined 값 제외)
+      ...(data.customReason && { customReason: data.customReason }),
+      ...(data.description && { description: data.description }),
+      ...(data.targetContent && { targetContent: data.targetContent }),
+      ...(targetAuthorId && { targetAuthorId }),
+      ...(data.postId && { postId: data.postId }),
+      ...(data.boardCode && { boardCode: data.boardCode }),
+      ...(data.schoolId && { schoolId: data.schoolId }),
+      ...(data.regions && { regions: data.regions }),
     };
 
     const docRef = await addDoc(collection(db, 'reports'), reportData);
@@ -160,30 +114,10 @@ export async function createReport(data: {
 
     // 신고당한 사용자에게 알림 전송
     try {
-      let targetUserId: string | null = null;
-
-      if (data.targetType === 'user') {
-        targetUserId = data.targetId;
-      } else if (data.targetType === 'post') {
-        // 게시글 신고 시 게시글 작성자 ID 조회
-        const postDoc = await getDoc(doc(db, 'posts', data.targetId));
-        if (postDoc.exists()) {
-          targetUserId = postDoc.data()?.authorId;
-        }
-      } else if (data.targetType === 'comment') {
-        // 댓글 신고 시 댓글 작성자 ID 조회
-        if (data.postId) {
-          const commentDoc = await getDoc(doc(db, 'posts', data.postId, 'comments', data.targetId));
-          if (commentDoc.exists()) {
-            targetUserId = commentDoc.data()?.authorId;
-          }
-        }
-      }
-
       // 자기 자신을 신고한 경우는 알림 전송하지 않음
-      if (targetUserId && targetUserId !== data.reporterId) {
+      if (targetAuthorId && targetAuthorId !== data.reporterId) {
         await createReportReceivedNotification(
-          targetUserId,
+          targetAuthorId,
           docRef.id,
           data.reporterInfo.displayName,
           data.targetType
@@ -227,27 +161,30 @@ export async function getUserReports(userId: string): Promise<UserReportRecord> 
     // 내가 신고한 내역
     const reportsMadeQuery = query(
       collection(db, 'reports'),
-      where('reporterId', '==', userId),
-      orderBy('createdAt', 'desc')
+      where('reporterId', '==', userId)
     );
     const reportsMadeSnap = await getDocs(reportsMadeQuery);
     const reportsMade = reportsMadeSnap.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
     })) as Report[];
+    
+    // 클라이언트에서 정렬
+    reportsMade.sort((a, b) => b.createdAt - a.createdAt);
 
-    // 나를 신고한 내역
+    // 나를 신고한 내역 - targetAuthorId 필드 사용
     const reportsReceivedQuery = query(
       collection(db, 'reports'),
-      where('targetId', '==', userId),
-      where('targetType', '==', 'user'),
-      orderBy('createdAt', 'desc')
+      where('targetAuthorId', '==', userId)
     );
     const reportsReceivedSnap = await getDocs(reportsReceivedQuery);
     const reportsReceived = reportsReceivedSnap.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
     })) as Report[];
+
+    // 정렬
+    reportsReceived.sort((a, b) => b.createdAt - a.createdAt);
 
     // 통계 계산
     const stats = {

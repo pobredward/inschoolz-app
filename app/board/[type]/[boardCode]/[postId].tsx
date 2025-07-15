@@ -390,7 +390,7 @@ export default function PostDetailScreen() {
           { text: '신고', onPress: () => {
             setReportTargetId(post.id);
             setReportTargetType('post');
-            setReportTargetContent(post.content);
+            setReportTargetContent(JSON.stringify({ title: post.title, content: post.content }));
             setReportPostId('');
             setShowReportModal(true);
           }, style: 'destructive' as const }
