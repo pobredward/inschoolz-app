@@ -239,7 +239,6 @@ export default function HomeScreen() {
                       <Text style={styles.postTypeBadge}>전국</Text>
                       <Text style={styles.postBoardBadge}>{(post as any).boardName || post.boardCode}</Text>
                     </View>
-                    <Text style={styles.postDate}>{formatSmartTime(post.createdAt)}</Text>
                   </View>
                   
                   <Text style={styles.postTitle} numberOfLines={2}>
@@ -254,9 +253,14 @@ export default function HomeScreen() {
                   
                   <View style={styles.postStats}>
                     <View style={styles.postStatsLeft}>
+                      <Text style={styles.postStatItem}>
+                        {post.authorInfo?.displayName || '익명'} | {formatSmartTime(post.createdAt)}
+                      </Text>
+                    </View>
+                    <View style={styles.postStatsRight}>
+                      <Text style={styles.postStatItem}>👁 {post.stats?.viewCount || 0}</Text>
                       <Text style={styles.postStatItem}>👍 {post.stats?.likeCount || 0}</Text>
                       <Text style={styles.postStatItem}>💬 {post.stats?.commentCount || 0}</Text>
-                      <Text style={styles.postStatItem}>👁 {post.stats?.viewCount || 0}</Text>
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -421,7 +425,6 @@ export default function HomeScreen() {
                     <Text style={styles.postTypeBadge}>전국</Text>
                     <Text style={styles.postBoardBadge}>{(post as any).boardName || post.boardCode}</Text>
                   </View>
-                  <Text style={styles.postDate}>{formatSmartTime(post.createdAt)}</Text>
                 </View>
                 
                 <Text style={styles.postTitle} numberOfLines={2}>
@@ -436,9 +439,14 @@ export default function HomeScreen() {
                 
                 <View style={styles.postStats}>
                   <View style={styles.postStatsLeft}>
+                    <Text style={styles.postStatItem}>
+                      {post.authorInfo?.displayName || '익명'} | {formatSmartTime(post.createdAt)}
+                    </Text>
+                  </View>
+                  <View style={styles.postStatsRight}>
+                    <Text style={styles.postStatItem}>👁 {post.stats?.viewCount || 0}</Text>
                     <Text style={styles.postStatItem}>👍 {post.stats?.likeCount || 0}</Text>
                     <Text style={styles.postStatItem}>💬 {post.stats?.commentCount || 0}</Text>
-                    <Text style={styles.postStatItem}>👁 {post.stats?.viewCount || 0}</Text>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -756,6 +764,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   postStatsLeft: {
+    flex: 1,
+  },
+  postStatsRight: {
     flexDirection: 'row',
     gap: 12,
   },
