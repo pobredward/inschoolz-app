@@ -57,7 +57,11 @@ const getNotificationIcon = (type: NotificationType): keyof typeof Ionicons.glyp
     case 'referral':
       return 'people';
     case 'system':
-      return 'notifications';
+      return 'information-circle';
+    case 'general':
+      return 'document-text';
+    case 'event':
+      return 'calendar';
     case 'report_received':
     case 'report_resolved':
       return 'warning';
@@ -82,7 +86,11 @@ const getNotificationIconColor = (type: NotificationType): string => {
     case 'referral':
       return '#6366F1';
     case 'system':
+      return '#2563EB';
+    case 'general':
       return '#6B7280';
+    case 'event':
+      return '#059669';
     case 'report_received':
     case 'report_resolved':
       return '#F59E0B';

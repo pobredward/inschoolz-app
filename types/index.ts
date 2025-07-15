@@ -421,6 +421,8 @@ export type NotificationType =
   | 'warning'           // 경고 조치
   | 'suspension'        // 정지 조치
   | 'system'            // 관리자가 모든 유저에게 보내는 알림
+  | 'general'           // 일반 알림
+  | 'event'             // 이벤트 알림
   | 'referral'          // 누군가가 내 아이디를 추천인으로 설정
   | 'post_comment'      // 내가 쓴 게시글에 댓글
   | 'comment_reply';    // 내가 쓴 댓글에 대댓글
