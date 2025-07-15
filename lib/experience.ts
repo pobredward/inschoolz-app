@@ -769,6 +769,12 @@ export interface ExperienceSettings {
     streakBonus: number;
     weeklyBonusXP: number;
   };
+  
+  referral: {
+    referrerXP: number;    // 추천인(A)이 받는 경험치
+    refereeXP: number;     // 추천받은 사람(B)이 받는 경험치
+    enabled: boolean;      // 추천인 시스템 활성화 여부
+  };
 }
 
 /**
@@ -816,6 +822,12 @@ export const getExperienceSettings = async (): Promise<ExperienceSettings> => {
           dailyXP: 10,
           streakBonus: 5,
           weeklyBonusXP: 50,
+        },
+        
+        referral: {
+          referrerXP: 30,     // 추천인이 받는 경험치 (기본값)
+          refereeXP: 20,      // 추천받은 사람이 받는 경험치 (기본값)
+          enabled: true,      // 추천인 시스템 활성화
         },
       };
       

@@ -13,6 +13,58 @@ import { User } from '../types';
 import { logger } from '../utils/logger';
 
 /**
+ * 추천인 아이디 검증 함수
+ */
+export async function validateReferralCode(referralCode: string): Promise<{
+  isValid: boolean;
+  user?: {
+    uid: string;
+    userName: string;
+    displayName: string;
+  };
+  message?: string;
+}> {
+  if (!referralCode || referralCode.trim() === '') {
+    return {
+      isValid: false,
+      message: '추천인 아이디를 입력해주세요.'
+    };
+  }
+
+  try {
+    // users 컬렉션에서 userName으로 검색
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where('profile.userName', '==', referralCode.trim()));
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+      return {
+        isValid: false,
+        message: '존재하지 않는 사용자입니다.'
+      };
+    }
+
+    const userDoc = querySnapshot.docs[0];
+    const userData = userDoc.data() as User;
+
+    return {
+      isValid: true,
+      user: {
+        uid: userDoc.id,
+        userName: userData.profile.userName,
+        displayName: userData.profile.userName
+      }
+    };
+  } catch (error) {
+    console.error('추천인 검증 오류:', error);
+    return {
+      isValid: false,
+      message: '추천인 검증 중 오류가 발생했습니다.'
+    };
+  }
+}
+
+/**
  * 이메일/비밀번호로 회원가입
  * @param email 이메일
  * @param password 비밀번호
@@ -170,21 +222,42 @@ export const registerWithEmail = async (
         if (!querySnapshot.empty) {
           const referrerDoc = querySnapshot.docs[0];
           const referrerData = referrerDoc.data();
+          const referrerId = referrerDoc.id;
           
-          // 추천인과 신규 사용자 모두에게 경험치 지급
-          const bonusExp = 30; // 추천 보상 경험치
+          // 시스템 설정에서 추천인 경험치 값 가져오기
+          const { getExperienceSettings } = await import('./experience');
+          const expSettings = await getExperienceSettings();
+          
+          const referrerExp = expSettings.referral?.referrerXP || 30; // 추천인이 받는 경험치
+          const refereeExp = expSettings.referral?.refereeXP || 20;   // 추천받은 사람이 받는 경험치
           
           // 추천인 경험치 업데이트
           await updateDoc(referrerDoc.ref, {
-            'stats.totalExperience': (referrerData.stats?.totalExperience || 0) + bonusExp,
+            'stats.experience': (referrerData.stats?.experience || 0) + referrerExp,
+            'stats.totalExperience': (referrerData.stats?.totalExperience || 0) + referrerExp,
             updatedAt: serverTimestamp()
           });
           
           // 신규 사용자 경험치 업데이트
           await updateDoc(doc(db, 'users', firebaseUser.uid), {
-            'stats.totalExperience': bonusExp,
+            'stats.experience': refereeExp,
+            'stats.totalExperience': refereeExp,
             updatedAt: serverTimestamp()
           });
+
+          // 추천인에게 알림 발송
+          try {
+            const { createReferralNotification } = await import('./notifications');
+            await createReferralNotification(
+              referrerId,
+              userName,
+              firebaseUser.uid,
+              referrerExp // 추천인이 받은 경험치 정보 포함
+            );
+          } catch (notificationError) {
+            logger.error('추천인 알림 발송 실패:', notificationError);
+            // 알림 발송 실패는 회원가입 자체를 실패시키지 않음
+          }
           
           logger.debug('추천 보상 처리 완료:', extraProfile.referral);
         }

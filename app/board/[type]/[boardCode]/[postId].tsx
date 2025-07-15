@@ -71,6 +71,10 @@ import { awardCommentExperience } from '@/lib/experience-service';
 import { ReportButton } from '@/components/ui/ReportButton';
 import { ReportModal } from '@/components/ui/ReportModal';
 import { ExperienceModal } from '@/components/ui/ExperienceModal';
+import { 
+  createPostCommentNotification, 
+  createCommentReplyNotification 
+} from '../../../../lib/notifications';
 
 // 파스텔 그린 색상 팔레트
 const pastelGreenColors = {
@@ -431,11 +435,28 @@ export default function PostDetailScreen() {
         }
       };
 
-      await addDoc(collection(db, 'posts', post.id, 'comments'), commentData);
+      const docRef = await addDoc(collection(db, 'posts', post.id, 'comments'), commentData);
       
       // 댓글 목록 새로고침
       await loadComments(post.id);
       setNewComment('');
+
+      // 알림 발송 로직 (게시글 작성자가 자기 자신이 아닌 경우)
+      try {
+        if (post.authorId !== user.uid) {
+          await createPostCommentNotification(
+            post.authorId,    // 게시글 작성자 ID
+            user.uid,         // 댓글 작성자 ID
+            post.id,          // 게시글 ID
+            docRef.id,        // 댓글 ID
+            post.title || '제목 없음',  // 게시글 제목
+            newComment        // 댓글 내용
+          );
+        }
+      } catch (notificationError) {
+        console.error('알림 발송 실패:', notificationError);
+        // 알림 발송 실패는 댓글 작성을 방해하지 않음
+      }
       
       // 경험치 부여
       try {
@@ -496,12 +517,44 @@ export default function PostDetailScreen() {
         }
       };
 
-      await addDoc(collection(db, 'posts', post.id, 'comments'), replyData);
+      const docRef = await addDoc(collection(db, 'posts', post.id, 'comments'), replyData);
       
       // 댓글 목록 새로고침
       await loadComments(post.id);
       setReplyContent('');
       setReplyingTo(null);
+
+      // 알림 발송 로직 (부모 댓글 작성자에게)
+      try {
+        // 부모 댓글 정보 조회
+        const parentCommentDoc = await getDoc(doc(db, 'posts', post.id, 'comments', parentId));
+        
+        if (parentCommentDoc.exists()) {
+          const parentCommentData = parentCommentDoc.data();
+          const parentAuthorId = parentCommentData?.authorId;
+          
+          // 부모 댓글 작성자가 자기 자신이 아닌 경우 알림 발송
+          if (parentAuthorId && parentAuthorId !== user.uid) {
+            // 대댓글 작성자명 처리 (익명 여부 고려)
+            const commenterName = false  // 현재 앱에서는 익명 기능이 비활성화되어 있음
+              ? '익명' 
+              : (user.profile?.userName || '사용자');
+              
+            await createCommentReplyNotification(
+              parentAuthorId,
+              post.id,
+              post.title || '제목 없음',
+              parentId,
+              commenterName,
+              replyContent,
+              docRef.id
+            );
+          }
+        }
+      } catch (notificationError) {
+        console.error('알림 발송 실패:', notificationError);
+        // 알림 발송 실패는 답글 작성을 방해하지 않음
+      }
       
       // 경험치 부여
       try {

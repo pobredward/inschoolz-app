@@ -420,7 +420,10 @@ export type NotificationType =
   | 'report_resolved'    // 신고 처리 완료
   | 'warning'           // 경고 조치
   | 'suspension'        // 정지 조치
-  | 'system';
+  | 'system'            // 관리자가 모든 유저에게 보내는 알림
+  | 'referral'          // 누군가가 내 아이디를 추천인으로 설정
+  | 'post_comment'      // 내가 쓴 게시글에 댓글
+  | 'comment_reply';    // 내가 쓴 댓글에 대댓글
 
 export interface Notification {
   id: string;
@@ -434,6 +437,10 @@ export interface Notification {
     commentId?: string;
     targetUserId?: string;
     actionTaken?: string;
+    authorName?: string;       // 댓글/대댓글 작성자 이름
+    referrerName?: string;     // 추천인 이름
+    postTitle?: string;        // 게시글 제목
+    commentContent?: string;   // 댓글 내용
     [key: string]: unknown;
   };
   isRead: boolean;

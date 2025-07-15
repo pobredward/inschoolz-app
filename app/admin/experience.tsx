@@ -63,6 +63,12 @@ interface ExperienceSettings {
     streakBonus: number;
     weeklyBonusXP: number;
   };
+  
+  referral: {
+    referrerXP: number;    // 추천인(A)이 받는 경험치
+    refereeXP: number;     // 추천받은 사람(B)이 받는 경험치
+    enabled: boolean;      // 추천인 시스템 활성화 여부
+  };
 }
 
 export default function ExperienceManagementScreen() {
@@ -101,6 +107,12 @@ export default function ExperienceManagementScreen() {
       dailyXP: 10,
       streakBonus: 5,
       weeklyBonusXP: 50,
+    },
+    
+    referral: {
+      referrerXP: 30,     // 추천인이 받는 경험치 (기본값)
+      refereeXP: 20,      // 추천받은 사람이 받는 경험치 (기본값)
+      enabled: true,      // 추천인 시스템 활성화
     },
   });
 
@@ -437,6 +449,48 @@ export default function ExperienceManagementScreen() {
                 ...prev,
                 attendance: { ...prev.attendance, weeklyBonusXP: value }
               }))
+            )}
+          </View>
+        </View>
+
+        {/* 추천인 시스템 설정 */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>추천인 시스템</Text>
+          <View style={styles.sectionContent}>
+            <View style={styles.switchContainer}>
+              <Text style={styles.switchLabel}>추천인 시스템 활성화</Text>
+              <Switch
+                value={settings.referral.enabled}
+                onValueChange={(value) => setSettings(prev => ({
+                  ...prev,
+                  referral: { ...prev.referral, enabled: value }
+                }))}
+                trackColor={{ false: pastelGreenColors[200], true: pastelGreenColors[400] }}
+                thumbColor={settings.referral.enabled ? pastelGreenColors[600] : '#f4f3f4'}
+              />
+            </View>
+            
+            {settings.referral.enabled && (
+              <>
+                {renderNumberInput(
+                  '추천인이 받는 경험치',
+                  settings.referral.referrerXP,
+                  (value) => setSettings(prev => ({
+                    ...prev,
+                    referral: { ...prev.referral, referrerXP: value }
+                  })),
+                  'A가 추천인으로 설정되었을 때 A가 받는 경험치'
+                )}
+                {renderNumberInput(
+                  '추천받은 사람이 받는 경험치',
+                  settings.referral.refereeXP,
+                  (value) => setSettings(prev => ({
+                    ...prev,
+                    referral: { ...prev.referral, refereeXP: value }
+                  })),
+                  'B가 A를 추천인으로 설정했을 때 B가 받는 경험치'
+                )}
+              </>
             )}
           </View>
         </View>

@@ -1009,3 +1009,115 @@ export const getBookmarkedPostsCount = async (userId: string): Promise<number> =
     return 0;
   }
 }; 
+
+// 댓글 작성하기
+export const createComment = async (
+  postId: string,
+  content: string,
+  userId: string,
+  isAnonymous: boolean,
+  parentId?: string
+) => {
+  try {
+    // 게시글 정보 가져오기
+    const postDoc = await getDoc(doc(db, 'posts', postId));
+    if (!postDoc.exists()) {
+      throw new Error('존재하지 않는 게시글입니다.');
+    }
+    const postData = postDoc.data();
+
+    // 사용자 정보 가져오기
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    if (!userDoc.exists()) {
+      throw new Error('사용자 정보를 찾을 수 없습니다.');
+    }
+
+    // 댓글 데이터 생성
+    const commentData = {
+      postId,
+      content,
+      authorId: userId,
+      isAnonymous,
+      parentId: parentId || null,
+      stats: {
+        likeCount: 0
+      },
+      status: {
+        isDeleted: false,
+        isBlocked: false
+      },
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    // 댓글 저장
+    const commentRef = collection(db, 'posts', postId, 'comments');
+    const commentDoc = await addDoc(commentRef, commentData);
+    const commentId = commentDoc.id;
+
+    // 게시글 댓글 수 업데이트
+    await updateDoc(doc(db, 'posts', postId), {
+      'stats.commentCount': increment(1)
+    });
+
+    // 사용자 댓글 수 업데이트
+    await updateDoc(doc(db, 'users', userId), {
+      'stats.commentCount': increment(1)
+    });
+
+    // 알림 발송 로직
+    try {
+      const userData = userDoc.data();
+      const commenterName = isAnonymous 
+        ? '익명' 
+        : (userData?.profile?.userName || '사용자');
+
+      if (parentId) {
+        // 대댓글인 경우: 원 댓글 작성자에게 알림
+        const parentCommentDoc = await getDoc(doc(db, `posts/${postId}/comments`, parentId));
+        if (parentCommentDoc.exists()) {
+          const parentCommentData = parentCommentDoc.data();
+          const parentAuthorId = parentCommentData.authorId;
+          
+          // 자기 자신에게는 알림 보내지 않음
+          if (parentAuthorId && parentAuthorId !== userId) {
+            const { createCommentReplyNotification } = await import('./notifications');
+            await createCommentReplyNotification(
+              parentAuthorId,
+              postId,
+              postData.title || '게시글',
+              parentId,
+              commenterName,
+              content,
+              commentId
+            );
+          }
+        }
+      } else {
+        // 일반 댓글인 경우: 게시글 작성자에게 알림
+        const postAuthorId = postData.authorId;
+        
+        // 자기 자신에게는 알림 보내지 않음
+        if (postAuthorId && postAuthorId !== userId) {
+          const { createPostCommentNotification } = await import('./notifications');
+          await createPostCommentNotification(
+            postAuthorId,
+            postId,
+            postData.title || '게시글',
+            commenterName,
+            content,
+            commentId
+          );
+        }
+      }
+    } catch (notificationError) {
+      console.error('댓글 알림 발송 실패:', notificationError);
+      // 알림 발송 실패는 댓글 작성 자체를 실패시키지 않음
+    }
+
+    return commentId;
+  } catch (error) {
+    console.error('댓글 작성 오류:', error);
+    throw new Error('댓글을 작성하는 중 오류가 발생했습니다.');
+  }
+}; 

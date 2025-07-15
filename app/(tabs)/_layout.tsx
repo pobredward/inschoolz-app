@@ -11,6 +11,7 @@ import { useAuthStore } from '../../store/authStore';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { syncUserExperienceData } from '../../lib/experience';
+import { getUnreadNotificationCount } from '../../lib/notifications';
 import { User } from '../../types';
 
 // 파스텔 그린 색상 팔레트
@@ -29,9 +30,40 @@ const pastelGreenColors = {
 
 function CustomHeader() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const { user, clearAuth, isLoading, error, setError } = useAuthStore();
   const router = useRouter();
   const segments = useSegments();
+
+  // 읽지 않은 알림 개수 조회
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    const loadUnreadCount = async () => {
+      if (user?.uid) {
+        try {
+          const count = await getUnreadNotificationCount(user.uid);
+          setUnreadNotificationCount(count);
+        } catch (error) {
+          console.error('읽지 않은 알림 개수 조회 실패:', error);
+        }
+      } else {
+        setUnreadNotificationCount(0);
+      }
+    };
+
+    loadUnreadCount();
+
+    // 30초마다 업데이트
+    const interval = setInterval(loadUnreadCount, 30000);
+
+    return () => {
+      clearInterval(interval);
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [user?.uid]);
 
   // Firebase 실시간 리스너는 AuthStore에서 중앙 관리되므로 별도 로드 불필요
 
@@ -87,6 +119,14 @@ function CustomHeader() {
     router.push('/signup');
   };
 
+  const handleNotificationPress = () => {
+    if (!user) {
+      Alert.alert('알림', '로그인이 필요합니다.');
+      return;
+    }
+    router.push('/notifications');
+  };
+
   // 경험치/레벨 표시 (AuthStore의 실시간 데이터 사용)
   const renderExperienceDisplay = () => {
     if (!user) return null;
@@ -131,6 +171,26 @@ function CustomHeader() {
         <View style={styles.headerRight}>
           {/* 경험치/레벨 표시 - 로그인된 사용자만 */}
           {user && renderExperienceDisplay()}
+          
+          {/* 알림 버튼 - 로그인된 사용자만 */}
+          {user && (
+            <TouchableOpacity 
+              style={styles.notificationButton} 
+              onPress={handleNotificationPress}
+              accessibilityLabel="알림"
+              accessibilityRole="button"
+              accessibilityHint="알림 목록을 확인합니다"
+            >
+              <Ionicons name="notifications-outline" size={24} color={pastelGreenColors[600]} />
+              {unreadNotificationCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>
+                    {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
           
           {/* 프로필 아이콘 */}
           <TouchableOpacity 
@@ -453,6 +513,28 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
+  },
+  notificationButton: {
+    position: 'relative',
+    padding: 4,
+    borderRadius: 20,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: pastelGreenColors[600],
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  notificationBadgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   // 드롭다운 스타일
   modalOverlay: {
