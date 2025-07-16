@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   ScrollView,
   View,
@@ -19,10 +19,13 @@ const { width } = Dimensions.get('window');
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BoardType, Post, Comment, Board } from '@/types';
-import { getBoardsByType } from '@/lib/boards';
+import { getBoardsByType, deleteAnonymousComment } from '@/lib/boards';
 import { useAuthStore } from '@/store/authStore';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, getDocs, addDoc, query, where, orderBy, Timestamp, updateDoc, deleteDoc } from 'firebase/firestore';
+import AnonymousCommentForm from '../../../../components/ui/AnonymousCommentForm';
+import AnonymousPasswordModal from '../../../../components/ui/AnonymousPasswordModal';
+import AnonymousCommentEditor from '../../../../components/ui/AnonymousCommentEditor';
 // 삭제된 유틸리티 파일들 - 기본 함수로 대체
 const formatRelativeTime = (timestamp: any) => {
   const date = new Date(timestamp?.seconds * 1000 || Date.now());
@@ -145,6 +148,19 @@ export default function PostDetailScreen() {
   const [reportTargetType, setReportTargetType] = useState<'post' | 'comment'>('post');
   const [reportTargetContent, setReportTargetContent] = useState<string>('');
   const [reportPostId, setReportPostId] = useState<string>('');
+
+  // 익명 댓글 관련 상태
+  const [showAnonymousForm, setShowAnonymousForm] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordModalData, setPasswordModalData] = useState<{
+    commentId: string;
+    action: 'edit' | 'delete';
+  } | null>(null);
+  const [editingAnonymousComment, setEditingAnonymousComment] = useState<{
+    commentId: string;
+    content: string;
+    password: string;
+  } | null>(null);
 
   const [showExperienceModal, setShowExperienceModal] = useState(false);
   const [experienceData, setExperienceData] = useState<{
@@ -586,6 +602,74 @@ export default function PostDetailScreen() {
     }
   };
 
+  // 익명 댓글 성공 핸들러
+  const handleAnonymousCommentSuccess = async () => {
+    setShowAnonymousForm(false);
+    if (post) {
+      await loadComments(post.id);
+    }
+  };
+
+  // 익명 댓글 비밀번호 확인 성공 핸들러
+  const handlePasswordVerifySuccess = (verifiedPassword: string) => {
+    if (!passwordModalData) return;
+
+    const { commentId, action } = passwordModalData;
+    
+    if (action === 'edit') {
+      // 수정 모드로 전환
+      const comment = findCommentById(commentId);
+      if (comment) {
+        setEditingAnonymousComment({
+          commentId,
+          content: comment.content,
+          password: verifiedPassword, // 검증된 비밀번호 저장
+        });
+      }
+    } else if (action === 'delete') {
+      // 삭제 실행
+      handleAnonymousCommentDelete(commentId, verifiedPassword);
+    }
+
+    setShowPasswordModal(false);
+    setPasswordModalData(null);
+  };
+
+  // 댓글 찾기 함수
+  const findCommentById = (commentId: string): CommentWithAuthor | null => {
+    for (const comment of comments) {
+      if (comment.id === commentId) return comment;
+      if (comment.replies) {
+        for (const reply of comment.replies) {
+          if (reply.id === commentId) return reply;
+        }
+      }
+    }
+    return null;
+  };
+
+  // 익명 댓글 삭제
+  const handleAnonymousCommentDelete = async (commentId: string, password: string) => {
+    if (!post) return;
+
+    try {
+      await deleteAnonymousComment(post.id, commentId, password);
+      Alert.alert('성공', '댓글이 삭제되었습니다.');
+      await loadComments(post.id);
+    } catch (error) {
+      console.error('익명 댓글 삭제 실패:', error);
+      Alert.alert('오류', '댓글 삭제에 실패했습니다.');
+    }
+  };
+
+  // 익명 댓글 수정 완료
+  const handleAnonymousCommentEditComplete = async () => {
+    setEditingAnonymousComment(null);
+    if (post) {
+      await loadComments(post.id);
+    }
+  };
+
   const renderProfileImage = (profileImageUrl?: string, userName?: string, isAnonymous?: boolean) => {
     if (isAnonymous) {
       return (
@@ -614,16 +698,28 @@ export default function PostDetailScreen() {
   const renderComment = (comment: CommentWithAuthor, level: number = 0, parentAuthor?: string) => {
     const isDeleted = comment.status.isDeleted && comment.content === '삭제된 댓글입니다.';
     const isReply = level > 0;
-    const authorName = isDeleted ? '삭제된 사용자' : (comment.isAnonymous ? '익명' : comment.author?.userName || '사용자');
+    const authorName = isDeleted ? '삭제된 사용자' : 
+      (comment.isAnonymous ? 
+        (comment.authorId === null ? 
+          `${comment.anonymousAuthor?.nickname || '익명'} (비회원)` : 
+          '익명') : 
+        comment.author?.userName || '사용자');
     const maxLevel = 1; // 최대 1단계 대댓글까지만 허용
     
     return (
       <View key={comment.id} style={[styles.commentContainer, isReply && styles.replyContainer]}>
         <View style={styles.commentWrapper}>
-          <View style={styles.commentAvatar}>
-            <Text style={styles.avatarText}>
-              {authorName.charAt(0)}
-            </Text>
+          <View style={[
+            styles.commentAvatar,
+            comment.isAnonymous && comment.authorId === null && styles.anonymousAvatar
+          ]}>
+            {comment.isAnonymous && comment.authorId === null ? (
+              <Ionicons name="person-outline" size={16} color="#22c55e" />
+            ) : (
+              <Text style={styles.avatarText}>
+                {authorName.charAt(0)}
+              </Text>
+            )}
           </View>
       
           <View style={styles.commentContent}>
@@ -645,10 +741,23 @@ export default function PostDetailScreen() {
                         '댓글 메뉴',
                         '',
                         [
+                          // 회원 댓글인 경우 (자신의 댓글)
                           ...(user?.uid === comment.authorId ? [
                             { text: '수정', onPress: () => {} },
                             { text: '삭제', onPress: () => {}, style: 'destructive' as const },
+                          ] : 
+                          // 익명 댓글인 경우
+                          comment.isAnonymous && comment.authorId === null ? [
+                            { text: '수정 (비밀번호 필요)', onPress: () => {
+                              setPasswordModalData({ commentId: comment.id, action: 'edit' });
+                              setShowPasswordModal(true);
+                            }},
+                            { text: '삭제 (비밀번호 필요)', onPress: () => {
+                              setPasswordModalData({ commentId: comment.id, action: 'delete' });
+                              setShowPasswordModal(true);
+                            }, style: 'destructive' as const },
                           ] : [
+                            // 다른 사람의 댓글인 경우
                             { text: '신고', onPress: () => {
                               setReportTargetId(comment.id);
                               setReportTargetType('comment');
@@ -843,29 +952,48 @@ export default function PostDetailScreen() {
         </ScrollView>
 
         {/* 댓글 작성 */}
-        <View style={styles.commentInputContainer}>
-          <View style={styles.commentInputWrapper}>
-            {renderProfileImage(
-              user?.profile?.profileImageUrl,
-              user?.profile?.userName,
-              false
-            )}
-            <TextInput
-              style={styles.commentInput}
-              placeholder="댓글을 입력해 주세요..."
-              value={newComment}
-              onChangeText={setNewComment}
-              multiline
-              maxLength={1000}
-            />
-            <TouchableOpacity 
-              style={styles.commentSubmitButton}
-              onPress={handleCommentSubmit}
-            >
-              <Ionicons name="send" size={20} color="#10b981" />
-            </TouchableOpacity>
+        {user ? (
+          // 로그인한 사용자용 댓글 작성
+          <View style={styles.commentInputContainer}>
+            <View style={styles.commentInputWrapper}>
+              {renderProfileImage(
+                user?.profile?.profileImageUrl,
+                user?.profile?.userName,
+                false
+              )}
+              <TextInput
+                style={styles.commentInput}
+                placeholder="댓글을 입력해 주세요..."
+                value={newComment}
+                onChangeText={setNewComment}
+                multiline
+                maxLength={1000}
+              />
+              <TouchableOpacity 
+                style={styles.commentSubmitButton}
+                onPress={handleCommentSubmit}
+              >
+                <Ionicons name="send" size={20} color="#10b981" />
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        ) : (
+          // 비로그인 사용자용 익명 댓글 작성
+          <View style={styles.anonymousCommentContainer}>
+            <View style={styles.anonymousCommentButton}>
+              <TouchableOpacity 
+                style={styles.anonymousButton}
+                onPress={() => setShowAnonymousForm(true)}
+              >
+                <Ionicons name="person-outline" size={20} color="#22c55e" />
+                <Text style={styles.anonymousButtonText}>익명 댓글 작성</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.anonymousNotice}>
+              로그인하지 않고도 댓글을 작성할 수 있습니다. 4자리 비밀번호로 수정/삭제가 가능합니다.
+            </Text>
+          </View>
+        )}
       </KeyboardAvoidingView>
 
       {/* 경험치 획득 모달 */}
@@ -893,6 +1021,44 @@ export default function PostDetailScreen() {
         schoolId={post.schoolId}
         regions={post.regions}
       />
+
+      {/* 익명 댓글 작성 폼 */}
+      {post && (
+        <AnonymousCommentForm
+          visible={showAnonymousForm}
+          postId={post.id}
+          onSuccess={handleAnonymousCommentSuccess}
+          onCancel={() => setShowAnonymousForm(false)}
+        />
+      )}
+
+      {/* 익명 댓글 비밀번호 확인 모달 */}
+      {passwordModalData && post && (
+        <AnonymousPasswordModal
+          visible={showPasswordModal}
+          onClose={() => {
+            setShowPasswordModal(false);
+            setPasswordModalData(null);
+          }}
+          onSuccess={handlePasswordVerifySuccess}
+          postId={post.id}
+          commentId={passwordModalData.commentId}
+          action={passwordModalData.action}
+        />
+      )}
+
+      {/* 익명 댓글 수정 에디터 */}
+      {post && (
+        <AnonymousCommentEditor
+          visible={!!editingAnonymousComment}
+          postId={post.id}
+          commentId={editingAnonymousComment?.commentId || ''}
+          initialContent={editingAnonymousComment?.content || ''}
+          password={editingAnonymousComment?.password || ''}
+          onSave={handleAnonymousCommentEditComplete}
+          onCancel={() => setEditingAnonymousComment(null)}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -1119,6 +1285,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  anonymousAvatar: {
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#22c55e',
+  },
   avatarText: {
     fontSize: 14,
     fontWeight: '600',
@@ -1271,5 +1442,46 @@ const styles = StyleSheet.create({
   },
   commentSubmitButton: {
     padding: 10,
+  },
+  
+  // 익명 댓글 관련 스타일
+  anonymousCommentContainer: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  anonymousCommentButton: {
+    marginBottom: 8,
+  },
+  anonymousButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#f0fdf4',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#22c55e',
+  },
+  anonymousButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#22c55e',
+  },
+  anonymousNotice: {
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 16,
   },
 }); 

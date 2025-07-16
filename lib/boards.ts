@@ -1123,13 +1123,22 @@ export const createComment = async (
   }
 }; 
 
-// 4자리 비밀번호를 해시화합니다. (Web Crypto API 사용)
+// 4자리 비밀번호를 해시화합니다. (React Native용)
+// 웹과 호환성을 위해 동일한 해시 알고리즘 사용
 const hashPassword = async (password: string): Promise<string> => {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password + 'inschoolz_salt'); // 간단한 솔트 추가
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  const data = password + 'inschoolz_salt'; // 간단한 솔트 추가
+  return simpleHash(data);
+};
+
+// 간단한 해시 함수 (웹과 앱 호환)
+const simpleHash = (str: string): string => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // 32비트 정수로 변환
+  }
+  return Math.abs(hash).toString(16);
 };
 
 // 비밀번호를 검증합니다.
