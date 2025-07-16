@@ -15,9 +15,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  StatusBar,
+  SafeAreaView,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '@/store/authStore';
@@ -370,11 +371,12 @@ export default function WritePostPage() {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
       <SafeAreaView style={styles.safeArea}>
         {/* 헤더 */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#333" />
+            <Ionicons name="arrow-back" size={20} color="#333" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
             {board ? `${board.name} - 글쓰기` : '글쓰기'}
@@ -538,7 +540,7 @@ export default function WritePostPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f9fafb',
   },
   safeArea: {
     flex: 1,
@@ -558,17 +560,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
+    backgroundColor: '#f9fafb',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    elevation: 0,
+    shadowOpacity: 0,
   },
   backButton: {
-    padding: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerTitle: {
-    fontSize: 18,
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 17,
     fontWeight: '600',
     color: '#333',
+    marginHorizontal: 8,
   },
   submitButton: {
     backgroundColor: '#10B981',

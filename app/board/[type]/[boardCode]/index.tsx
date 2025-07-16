@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
-  SafeAreaView,
-  ScrollView,
   View,
   Text,
   TouchableOpacity,
+  ScrollView,
   StyleSheet,
   RefreshControl,
+  Alert,
+  Platform,
+  StatusBar,
+  SafeAreaView,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -60,7 +63,7 @@ function CustomHeader({ title, onBack }: { title: string; onBack: () => void }) 
   return (
     <View style={styles.header}>
       <TouchableOpacity onPress={onBack} style={styles.headerButton}>
-        <Ionicons name="arrow-back" size={24} color="#000" />
+        <Ionicons name="arrow-back" size={20} color="#000" />
       </TouchableOpacity>
       <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
       <View style={styles.headerButton} />
@@ -161,115 +164,139 @@ export default function BoardScreen() {
   const boardInfo = getBoardInfo(boardCode as string);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <CustomHeader 
-        title={`${boardInfo.name} - ${getTypeDisplayName(type as string)}`} 
-        onBack={() => router.back()} 
-      />
-      <ScrollView 
-        style={styles.scrollView}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {/* 게시판 헤더 */}
-        <View style={styles.header}>
-          <View style={styles.boardIconContainer}>
-            <Text style={styles.boardIcon}>{boardInfo.icon}</Text>
-          </View>
-          <View style={styles.boardInfoContainer}>
-            <Text style={styles.boardName}>{boardInfo.name}</Text>
-            <Text style={styles.boardDescription}>{boardInfo.description}</Text>
-            <Text style={styles.boardType}>{getTypeDisplayName(type as string)} 커뮤니티</Text>
-          </View>
-        </View>
-
-        {/* 글쓰기 버튼 */}
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.writeButton} onPress={handleWritePress}>
-            <Text style={styles.writeButtonText}>✏️ 글쓰기</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* 게시글 목록 */}
-        <View style={styles.postList}>
-          {posts.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>아직 게시글이 없습니다.</Text>
-              <Text style={styles.emptySubText}>첫 번째 글을 작성해보세요!</Text>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
+      <SafeAreaView style={styles.safeArea}>
+        <CustomHeader 
+          title={`${boardInfo.name} - ${getTypeDisplayName(type as string)}`} 
+          onBack={() => router.back()} 
+        />
+        <ScrollView 
+          style={styles.scrollView}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        >
+                     {/* 게시판 헤더 */}
+           <View style={styles.boardHeader}>
+            <View style={styles.boardIconContainer}>
+              <Text style={styles.boardIcon}>{boardInfo.icon}</Text>
             </View>
-          ) : (
-            posts.map((post) => (
-              <TouchableOpacity 
-                key={post.id} 
-                style={styles.postCard}
-                onPress={() => handlePostPress(post)}
-              >
-                <View style={styles.postHeader}>
-                  <View style={styles.postBadgeContainer}>
-                    <Text style={styles.postTypeBadge}>
-                      {type === 'national' ? '전국' : 
-                       type === 'regional' ? '지역' : '학교'}
-                    </Text>
-                    <Text style={styles.postBoardBadge}>{boardCode}</Text>
-                    {post.isHot && (
-                      <Text style={styles.hotBadge}>🔥 HOT</Text>
-                    )}
-                  </View>
-                </View>
+            <View style={styles.boardInfoContainer}>
+              <Text style={styles.boardName}>{boardInfo.name}</Text>
+              <Text style={styles.boardDescription}>{boardInfo.description}</Text>
+              <Text style={styles.boardType}>{getTypeDisplayName(type as string)} 커뮤니티</Text>
+            </View>
+          </View>
 
-                <Text style={styles.postTitle} numberOfLines={2}>
-                  {post.title}
-                </Text>
-                
-                <Text style={styles.postPreview} numberOfLines={2}>
-                  {parseContentText(post.content)}
-                </Text>
-                
-                <View style={styles.postStats}>
-                  <View style={styles.postStatsLeft}>
-                    <Text style={styles.postStatItem}>
-                      {post.author} | {post.timeAgo}
-                    </Text>
+          {/* 글쓰기 버튼 */}
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.writeButton} onPress={handleWritePress}>
+              <Text style={styles.writeButtonText}>✏️ 글쓰기</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 게시글 목록 */}
+          <View style={styles.postList}>
+            {posts.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>아직 게시글이 없습니다.</Text>
+                <Text style={styles.emptySubText}>첫 번째 글을 작성해보세요!</Text>
+              </View>
+            ) : (
+              posts.map((post) => (
+                <TouchableOpacity 
+                  key={post.id} 
+                  style={styles.postCard}
+                  onPress={() => handlePostPress(post)}
+                >
+                  <View style={styles.postHeader}>
+                    <View style={styles.postBadgeContainer}>
+                      <Text style={styles.postTypeBadge}>
+                        {type === 'national' ? '전국' : 
+                         type === 'regional' ? '지역' : '학교'}
+                      </Text>
+                      <Text style={styles.postBoardBadge}>{boardCode}</Text>
+                      {post.isHot && (
+                        <Text style={styles.hotBadge}>🔥 HOT</Text>
+                      )}
+                    </View>
                   </View>
-                  <View style={styles.postStatsRight}>
-                    <Text style={styles.postStatItem}>👁 {post.views}</Text>
-                    <Text style={styles.postStatItem}>👍 {post.likes}</Text>
-                    <Text style={styles.postStatItem}>💬 {post.comments}</Text>
+
+                  <Text style={styles.postTitle} numberOfLines={2}>
+                    {post.title}
+                  </Text>
+                  
+                  <Text style={styles.postPreview} numberOfLines={2}>
+                    {parseContentText(post.content)}
+                  </Text>
+                  
+                  <View style={styles.postStats}>
+                    <View style={styles.postStatsLeft}>
+                      <Text style={styles.postStatItem}>
+                        {post.author} | {post.timeAgo}
+                      </Text>
+                    </View>
+                    <View style={styles.postStatsRight}>
+                      <Text style={styles.postStatItem}>👁 {post.views}</Text>
+                      <Text style={styles.postStatItem}>👍 {post.likes}</Text>
+                      <Text style={styles.postStatItem}>💬 {post.comments}</Text>
+                    </View>
                   </View>
-                </View>
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f9fafb',
+  },
+  safeArea: {
+    flex: 1,
   },
   scrollView: {
     flex: 1,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#f9fafb',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    elevation: 0,
+    shadowOpacity: 0,
+  },
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#000',
+    marginHorizontal: 8,
+  },
+  boardHeader: {
     backgroundColor: 'white',
     padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
-  },
-  headerButton: {
-    width: 50,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    color: '#000',
   },
   boardIconContainer: {
     width: 50,

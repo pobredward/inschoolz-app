@@ -12,7 +12,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
-  Dimensions
+  Dimensions,
+  StatusBar
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -115,13 +116,15 @@ interface CustomHeaderProps {
 const CustomHeader: React.FC<CustomHeaderProps> = ({ title, onBack, showMenu = false, onMenuPress }) => (
   <View style={styles.header}>
     <TouchableOpacity onPress={onBack} style={styles.headerButton}>
-      <Ionicons name="arrow-back" size={24} color="#111827" />
+      <Ionicons name="arrow-back" size={20} color="#111827" />
     </TouchableOpacity>
     <Text style={styles.headerTitle}>{title}</Text>
-    {showMenu && (
+    {showMenu ? (
       <TouchableOpacity style={styles.headerButton} onPress={onMenuPress}>
-        <Ionicons name="ellipsis-vertical" size={24} color="#111827" />
+        <Ionicons name="ellipsis-vertical" size={20} color="#111827" />
       </TouchableOpacity>
+    ) : (
+      <View style={styles.headerButton} />
     )}
   </View>
 );
@@ -870,216 +873,225 @@ export default function PostDetailScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#10b981" />
-        <Text style={styles.loadingText}>게시글을 불러오는 중...</Text>
-      </SafeAreaView>
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
+        <SafeAreaView style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#10b981" />
+          <Text style={styles.loadingText}>게시글을 불러오는 중...</Text>
+        </SafeAreaView>
+      </View>
     );
   }
 
   if (!post || !board) {
     return (
-      <SafeAreaView style={styles.errorContainer}>
-        <Text style={styles.errorText}>게시글을 찾을 수 없습니다.</Text>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>돌아가기</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
+        <SafeAreaView style={styles.errorContainer}>
+          <Text style={styles.errorText}>게시글을 찾을 수 없습니다.</Text>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Text style={styles.backButtonText}>돌아가기</Text>
+          </TouchableOpacity>
+        </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <CustomHeader 
-        title={board.name} 
-        onBack={() => router.back()} 
-        showMenu={true}
-        onMenuPress={handleMenuPress}
-      />
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
+      <SafeAreaView style={styles.safeArea}>
+        <CustomHeader 
+          title={board.name} 
+          onBack={() => router.back()} 
+          showMenu={true}
+          onMenuPress={handleMenuPress}
+        />
 
-      <KeyboardAvoidingView 
-        style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
-        <ScrollView 
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollViewContent}
-          showsVerticalScrollIndicator={false}
+        <KeyboardAvoidingView 
+          style={styles.keyboardAvoidingView}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          {/* 게시글 내용 */}
-          <View style={styles.postContainer}>
-            {/* 게시판 배지 */}
-            <View style={styles.boardTypeContainer}>
-              <View style={styles.boardTypeBadge}>
-                <Text style={styles.boardTypeText}>{getBoardTypeLabel(type)}</Text>
+          <ScrollView 
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollViewContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* 게시글 내용 */}
+            <View style={styles.postContainer}>
+              {/* 게시판 배지 */}
+              <View style={styles.boardTypeContainer}>
+                <View style={styles.boardTypeBadge}>
+                  <Text style={styles.boardTypeText}>{getBoardTypeLabel(type)}</Text>
+                </View>
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{board.name}</Text>
+                </View>
               </View>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{board.name}</Text>
+
+              {/* 제목 */}
+              <Text style={styles.postTitle}>{post.title}</Text>
+
+              {/* 작성자 정보 */}
+              <View style={styles.authorInfo}>
+                <Text style={styles.authorName}>
+                  {post.authorInfo?.displayName || '익명'}
+                </Text>
+                <Text style={styles.postDate}>{formatDate(post.createdAt)}</Text>
+                <Text style={styles.viewCount}>조회 {post.stats.viewCount}</Text>
               </View>
-            </View>
 
-            {/* 제목 */}
-            <Text style={styles.postTitle}>{post.title}</Text>
-
-            {/* 작성자 정보 */}
-            <View style={styles.authorInfo}>
-              <Text style={styles.authorName}>
-                {post.authorInfo?.displayName || '익명'}
-              </Text>
-              <Text style={styles.postDate}>{formatDate(post.createdAt)}</Text>
-              <Text style={styles.viewCount}>조회 {post.stats.viewCount}</Text>
-            </View>
-
-            {/* 내용 (HTML 렌더링으로 인라인 이미지 포함) */}
-            <HtmlRenderer 
-              html={post.content} 
-              contentWidth={width - 32}
-              baseStyle={styles.postContent}
-            />
-
-            {/* 액션 버튼 */}
-            <View style={styles.actionButtons}>
-              <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="heart-outline" size={18} color="#6b7280" />
-                <Text style={styles.actionButtonText}>좋아요 {likeCount}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="chatbubble-outline" size={18} color="#6b7280" />
-                <Text style={styles.actionButtonText}>댓글 {comments.length}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="bookmark-outline" size={18} color="#6b7280" />
-                <Text style={styles.actionButtonText}>스크랩</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* 댓글 섹션 */}
-          <View style={styles.commentSection}>
-            <View style={styles.commentSectionHeader}>
-              <Text style={styles.commentTitle}>댓글</Text>
-              <View style={styles.commentBadge}>
-                <Text style={styles.commentBadgeText}>{comments.length}</Text>
-              </View>
-            </View>
-
-            {/* 댓글 목록 */}
-            {comments.map((comment) => (
-              renderComment(comment, 0)
-            ))}
-          </View>
-        </ScrollView>
-
-        {/* 댓글 작성 */}
-        {user ? (
-          // 로그인한 사용자용 댓글 작성
-          <View style={styles.commentInputContainer}>
-            <View style={styles.commentInputWrapper}>
-              {renderProfileImage(
-                user?.profile?.profileImageUrl,
-                user?.profile?.userName,
-                false
-              )}
-              <TextInput
-                style={styles.commentInput}
-                placeholder="댓글을 입력해 주세요..."
-                value={newComment}
-                onChangeText={setNewComment}
-                multiline
-                maxLength={1000}
+              {/* 내용 (HTML 렌더링으로 인라인 이미지 포함) */}
+              <HtmlRenderer 
+                html={post.content} 
+                contentWidth={width - 32}
+                baseStyle={styles.postContent}
               />
-              <TouchableOpacity 
-                style={styles.commentSubmitButton}
-                onPress={handleCommentSubmit}
-              >
-                <Ionicons name="send" size={20} color="#10b981" />
-              </TouchableOpacity>
+
+              {/* 액션 버튼 */}
+              <View style={styles.actionButtons}>
+                <TouchableOpacity style={styles.actionButton}>
+                  <Ionicons name="heart-outline" size={18} color="#6b7280" />
+                  <Text style={styles.actionButtonText}>좋아요 {likeCount}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionButton}>
+                  <Ionicons name="chatbubble-outline" size={18} color="#6b7280" />
+                  <Text style={styles.actionButtonText}>댓글 {comments.length}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionButton}>
+                  <Ionicons name="bookmark-outline" size={18} color="#6b7280" />
+                  <Text style={styles.actionButtonText}>스크랩</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        ) : (
-          // 비로그인 사용자용 익명 댓글 작성
-          <View style={styles.anonymousCommentContainer}>
-            <View style={styles.anonymousCommentButton}>
-              <TouchableOpacity 
-                style={styles.anonymousButton}
-                onPress={() => setShowAnonymousForm(true)}
-              >
-                <Ionicons name="person-outline" size={20} color="#22c55e" />
-                <Text style={styles.anonymousButtonText}>익명 댓글 작성</Text>
-              </TouchableOpacity>
+
+            {/* 댓글 섹션 */}
+            <View style={styles.commentSection}>
+              <View style={styles.commentSectionHeader}>
+                <Text style={styles.commentTitle}>댓글</Text>
+                <View style={styles.commentBadge}>
+                  <Text style={styles.commentBadgeText}>{comments.length}</Text>
+                </View>
+              </View>
+
+              {/* 댓글 목록 */}
+              {comments.map((comment) => (
+                renderComment(comment, 0)
+              ))}
             </View>
-            <Text style={styles.anonymousNotice}>
-              로그인하지 않고도 댓글을 작성할 수 있습니다. 4자리 비밀번호로 수정/삭제가 가능합니다.
-            </Text>
-          </View>
+          </ScrollView>
+
+          {/* 댓글 작성 */}
+          {user ? (
+            // 로그인한 사용자용 댓글 작성
+            <View style={styles.commentInputContainer}>
+              <View style={styles.commentInputWrapper}>
+                {renderProfileImage(
+                  user?.profile?.profileImageUrl,
+                  user?.profile?.userName,
+                  false
+                )}
+                <TextInput
+                  style={styles.commentInput}
+                  placeholder="댓글을 입력해 주세요..."
+                  value={newComment}
+                  onChangeText={setNewComment}
+                  multiline
+                  maxLength={1000}
+                />
+                <TouchableOpacity 
+                  style={styles.commentSubmitButton}
+                  onPress={handleCommentSubmit}
+                >
+                  <Ionicons name="send" size={20} color="#10b981" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            // 비로그인 사용자용 익명 댓글 작성
+            <View style={styles.anonymousCommentContainer}>
+              <View style={styles.anonymousCommentButton}>
+                <TouchableOpacity 
+                  style={styles.anonymousButton}
+                  onPress={() => setShowAnonymousForm(true)}
+                >
+                  <Ionicons name="person-outline" size={20} color="#22c55e" />
+                  <Text style={styles.anonymousButtonText}>익명 댓글 작성</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.anonymousNotice}>
+                로그인하지 않고도 댓글을 작성할 수 있습니다. 4자리 비밀번호로 수정/삭제가 가능합니다.
+              </Text>
+            </View>
+          )}
+        </KeyboardAvoidingView>
+
+        {/* 경험치 획득 모달 */}
+        {experienceData && (
+          <ExperienceModal
+            visible={showExperienceModal}
+            onClose={handleExperienceModalClose}
+            data={experienceData}
+          />
         )}
-      </KeyboardAvoidingView>
 
-      {/* 경험치 획득 모달 */}
-      {experienceData && (
-        <ExperienceModal
-          visible={showExperienceModal}
-          onClose={handleExperienceModalClose}
-          data={experienceData}
-        />
-      )}
-
-      {/* 신고 모달 */}
-      <ReportModal
-        visible={showReportModal}
-        onClose={() => setShowReportModal(false)}
-        targetId={reportTargetId}
-        targetType={reportTargetType}
-        targetContent={reportTargetContent}
-        postId={reportTargetType === 'comment' ? reportPostId : undefined}
-        onSuccess={() => {
-          setShowReportModal(false);
-          Alert.alert('완료', '신고가 접수되었습니다.');
-        }}
-        boardCode={post.boardCode}
-        schoolId={post.schoolId}
-        regions={post.regions}
-      />
-
-      {/* 익명 댓글 작성 폼 */}
-      {post && (
-        <AnonymousCommentForm
-          visible={showAnonymousForm}
-          postId={post.id}
-          onSuccess={handleAnonymousCommentSuccess}
-          onCancel={() => setShowAnonymousForm(false)}
-        />
-      )}
-
-      {/* 익명 댓글 비밀번호 확인 모달 */}
-      {passwordModalData && post && (
-        <AnonymousPasswordModal
-          visible={showPasswordModal}
-          onClose={() => {
-            setShowPasswordModal(false);
-            setPasswordModalData(null);
+        {/* 신고 모달 */}
+        <ReportModal
+          visible={showReportModal}
+          onClose={() => setShowReportModal(false)}
+          targetId={reportTargetId}
+          targetType={reportTargetType}
+          targetContent={reportTargetContent}
+          postId={reportTargetType === 'comment' ? reportPostId : undefined}
+          onSuccess={() => {
+            setShowReportModal(false);
+            Alert.alert('완료', '신고가 접수되었습니다.');
           }}
-          onSuccess={handlePasswordVerifySuccess}
-          postId={post.id}
-          commentId={passwordModalData.commentId}
-          action={passwordModalData.action}
+          boardCode={post.boardCode}
+          schoolId={post.schoolId}
+          regions={post.regions}
         />
-      )}
 
-      {/* 익명 댓글 수정 에디터 */}
-      {post && (
-        <AnonymousCommentEditor
-          visible={!!editingAnonymousComment}
-          postId={post.id}
-          commentId={editingAnonymousComment?.commentId || ''}
-          initialContent={editingAnonymousComment?.content || ''}
-          password={editingAnonymousComment?.password || ''}
-          onSave={handleAnonymousCommentEditComplete}
-          onCancel={() => setEditingAnonymousComment(null)}
-        />
-      )}
-    </SafeAreaView>
+        {/* 익명 댓글 작성 폼 */}
+        {post && (
+          <AnonymousCommentForm
+            visible={showAnonymousForm}
+            postId={post.id}
+            onSuccess={handleAnonymousCommentSuccess}
+            onCancel={() => setShowAnonymousForm(false)}
+          />
+        )}
+
+        {/* 익명 댓글 비밀번호 확인 모달 */}
+        {passwordModalData && post && (
+          <AnonymousPasswordModal
+            visible={showPasswordModal}
+            onClose={() => {
+              setShowPasswordModal(false);
+              setPasswordModalData(null);
+            }}
+            onSuccess={handlePasswordVerifySuccess}
+            postId={post.id}
+            commentId={passwordModalData.commentId}
+            action={passwordModalData.action}
+          />
+        )}
+
+        {/* 익명 댓글 수정 에디터 */}
+        {post && (
+          <AnonymousCommentEditor
+            visible={!!editingAnonymousComment}
+            postId={post.id}
+            commentId={editingAnonymousComment?.commentId || ''}
+            initialContent={editingAnonymousComment?.content || ''}
+            password={editingAnonymousComment?.password || ''}
+            onSave={handleAnonymousCommentEditComplete}
+            onCancel={() => setEditingAnonymousComment(null)}
+          />
+        )}
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -1088,26 +1100,36 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f9fafb',
   },
+  safeArea: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 40 : 10,
-    paddingBottom: 10,
-    backgroundColor: '#fff',
+    paddingVertical: 8,
+    backgroundColor: '#f9fafb',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+    elevation: 0,
+    shadowOpacity: 0,
   },
   headerButton: {
-    padding: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerTitle: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 17,
+    fontWeight: '600',
     color: '#111827',
+    marginHorizontal: 8,
   },
   loadingContainer: {
     flex: 1,

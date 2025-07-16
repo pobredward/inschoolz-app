@@ -12,6 +12,7 @@ import {
   TextInput,
   RefreshControl,
   Platform,
+  StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -47,12 +48,12 @@ function CustomHeader({ title, onBack, onAdd }: {
   return (
     <View style={styles.header}>
       <TouchableOpacity onPress={onBack} style={styles.headerButton}>
-        <Ionicons name="arrow-back" size={24} color="#000" />
+        <Ionicons name="arrow-back" size={20} color="#000" />
       </TouchableOpacity>
       <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
       {onAdd ? (
         <TouchableOpacity onPress={onAdd} style={styles.headerButton}>
-          <Ionicons name="add" size={24} color={pastelGreenColors[600]} />
+          <Ionicons name="add" size={20} color={pastelGreenColors[600]} />
         </TouchableOpacity>
       ) : (
         <View style={styles.headerButton} />
@@ -72,6 +73,7 @@ export default function FavoriteSchoolsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<School[]>([]);
   const [searching, setSearching] = useState(false);
+  const [isSearchModalVisible, setIsSearchModalVisible] = useState(false);
 
   const loadFavoriteSchools = async () => {
     if (!user?.uid) return;
@@ -208,75 +210,80 @@ export default function FavoriteSchoolsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <CustomHeader 
-        title="즐겨찾기 학교" 
-        onBack={() => router.back()} 
-        onAdd={() => setShowAddModal(true)}
-      />
-
-      <ScrollView
-        style={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {favoriteSchools.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🏫</Text>
-            <Text style={styles.emptyTitle}>즐겨찾기 학교가 없습니다</Text>
-            <Text style={styles.emptyDescription}>
-              학교를 추가하여 해당 학교 커뮤니티에 참여하세요
-            </Text>
-            <TouchableOpacity 
-              style={styles.emptyButton} 
-              onPress={() => setShowAddModal(true)}
-            >
-              <Text style={styles.emptyButtonText}>학교 추가하기</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.schoolList}>
-            <Text style={styles.sectionTitle}>
-              즐겨찾기 학교 ({favoriteSchools.length}/5)
-            </Text>
-            <Text style={styles.sectionDescription}>
-              메인 학교는 커뮤니티와 랭킹에서 기본으로 표시됩니다
-            </Text>
-            
-            {favoriteSchools.map((school, index) => (
-              <View key={school.id} style={styles.schoolItem}>
-                <View style={styles.schoolInfo}>
-                  <View style={styles.schoolHeader}>
-                    <Text style={styles.schoolName}>{school.KOR_NAME}</Text>
-                    {mainSchoolId === school.id && (
-                      <View style={styles.mainBadge}>
-                        <Text style={styles.mainBadgeText}>메인</Text>
-                      </View>
-                    )}
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
+      <SafeAreaView style={styles.safeArea}>
+        <CustomHeader 
+          title="즐겨찾기 학교" 
+          onBack={() => router.back()}
+          onAdd={() => setIsSearchModalVisible(true)}
+        />
+        
+        <ScrollView 
+          style={styles.scrollView}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
+          {favoriteSchools.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyIcon}>🏫</Text>
+              <Text style={styles.emptyTitle}>즐겨찾기 학교가 없습니다</Text>
+              <Text style={styles.emptyDescription}>
+                학교를 추가하여 해당 학교 커뮤니티에 참여하세요
+              </Text>
+              <TouchableOpacity 
+                style={styles.emptyButton} 
+                onPress={() => setShowAddModal(true)}
+              >
+                <Text style={styles.emptyButtonText}>학교 추가하기</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.schoolList}>
+              <Text style={styles.sectionTitle}>
+                즐겨찾기 학교 ({favoriteSchools.length}/5)
+              </Text>
+              <Text style={styles.sectionDescription}>
+                메인 학교는 커뮤니티와 랭킹에서 기본으로 표시됩니다
+              </Text>
+              
+              {favoriteSchools.map((school, index) => (
+                <View key={school.id} style={styles.schoolItem}>
+                  <View style={styles.schoolInfo}>
+                    <View style={styles.schoolHeader}>
+                      <Text style={styles.schoolName}>{school.KOR_NAME}</Text>
+                      {mainSchoolId === school.id && (
+                        <View style={styles.mainBadge}>
+                          <Text style={styles.mainBadgeText}>메인</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.schoolAddress}>{school.ADDRESS}</Text>
                   </View>
-                  <Text style={styles.schoolAddress}>{school.ADDRESS}</Text>
-                </View>
-                
-                <View style={styles.schoolActions}>
-                  {mainSchoolId !== school.id && (
+                  
+                  <View style={styles.schoolActions}>
+                    {mainSchoolId !== school.id && (
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => handleSetMainSchool(school.id)}
+                      >
+                        <Text style={styles.actionButtonText}>메인 설정</Text>
+                      </TouchableOpacity>
+                    )}
                     <TouchableOpacity
-                      style={styles.actionButton}
-                      onPress={() => handleSetMainSchool(school.id)}
+                      style={[styles.actionButton, styles.deleteButton]}
+                      onPress={() => handleRemoveSchool(school)}
                     >
-                      <Text style={styles.actionButtonText}>메인 설정</Text>
+                      <Ionicons name="trash-outline" size={16} color="#ef4444" />
                     </TouchableOpacity>
-                  )}
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.deleteButton]}
-                    onPress={() => handleRemoveSchool(school)}
-                  >
-                    <Ionicons name="trash-outline" size={16} color="#ef4444" />
-                  </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
-            ))}
-          </View>
-        )}
-      </ScrollView>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+      </SafeAreaView>
 
       {/* 학교 추가 모달 */}
       <Modal
@@ -364,14 +371,17 @@ export default function FavoriteSchoolsScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f9fafb',
+  },
+  safeArea: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
@@ -382,6 +392,9 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: '#6b7280',
+  },
+  scrollView: {
+    flex: 1,
   },
   content: {
     flex: 1,
@@ -610,18 +623,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#f5f5f5',
+    paddingVertical: 8,
+    backgroundColor: '#f9fafb',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+    elevation: 0,
+    shadowOpacity: 0,
   },
   headerButton: {
-    padding: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerTitle: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 17,
+    fontWeight: '600',
+    marginHorizontal: 8,
   },
 });

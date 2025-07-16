@@ -11,9 +11,10 @@ import {
   Switch,
   KeyboardAvoidingView,
   Platform,
+  StatusBar,
+  SafeAreaView,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
 import { doc, getDoc, updateDoc, Timestamp, deleteField } from 'firebase/firestore';
@@ -162,33 +163,42 @@ export default function EditPostPage() {
 
   if (isLoading || authLoading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#10b981" />
-        <Text style={styles.loadingText}>
-          {authLoading ? '사용자 정보를 확인하고 있습니다...' : '게시글을 불러오는 중...'}
-        </Text>
-      </SafeAreaView>
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
+        <SafeAreaView style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#10b981" />
+          <Text style={styles.loadingText}>
+            {authLoading ? '사용자 정보를 확인하고 있습니다...' : '게시글을 불러오는 중...'}
+          </Text>
+        </SafeAreaView>
+      </View>
     );
   }
 
   if (!board || !post) {
     return (
-      <SafeAreaView style={styles.errorContainer}>
-        <Text style={styles.errorText}>게시글을 찾을 수 없습니다.</Text>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>돌아가기</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
+        <SafeAreaView style={styles.errorContainer}>
+          <Text style={styles.errorText}>
+            {!user ? '로그인이 필요합니다.' : '게시글을 불러올 수 없습니다.'}
+          </Text>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Text style={styles.backButtonText}>돌아가기</Text>
+          </TouchableOpacity>
+        </SafeAreaView>
+      </View>
     );
   }
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
       <SafeAreaView style={styles.safeArea}>
         {/* 헤더 */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#333" />
+            <Ionicons name="arrow-back" size={20} color="#333" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>게시글 수정</Text>
           <TouchableOpacity
@@ -273,7 +283,7 @@ export default function EditPostPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f9fafb',
   },
   safeArea: {
     flex: 1,
@@ -301,10 +311,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   backButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: '#22c55e',
-    borderRadius: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   backButtonText: {
     color: '#fff',
@@ -316,14 +328,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
+    backgroundColor: '#f9fafb',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    elevation: 0,
+    shadowOpacity: 0,
   },
   headerTitle: {
-    fontSize: 18,
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 17,
     fontWeight: '600',
     color: '#333',
+    marginHorizontal: 8,
   },
   submitButton: {
     backgroundColor: '#10B981',

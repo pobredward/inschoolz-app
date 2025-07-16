@@ -1,5 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, RefreshControl, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  RefreshControl,
+  Platform,
+  StatusBar,
+  SafeAreaView,
+  Alert,
+} from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
 import { getUserComments } from '../lib/users';
@@ -114,7 +125,7 @@ export default function MyCommentsScreen() {
     <View style={styles.headerContainer}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1F2937" />
+          <Ionicons name="arrow-back" size={20} color="#1F2937" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>내 댓글</Text>
         <View style={styles.placeholder} />
@@ -127,44 +138,51 @@ export default function MyCommentsScreen() {
 
   if (loading) {
     return (
-      <SafeScreenContainer>
-        <View style={styles.headerContainer}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color="#1F2937" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>내 댓글</Text>
-            <View style={styles.placeholder} />
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.headerContainer}>
+            <View style={styles.header}>
+              <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <Ionicons name="arrow-back" size={20} color="#1F2937" />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>내 댓글</Text>
+              <View style={styles.placeholder} />
+            </View>
           </View>
-        </View>
-        <View style={styles.loadingContainer}>
-          <Text>로딩 중...</Text>
-        </View>
-      </SafeScreenContainer>
+          <View style={styles.loadingContainer}>
+            <Text>로딩 중...</Text>
+          </View>
+        </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeScreenContainer>
-      <FlatList
-        data={comments}
-        renderItem={renderComment}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={renderHeader}
-        ListEmptyComponent={renderEmptyState}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        contentContainerStyle={styles.container}
-        showsVerticalScrollIndicator={false}
-      />
-    </SafeScreenContainer>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
+      <SafeAreaView style={styles.safeArea}>
+        <FlatList
+          data={comments}
+          renderItem={renderComment}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={renderEmptyState}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+        />
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flexGrow: 1,
+    flex: 1,
+    backgroundColor: '#f9fafb',
   },
   loadingContainer: {
     flex: 1,
@@ -172,7 +190,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerContainer: {
-    backgroundColor: 'white',
+    backgroundColor: '#f9fafb',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     paddingBottom: 12,
@@ -182,18 +200,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
+    backgroundColor: '#f9fafb',
+    elevation: 0,
+    shadowOpacity: 0,
   },
   backButton: {
-    padding: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerTitle: {
-    fontSize: 18,
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 17,
     fontWeight: '600',
     color: '#1F2937',
+    marginHorizontal: 8,
   },
   placeholder: {
-    width: 32,
+    width: 36,
+    height: 36,
   },
   countContainer: {
     paddingHorizontal: 16,
@@ -275,5 +305,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',
+  },
+  safeArea: {
+    flex: 1,
+  },
+  listContainer: {
+    flexGrow: 1,
   },
 }); 

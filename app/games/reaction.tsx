@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,8 @@ import {
   SafeAreaView,
   Pressable,
   StatusBar,
-  Platform
+  Platform,
+  Dimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import { collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
@@ -18,6 +19,7 @@ import { db } from '../../lib/firebase';
 import { useAuthStore } from '../../store/authStore';
 import { updateGameScore, getUserGameStats } from '../../lib/games';
 import { getExperienceSettings } from '../../lib/experience';
+import { Ionicons } from '@expo/vector-icons';
 
 type GameState = 'waiting' | 'ready' | 'active' | 'finished';
 
@@ -290,156 +292,157 @@ export default function ReactionGameScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-      
-      <ScrollView
-        style={styles.scrollView}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        {/* 헤더 */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backButtonText}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>반응속도 게임</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-
-        {/* 게임 영역 */}
-        <View style={styles.gameArea}>
-          <Text style={styles.gameDescription}>
-            초록색으로 바뀌는 순간 최대한 빠르게 터치하세요!
-          </Text>
-          
-          {/* 남은 기회 표시 */}
-          <View style={styles.attemptsContainer}>
-            {isLoadingStats ? (
-              <Text style={styles.loadingText}>로딩중...</Text>
-            ) : (
-              <Text style={styles.attemptsText}>
-                오늘 남은 기회: {remainingAttempts}/{maxAttempts}
-              </Text>
-            )}
+      <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView
+          style={styles.scrollView}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
+          {/* 헤더 */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={20} color="#111827" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>반응속도 게임</Text>
+            <View style={styles.headerSpacer} />
           </View>
-          
-          <TouchableOpacity
-            style={[
-              styles.gameButton,
-              { backgroundColor: getGameButtonColor() },
-              remainingAttempts <= 0 && styles.disabledButton,
-            ]}
-            onPress={handleGamePress}
-            disabled={remainingAttempts <= 0 || gameState === 'ready'}
-          >
-            <View style={styles.gameButtonTextContainer}>
-              {getGameButtonText().map((text, index) => (
-                <Text 
-                  key={index} 
-                  style={[
-                    styles.gameButtonText,
-                    index === 1 && styles.gameButtonSubText
-                  ]}
-                >
-                  {text}
+
+          {/* 게임 영역 */}
+          <View style={styles.gameArea}>
+            <Text style={styles.gameDescription}>
+              초록색으로 바뀌는 순간 최대한 빠르게 터치하세요!
+            </Text>
+            
+            {/* 남은 기회 표시 */}
+            <View style={styles.attemptsContainer}>
+              {isLoadingStats ? (
+                <Text style={styles.loadingText}>로딩중...</Text>
+              ) : (
+                <Text style={styles.attemptsText}>
+                  오늘 남은 기회: {remainingAttempts}/{maxAttempts}
                 </Text>
-              ))}
+              )}
             </View>
-          </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.gameButton,
+                { backgroundColor: getGameButtonColor() },
+                remainingAttempts <= 0 && styles.disabledButton,
+              ]}
+              onPress={handleGamePress}
+              disabled={remainingAttempts <= 0 || gameState === 'ready'}
+            >
+              <View style={styles.gameButtonTextContainer}>
+                {getGameButtonText().map((text, index) => (
+                  <Text 
+                    key={index} 
+                    style={[
+                      styles.gameButtonText,
+                      index === 1 && styles.gameButtonSubText
+                    ]}
+                  >
+                    {text}
+                  </Text>
+                ))}
+              </View>
+            </TouchableOpacity>
 
-          {/* 게임 결과 */}
-          {result && (
-            <View style={styles.resultContainer}>
-              <Text style={styles.resultTitle}>게임 결과</Text>
-              <View style={styles.resultGrid}>
-                <View style={styles.resultItem}>
-                  <Text style={styles.resultValue}>
-                    {(result.reactionTime / 1000).toFixed(3)}초
-                  </Text>
-                  <Text style={styles.resultLabel}>반응 시간</Text>
-                </View>
-                <View style={styles.resultItem}>
-                  <Text style={styles.resultValue}>
-                    {Math.round(100000 / result.reactionTime)}점
-                  </Text>
-                  <Text style={styles.resultLabel}>점수</Text>
+            {/* 게임 결과 */}
+            {result && (
+              <View style={styles.resultContainer}>
+                <Text style={styles.resultTitle}>게임 결과</Text>
+                <View style={styles.resultGrid}>
+                  <View style={styles.resultItem}>
+                    <Text style={styles.resultValue}>
+                      {(result.reactionTime / 1000).toFixed(3)}초
+                    </Text>
+                    <Text style={styles.resultLabel}>반응 시간</Text>
+                  </View>
+                  <View style={styles.resultItem}>
+                    <Text style={styles.resultValue}>
+                      {Math.round(100000 / result.reactionTime)}점
+                    </Text>
+                    <Text style={styles.resultLabel}>점수</Text>
+                  </View>
                 </View>
               </View>
+            )}
+
+            {/* 게임 버튼들 */}
+            <View style={styles.buttonContainer}>
+              {gameState === 'finished' && remainingAttempts > 0 && (
+                <TouchableOpacity style={styles.playAgainButton} onPress={resetGame}>
+                  <Text style={styles.playAgainText}>▶ 다시 하기</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {/* 경험치 정보 */}
+          {experienceThresholds.length > 0 && (
+            <View style={styles.xpContainer}>
+              <Text style={styles.xpTitle}>⭐ 경험치 정보</Text>
+              <Text style={styles.xpDescription}>
+                반응속도가 빠를수록 더 많은 경험치를 획득할 수 있습니다!
+              </Text>
+              {experienceThresholds
+                .sort((a, b) => a.minReactionTime - b.minReactionTime)
+                .map((threshold, index) => (
+                  <View key={index} style={styles.xpItem}>
+                    <Text style={styles.xpText}>{threshold.minReactionTime}ms 이하</Text>
+                    <View style={styles.xpBadge}>
+                      <Text style={styles.xpBadgeText}>+{threshold.xpReward} XP</Text>
+                    </View>
+                  </View>
+                ))}
+              <Text style={styles.xpTip}>
+                💡 팁: 100ms 이하로 반응하면 최대 경험치를 획득할 수 있어요!
+              </Text>
             </View>
           )}
 
-          {/* 게임 버튼들 */}
-          <View style={styles.buttonContainer}>
-            {gameState === 'finished' && remainingAttempts > 0 && (
-              <TouchableOpacity style={styles.playAgainButton} onPress={resetGame}>
-                <Text style={styles.playAgainText}>▶ 다시 하기</Text>
-              </TouchableOpacity>
+          {/* TOP 10 랭킹 */}
+          <View style={styles.rankingContainer}>
+            <Text style={styles.rankingTitle}>🏆 TOP 10 랭킹</Text>
+            {rankings.length > 0 ? (
+              rankings.map((user, index) => (
+                <View key={user.id} style={styles.rankingItem}>
+                  <View style={styles.rankingLeft}>
+                    <View style={[
+                      styles.rankBadge,
+                      index === 0 ? styles.goldBadge :
+                      index === 1 ? styles.silverBadge :
+                      index === 2 ? styles.bronzeBadge :
+                      styles.defaultBadge
+                    ]}>
+                      <Text style={[
+                        styles.rankText,
+                        index < 3 ? styles.medalText : styles.defaultRankText
+                      ]}>
+                        {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                      </Text>
+                    </View>
+                    <View style={styles.userInfo}>
+                      <Text style={styles.userName} numberOfLines={1}>{user.nickname}</Text>
+                      {user.schoolName && (
+                        <Text style={styles.schoolName} numberOfLines={1}>{user.schoolName}</Text>
+                      )}
+                    </View>
+                  </View>
+                  <View style={styles.rankingRight}>
+                    <Text style={styles.reactionTime}>{user.bestReactionTime}ms</Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.noDataText}>아직 랭킹 데이터가 없습니다.</Text>
             )}
           </View>
-        </View>
-
-        {/* 경험치 정보 */}
-        {experienceThresholds.length > 0 && (
-          <View style={styles.xpContainer}>
-            <Text style={styles.xpTitle}>⭐ 경험치 정보</Text>
-            <Text style={styles.xpDescription}>
-              반응속도가 빠를수록 더 많은 경험치를 획득할 수 있습니다!
-            </Text>
-            {experienceThresholds
-              .sort((a, b) => a.minReactionTime - b.minReactionTime)
-              .map((threshold, index) => (
-                <View key={index} style={styles.xpItem}>
-                  <Text style={styles.xpText}>{threshold.minReactionTime}ms 이하</Text>
-                  <View style={styles.xpBadge}>
-                    <Text style={styles.xpBadgeText}>+{threshold.xpReward} XP</Text>
-                  </View>
-                </View>
-              ))}
-            <Text style={styles.xpTip}>
-              💡 팁: 100ms 이하로 반응하면 최대 경험치를 획득할 수 있어요!
-            </Text>
-          </View>
-        )}
-
-        {/* TOP 10 랭킹 */}
-        <View style={styles.rankingContainer}>
-          <Text style={styles.rankingTitle}>🏆 TOP 10 랭킹</Text>
-          {rankings.length > 0 ? (
-            rankings.map((user, index) => (
-              <View key={user.id} style={styles.rankingItem}>
-                <View style={styles.rankingLeft}>
-                  <View style={[
-                    styles.rankBadge,
-                    index === 0 ? styles.goldBadge :
-                    index === 1 ? styles.silverBadge :
-                    index === 2 ? styles.bronzeBadge :
-                    styles.defaultBadge
-                  ]}>
-                    <Text style={[
-                      styles.rankText,
-                      index < 3 ? styles.medalText : styles.defaultRankText
-                    ]}>
-                      {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
-                    </Text>
-                  </View>
-                  <View style={styles.userInfo}>
-                    <Text style={styles.userName} numberOfLines={1}>{user.nickname}</Text>
-                    {user.schoolName && (
-                      <Text style={styles.schoolName} numberOfLines={1}>{user.schoolName}</Text>
-                    )}
-                  </View>
-                </View>
-                <View style={styles.rankingRight}>
-                  <Text style={styles.reactionTime}>{user.bestReactionTime}ms</Text>
-                </View>
-              </View>
-            ))
-          ) : (
-            <Text style={styles.noDataText}>아직 랭킹 데이터가 없습니다.</Text>
-          )}
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </SafeAreaView>
     </View>
   );
 }
@@ -449,6 +452,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  safeArea: {
+    flex: 1,
+  },
   scrollView: {
     flex: 1,
   },
@@ -457,27 +463,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    backgroundColor: '#fff',
+    paddingVertical: 8,
+    backgroundColor: '#f9fafb',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+    elevation: 0,
+    shadowOpacity: 0,
   },
   backButton: {
-    padding: 8,
-  },
-  backButtonText: {
-    color: '#2563EB',
-    fontSize: 20,
-    fontWeight: '500',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerTitle: {
-    fontSize: 18,
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 17,
     fontWeight: '600',
     color: '#111827',
+    marginHorizontal: 8,
   },
   headerSpacer: {
-    width: 40,
+    width: 36,
+    height: 36,
   },
   attemptsContainer: {
     alignItems: 'center',

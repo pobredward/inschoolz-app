@@ -8,7 +8,10 @@ import {
   RefreshControl, 
   Alert, 
   ActivityIndicator,
-  ScrollView
+  ScrollView,
+  Platform,
+  StatusBar,
+  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
@@ -351,19 +354,22 @@ export default function MyReportsScreen() {
 
   if (loading) {
     return (
-      <SafeScreenContainer>
-        <View style={styles.headerContainer}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1F2937" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>신고 기록</Text>
-          <View style={styles.placeholder} />
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#10b981" />
-          <Text style={styles.loadingText}>로딩 중...</Text>
-        </View>
-      </SafeScreenContainer>
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.headerContainer}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={20} color="#1F2937" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>신고 기록</Text>
+            <View style={styles.placeholder} />
+          </View>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#10b981" />
+            <Text style={styles.loadingText}>로딩 중...</Text>
+          </View>
+        </SafeAreaView>
+      </View>
     );
   }
 
@@ -372,106 +378,109 @@ export default function MyReportsScreen() {
     : reportRecord?.reportsReceived || [];
 
   return (
-    <SafeScreenContainer>
-      <View style={styles.headerContainer}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1F2937" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>신고 기록</Text>
-        <View style={styles.placeholder} />
-      </View>
-
-      {renderStats()}
-
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, selectedTab === 'made' && styles.activeTab]}
-          onPress={() => setSelectedTab('made')}
-        >
-          <View style={styles.tabContent}>
-            <Ionicons 
-              name="flag" 
-              size={16} 
-              color={selectedTab === 'made' ? '#10b981' : '#6b7280'} 
-            />
-            <Text style={[styles.tabText, selectedTab === 'made' && styles.activeTabText]}>
-              내가 신고한 내역
-            </Text>
-            <View style={[styles.tabBadge, selectedTab === 'made' && styles.activeTabBadge]}>
-              <Text style={[styles.tabBadgeText, selectedTab === 'made' && styles.activeTabBadgeText]}>
-                {reportRecord?.reportsMade.length || 0}
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, selectedTab === 'received' && styles.activeTab]}
-          onPress={() => setSelectedTab('received')}
-        >
-          <View style={styles.tabContent}>
-            <Ionicons 
-              name="shield" 
-              size={16} 
-              color={selectedTab === 'received' ? '#10b981' : '#6b7280'} 
-            />
-            <Text style={[styles.tabText, selectedTab === 'received' && styles.activeTabText]}>
-              나를 신고한 내역
-            </Text>
-            <View style={[styles.tabBadge, selectedTab === 'received' && styles.activeTabBadge]}>
-              <Text style={[styles.tabBadgeText, selectedTab === 'received' && styles.activeTabBadgeText]}>
-                {reportRecord?.reportsReceived.length || 0}
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.tabHeaderContainer}>
-        <Text style={styles.tabHeaderTitle}>
-          {selectedTab === 'made' ? '내가 신고한 내역' : '나를 신고한 내역'}
-        </Text>
-        <View style={styles.tabHeaderBadge}>
-          <Text style={styles.tabHeaderBadgeText}>{currentData.length}개</Text>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.headerContainer}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={20} color="#1F2937" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>신고 기록</Text>
+          <View style={styles.placeholder} />
         </View>
-      </View>
 
-      <FlatList
-        data={currentData}
-        renderItem={renderReportItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={renderEmptyState}
-        showsVerticalScrollIndicator={false}
-      />
-    </SafeScreenContainer>
+        {renderStats()}
+
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tab, selectedTab === 'made' && styles.activeTab]}
+            onPress={() => setSelectedTab('made')}
+          >
+            <View style={styles.tabContent}>
+              <Text style={[styles.tabText, selectedTab === 'made' && styles.activeTabText]}>
+                내가 신고한 내역
+              </Text>
+              <View style={[styles.tabBadge, selectedTab === 'made' && styles.activeTabBadge]}>
+                <Text style={[styles.tabBadgeText, selectedTab === 'made' && styles.activeTabBadgeText]}>
+                  {reportRecord?.reportsMade.length || 0}
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, selectedTab === 'received' && styles.activeTab]}
+            onPress={() => setSelectedTab('received')}
+          >
+            <View style={styles.tabContent}>
+              <Text style={[styles.tabText, selectedTab === 'received' && styles.activeTabText]}>
+                신고받은 내역
+              </Text>
+              <View style={[styles.tabBadge, selectedTab === 'received' && styles.activeTabBadge]}>
+                <Text style={[styles.tabBadgeText, selectedTab === 'received' && styles.activeTabBadgeText]}>
+                  {reportRecord?.reportsReceived.length || 0}
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.tabHeaderContainer}>
+          <Text style={styles.tabHeaderTitle}>
+            {selectedTab === 'made' ? '내가 신고한 내역' : '나를 신고한 내역'}
+          </Text>
+          <View style={styles.tabHeaderBadge}>
+            <Text style={styles.tabHeaderBadgeText}>{currentData.length}개</Text>
+          </View>
+        </View>
+
+        <FlatList
+          data={currentData}
+          renderItem={renderReportItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          ListEmptyComponent={renderEmptyState}
+          showsVerticalScrollIndicator={false}
+        />
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   headerContainer: {
-    backgroundColor: 'white',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#f9fafb',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+    elevation: 0,
+    shadowOpacity: 0,
   },
   backButton: {
-    position: 'absolute',
-    left: 16,
-    top: 8,
-    zIndex: 1,
-    padding: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerTitle: {
-    fontSize: 18,
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 17,
     fontWeight: '600',
     color: '#1F2937',
-    textAlign: 'center',
-    paddingVertical: 16,
+    marginHorizontal: 8,
   },
   placeholder: {
-    width: 40,
+    width: 36,
+    height: 36,
   },
   loadingContainer: {
     flex: 1,
@@ -781,5 +790,12 @@ const styles = StyleSheet.create({
     color: '#374151',
     fontWeight: '500',
     lineHeight: 18,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+  },
+  safeArea: {
+    flex: 1,
   },
 }); 
