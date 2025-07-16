@@ -263,7 +263,14 @@ export default function PostDetailScreen() {
           profileImageUrl: ''
         };
         
-        if (!commentData.isAnonymous && commentData.authorId && !commentData.status.isDeleted) {
+        // 익명 댓글 처리
+        if (commentData.isAnonymous || !commentData.authorId) {
+          if (commentData.anonymousAuthor?.nickname) {
+            authorInfo.userName = commentData.anonymousAuthor.nickname;
+          } else {
+            authorInfo.userName = '익명';
+          }
+        } else if (!commentData.status.isDeleted) {
           try {
             const userDoc = await getDoc(doc(db, 'users', commentData.authorId));
             if (userDoc.exists()) {
@@ -303,7 +310,14 @@ export default function PostDetailScreen() {
             profileImageUrl: ''
           };
           
-          if (!replyData.isAnonymous && replyData.authorId && !replyData.status.isDeleted) {
+          // 익명 대댓글 처리
+          if (replyData.isAnonymous || !replyData.authorId) {
+            if (replyData.anonymousAuthor?.nickname) {
+              replyAuthorInfo.userName = replyData.anonymousAuthor.nickname;
+            } else {
+              replyAuthorInfo.userName = '익명';
+            }
+          } else if (!replyData.status.isDeleted) {
             try {
               const replyUserDoc = await getDoc(doc(db, 'users', replyData.authorId));
               if (replyUserDoc.exists()) {
@@ -326,12 +340,18 @@ export default function PostDetailScreen() {
           });
         }
         
+        // 대댓글도 시간순으로 정렬
+        replies.sort((a, b) => a.createdAt - b.createdAt);
+        
         commentsData.push({
           ...commentData,
           author: authorInfo,
           replies
         });
       }
+
+      // 모든 댓글을 시간순으로 확실히 정렬 (익명 댓글 포함)
+      commentsData.sort((a, b) => a.createdAt - b.createdAt);
 
       setComments(commentsData);
     } catch (error) {
