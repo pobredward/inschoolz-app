@@ -218,3 +218,87 @@ export function formatSmartTime(timestamp: unknown): string {
     return '방금 전';
   }
 } 
+
+/**
+ * 게시글에서 이미지 URL들을 추출하는 함수 (content와 attachments 모두 고려)
+ * @param post 게시글 객체
+ * @param maxImages 최대 이미지 개수 (기본값: 10)
+ * @returns 이미지 URL 배열
+ */
+export function extractPostImageUrls(
+  post: { 
+    content: string; 
+    attachments?: Array<{ type: string; url: string }> 
+  }, 
+  maxImages: number = 10
+): string[] {
+  const imageUrls: string[] = [];
+  
+  // 1. attachments에서 이미지 타입만 추출
+  if (post.attachments && Array.isArray(post.attachments)) {
+    const attachmentImages = post.attachments
+      .filter(attachment => attachment.type === 'image')
+      .map(attachment => attachment.url);
+    imageUrls.push(...attachmentImages);
+  }
+  
+  // 2. content에서 이미지 URL 추출 (HTML img 태그, 마크다운 이미지 등)
+  if (post.content) {
+    const contentImages = extractImageUrlsFromContent(post.content);
+    // attachments에 이미 있는 이미지는 제외 (중복 방지)
+    const newContentImages = contentImages.filter(url => !imageUrls.includes(url));
+    imageUrls.push(...newContentImages);
+  }
+  
+  // 중복 제거 및 최대 개수 제한
+  const uniqueImages = [...new Set(imageUrls)];
+  return uniqueImages.slice(0, maxImages);
+}
+
+/**
+ * 텍스트 내용에서 이미지 URL을 추출하는 함수
+ * @param content 텍스트 내용
+ * @returns 이미지 URL 배열
+ */
+function extractImageUrlsFromContent(content: string): string[] {
+  const imageUrls: string[] = [];
+  
+  if (!content) return imageUrls;
+  
+  // HTML img 태그에서 src 추출
+  const imgTagRegex = /<img[^>]*src\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  let match;
+  while ((match = imgTagRegex.exec(content)) !== null) {
+    imageUrls.push(match[1]);
+  }
+  
+  // 마크다운 이미지 문법 ![alt](url) 추출
+  const markdownImageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+  while ((match = markdownImageRegex.exec(content)) !== null) {
+    imageUrls.push(match[2]);
+  }
+  
+  // 직접 이미지 URL (http/https로 시작하고 이미지 확장자로 끝남)
+  const directImageRegex = /https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp|bmp)(\?[^\s]*)?/gi;
+  while ((match = directImageRegex.exec(content)) !== null) {
+    imageUrls.push(match[0]);
+  }
+  
+  return imageUrls;
+}
+
+/**
+ * 게시글 리스트용 이미지 미리보기 URL 추출 (최대 2개)
+ * @param post 게시글 객체
+ * @returns 이미지 URL 배열 (최대 2개)
+ */
+export function getPostPreviewImages(
+  post: { 
+    content: string; 
+    attachments?: Array<{ type: string; url: string }> 
+  }
+): string[] {
+  return extractPostImageUrls(post, 2);
+}
+
+ 

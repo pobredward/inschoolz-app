@@ -12,10 +12,10 @@ import {
   ActivityIndicator,
   FlatList,
   Dimensions,
-  Image
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import PostListItem from '../../components/PostListItem';
 // 기본 유틸리티 함수들
 const formatRelativeTime = (timestamp: any) => {
   const date = new Date(timestamp?.seconds * 1000 || Date.now());
@@ -428,72 +428,23 @@ export default function CommunityScreen() {
   );
 
   const renderPostCard = ({ item: post }: { item: CommunityPost }) => {
-    const previewImages = getPostPreviewImages(post);
-    
+    const getTabName = () => {
+      switch (selectedTab) {
+        case 'national': return '전국';
+        case 'regional': return '지역';
+        case 'school': return '학교';
+        default: return '전국';
+      }
+    };
+
     return (
-      <TouchableOpacity style={styles.postCard} onPress={() => handlePostPress(post)}>
-        <View style={styles.postHeader}>
-          <View style={styles.postBadgeContainer}>
-            <Text style={styles.postTypeBadge}>
-              {selectedTab === 'national' ? '전국' : 
-               selectedTab === 'regional' ? '지역' : '학교'}
-            </Text>
-            <Text style={styles.postBoardBadge}>{post.boardName}</Text>
-            {previewImages.length > 0 && (
-              <Text style={styles.imageBadge}>📷</Text>
-            )}
-          </View>
-        </View>
-
-        {/* 제목과 이미지를 포함한 메인 콘텐츠 */}
-        <View style={styles.postMainContent}>
-          <View style={styles.postTextContent}>
-            <Text style={styles.postTitle} numberOfLines={2}>
-              {post.title}
-            </Text>
-
-            {post.previewContent && (
-              <Text style={styles.postPreview} numberOfLines={2}>
-                {post.previewContent}
-              </Text>
-            )}
-          </View>
-
-          {/* 이미지 미리보기 (오른쪽) */}
-          {previewImages.length > 0 && (
-            <View style={styles.postImagePreview}>
-              {previewImages.map((imageUrl, index) => (
-                <View key={index} style={styles.previewImageContainer}>
-                  <Image
-                    source={{ uri: imageUrl }}
-                    style={styles.previewImage}
-                    resizeMode="cover"
-                  />
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-
-        <View style={styles.postMeta}>
-          <View style={styles.authorSection}>
-            <Text style={styles.postDate}>
-              {post.authorInfo?.isAnonymous ? '익명' : post.authorInfo?.displayName || '사용자'} | {formatDate(post.createdAt)}
-            </Text>
-          </View>
-          <View style={styles.postStats}>
-            <View style={styles.statItem}>
-              <Text style={styles.statText}>👁 {post.stats.viewCount || 0}</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statText}>👍 {post.stats.likeCount || 0}</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statText}>💬 {post.stats.commentCount || 0}</Text>
-            </View>
-          </View>
-        </View>
-      </TouchableOpacity>
+      <PostListItem
+        post={post}
+        onPress={(p) => handlePostPress(p as CommunityPost)}
+        typeBadgeText={getTabName()}
+        boardBadgeText={post.boardName}
+        variant="community"
+      />
     );
   };
 

@@ -14,6 +14,7 @@ import { db } from '../../lib/firebase';
 import { syncUserExperienceData } from '../../lib/experience';
 import { SafeScreenContainer } from '../../components/SafeScreenContainer';
 import { Ionicons } from '@expo/vector-icons';
+import PostListItem from '../../components/PostListItem';
 
 // 기본 시간 포맷팅 함수
 const formatSmartTime = (timestamp: any) => {
@@ -229,41 +230,13 @@ export default function HomeScreen() {
             
             {popularPosts.length > 0 ? (
               popularPosts.map((post, index) => (
-                <TouchableOpacity 
-                  key={post.id} 
-                  style={styles.postCard}
-                  onPress={() => navigateToPost(post)}
-                >
-                  <View style={styles.postHeader}>
-                    <View style={styles.postBadgeContainer}>
-                      <Text style={styles.postTypeBadge}>전국</Text>
-                      <Text style={styles.postBoardBadge}>{(post as any).boardName || post.boardCode}</Text>
-                    </View>
-                  </View>
-                  
-                  <Text style={styles.postTitle} numberOfLines={2}>
-                    {post.title}
-                  </Text>
-                  
-                  {(post as any).previewContent && (
-                    <Text style={styles.postPreview} numberOfLines={2}>
-                      {(post as any).previewContent}
-                    </Text>
-                  )}
-                  
-                  <View style={styles.postStats}>
-                    <View style={styles.postStatsLeft}>
-                      <Text style={styles.postStatItem}>
-                        {post.authorInfo?.displayName || '익명'} | {formatSmartTime(post.createdAt)}
-                      </Text>
-                    </View>
-                    <View style={styles.postStatsRight}>
-                      <Text style={styles.postStatItem}>👁 {post.stats?.viewCount || 0}</Text>
-                      <Text style={styles.postStatItem}>👍 {post.stats?.likeCount || 0}</Text>
-                      <Text style={styles.postStatItem}>💬 {post.stats?.commentCount || 0}</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
+                <PostListItem
+                  key={post.id}
+                  post={post}
+                  onPress={navigateToPost}
+                  typeBadgeText="전국"
+                  boardBadgeText={(post as any).boardName || post.boardCode}
+                />
               ))
             ) : (
               <View style={styles.emptyState}>
@@ -415,41 +388,13 @@ export default function HomeScreen() {
           
           {popularPosts.length > 0 ? (
             popularPosts.map((post, index) => (
-              <TouchableOpacity 
-                key={post.id} 
-                style={styles.postCard}
-                onPress={() => navigateToPost(post)}
-              >
-                <View style={styles.postHeader}>
-                  <View style={styles.postBadgeContainer}>
-                    <Text style={styles.postTypeBadge}>전국</Text>
-                    <Text style={styles.postBoardBadge}>{(post as any).boardName || post.boardCode}</Text>
-                  </View>
-                </View>
-                
-                <Text style={styles.postTitle} numberOfLines={2}>
-                  {post.title}
-                </Text>
-                
-                {(post as any).previewContent && (
-                  <Text style={styles.postPreview} numberOfLines={2}>
-                    {(post as any).previewContent}
-                  </Text>
-                )}
-                
-                <View style={styles.postStats}>
-                  <View style={styles.postStatsLeft}>
-                    <Text style={styles.postStatItem}>
-                      {post.authorInfo?.displayName || '익명'} | {formatSmartTime(post.createdAt)}
-                    </Text>
-                  </View>
-                  <View style={styles.postStatsRight}>
-                    <Text style={styles.postStatItem}>👁 {post.stats?.viewCount || 0}</Text>
-                    <Text style={styles.postStatItem}>👍 {post.stats?.likeCount || 0}</Text>
-                    <Text style={styles.postStatItem}>💬 {post.stats?.commentCount || 0}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
+              <PostListItem
+                key={post.id}
+                post={post}
+                onPress={navigateToPost}
+                typeBadgeText="전국"
+                boardBadgeText={(post as any).boardName || post.boardCode}
+              />
             ))
           ) : (
             <View style={styles.emptyState}>
