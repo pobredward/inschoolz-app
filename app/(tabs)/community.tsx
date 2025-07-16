@@ -38,6 +38,38 @@ const truncateText = (text: string, maxLength: number = 100) => {
   if (cleanText.length <= maxLength) return cleanText;
   return cleanText.substring(0, maxLength) + '...';
 };
+
+// 게시글에서 이미지 URL 추출하는 함수
+const extractPostImageUrls = (post: { content: string; attachments?: Array<{ type: string; url: string }> }, maxImages: number = 10): string[] => {
+  const imageUrls: string[] = [];
+  
+  // 1. attachments에서 이미지 타입만 추출
+  if (post.attachments && Array.isArray(post.attachments)) {
+    const attachmentImages = post.attachments
+      .filter(attachment => attachment.type === 'image')
+      .map(attachment => attachment.url);
+    imageUrls.push(...attachmentImages);
+  }
+  
+  // 2. content에서 이미지 URL 추출 (HTML img 태그)
+  if (post.content) {
+    const imgTagMatches = post.content.matchAll(/<img[^>]+src="([^"]+)"/gi);
+    for (const match of imgTagMatches) {
+      if (!imageUrls.includes(match[1])) {
+        imageUrls.push(match[1]);
+      }
+    }
+  }
+  
+  // 중복 제거 및 최대 개수 제한
+  const uniqueImages = [...new Set(imageUrls)];
+  return uniqueImages.slice(0, maxImages);
+};
+
+// 게시글 리스트용 이미지 미리보기 URL 추출 (최대 2개)
+const getPostPreviewImages = (post: { content: string; attachments?: Array<{ type: string; url: string }> }): string[] => {
+  return extractPostImageUrls(post, 2);
+};
 import { getBoardsByType, getPostsByBoardType, getAllPostsByType, getAllPostsBySchool, getAllPostsByRegion } from '@/lib/boards';
 import { getUserById } from '@/lib/users';
 import { useAuthStore } from '../../store/authStore';
@@ -395,51 +427,75 @@ export default function CommunityScreen() {
     </View>
   );
 
-  const renderPostCard = ({ item: post }: { item: CommunityPost }) => (
-    <TouchableOpacity style={styles.postCard} onPress={() => handlePostPress(post)}>
-      <View style={styles.postHeader}>
-        <View style={styles.postBadgeContainer}>
-          <Text style={styles.postTypeBadge}>
-            {selectedTab === 'national' ? '전국' : 
-             selectedTab === 'regional' ? '지역' : '학교'}
-          </Text>
-          <Text style={styles.postBoardBadge}>{post.boardName}</Text>
-          {post.attachments.length > 0 && (
-            <Text style={styles.imageBadge}>📷</Text>
+  const renderPostCard = ({ item: post }: { item: CommunityPost }) => {
+    const previewImages = getPostPreviewImages(post);
+    
+    return (
+      <TouchableOpacity style={styles.postCard} onPress={() => handlePostPress(post)}>
+        <View style={styles.postHeader}>
+          <View style={styles.postBadgeContainer}>
+            <Text style={styles.postTypeBadge}>
+              {selectedTab === 'national' ? '전국' : 
+               selectedTab === 'regional' ? '지역' : '학교'}
+            </Text>
+            <Text style={styles.postBoardBadge}>{post.boardName}</Text>
+            {previewImages.length > 0 && (
+              <Text style={styles.imageBadge}>📷</Text>
+            )}
+          </View>
+        </View>
+
+        {/* 제목과 이미지를 포함한 메인 콘텐츠 */}
+        <View style={styles.postMainContent}>
+          <View style={styles.postTextContent}>
+            <Text style={styles.postTitle} numberOfLines={2}>
+              {post.title}
+            </Text>
+
+            {post.previewContent && (
+              <Text style={styles.postPreview} numberOfLines={2}>
+                {post.previewContent}
+              </Text>
+            )}
+          </View>
+
+          {/* 이미지 미리보기 (오른쪽) */}
+          {previewImages.length > 0 && (
+            <View style={styles.postImagePreview}>
+              {previewImages.map((imageUrl, index) => (
+                <View key={index} style={styles.previewImageContainer}>
+                  <Image
+                    source={{ uri: imageUrl }}
+                    style={styles.previewImage}
+                    resizeMode="cover"
+                  />
+                </View>
+              ))}
+            </View>
           )}
         </View>
-      </View>
 
-      <Text style={styles.postTitle} numberOfLines={2}>
-        {post.title}
-      </Text>
-
-      {post.previewContent && (
-        <Text style={styles.postPreview} numberOfLines={2}>
-          {post.previewContent}
-        </Text>
-      )}
-
-      <View style={styles.postMeta}>
-        <View style={styles.authorSection}>
-          <Text style={styles.postDate}>
-            {post.authorInfo?.isAnonymous ? '익명' : post.authorInfo?.displayName || '사용자'} | {formatDate(post.createdAt)}
-          </Text>
-        </View>
-        <View style={styles.postStats}>
-          <View style={styles.statItem}>
-            <Text style={styles.statText}>👁 {post.stats.viewCount || 0}</Text>
+        <View style={styles.postMeta}>
+          <View style={styles.authorSection}>
+            <Text style={styles.postDate}>
+              {post.authorInfo?.isAnonymous ? '익명' : post.authorInfo?.displayName || '사용자'} | {formatDate(post.createdAt)}
+            </Text>
           </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statText}>👍 {post.stats.likeCount || 0}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statText}>💬 {post.stats.commentCount || 0}</Text>
+          <View style={styles.postStats}>
+            <View style={styles.statItem}>
+              <Text style={styles.statText}>👁 {post.stats.viewCount || 0}</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statText}>👍 {post.stats.likeCount || 0}</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statText}>💬 {post.stats.commentCount || 0}</Text>
+            </View>
           </View>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
@@ -682,6 +738,16 @@ const styles = StyleSheet.create({
   imageBadgeText: {
     fontSize: 10,
   },
+  postMainContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 12,
+  },
+  postTextContent: {
+    flex: 1,
+    minWidth: 0,
+  },
   postTitle: {
     fontSize: 16,
     fontWeight: '600',
@@ -693,7 +759,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     lineHeight: 20,
-    marginBottom: 12,
+  },
+  postImagePreview: {
+    flexDirection: 'row',
+    gap: 4,
+    flexShrink: 0,
+  },
+  previewImageContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
   },
   postMeta: {
     flexDirection: 'row',

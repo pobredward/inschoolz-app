@@ -16,7 +16,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
-import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, Timestamp, deleteField } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getBoard } from '@/lib/boards';
 import { Board, Post } from '@/types';
@@ -30,7 +30,7 @@ export default function EditPostPage() {
   }>();
   
   const router = useRouter();
-  const { user } = useAuthStore();
+  const { user, isLoading: authLoading } = useAuthStore();
   
   const [board, setBoard] = useState<Board | null>(null);
   const [post, setPost] = useState<Post | null>(null);
@@ -39,11 +39,15 @@ export default function EditPostPage() {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [attachments, setAttachments] = useState<{ type: 'image'; url: string; name: string; size: number }[]>([]);
 
   // 게시글 및 게시판 정보 로드
   useEffect(() => {
     const loadData = async () => {
       if (!postId || !boardCode) return;
+      
+      // 인증 정보가 로딩 중인 경우 대기
+      if (authLoading) return;
       
       try {
         setIsLoading(true);
@@ -60,9 +64,9 @@ export default function EditPostPage() {
 
         const postData = { id: postDoc.id, ...postDoc.data() } as Post;
         
-        // 권한 확인
+        // 권한 확인 - 인증 로딩이 완료된 후에만 확인
         if (!user || user.uid !== postData.authorId) {
-          Alert.alert('오류', '수정 권한이 없습니다.');
+          Alert.alert('오류', '본인이 작성한 게시글만 수정할 수 있습니다.');
           router.back();
           return;
         }
@@ -71,6 +75,12 @@ export default function EditPostPage() {
         setTitle(postData.title);
         setContent(postData.content);
         setIsAnonymous(postData.authorInfo?.isAnonymous || false);
+        
+        // 기존 첨부파일 정보 설정 (이미지만 필터링)
+        if (postData.attachments && Array.isArray(postData.attachments)) {
+          const imageAttachments = postData.attachments.filter(att => att.type === 'image') as { type: 'image'; url: string; name: string; size: number }[];
+          setAttachments(imageAttachments);
+        }
         
         // 게시판 정보 가져오기
         const boardData = await getBoard(boardCode);
@@ -85,7 +95,7 @@ export default function EditPostPage() {
     };
 
     loadData();
-  }, [postId, boardCode, user, router]);
+  }, [postId, boardCode, user, authLoading, router]);
 
   const handleSubmit = async () => {
     if (!user || !post) {
@@ -106,13 +116,23 @@ export default function EditPostPage() {
     setIsSubmitting(true);
 
     try {
-      // 게시글 업데이트
-      await updateDoc(doc(db, 'posts', postId), {
+      // 게시글 업데이트 데이터 준비
+      const updateData: any = {
         title: title.trim(),
         content: content.trim(),
         'authorInfo.isAnonymous': isAnonymous,
+        attachments: attachments, // 업데이트된 첨부파일 정보 포함
         updatedAt: Timestamp.now()
-      });
+      };
+
+      // 투표 기능이 없는 앱에서는 기존 poll 필드가 있다면 제거
+      // (웹에서 작성된 투표 게시글을 앱에서 수정할 경우를 대비)
+      if (post?.poll) {
+        updateData.poll = deleteField();
+      }
+
+      // 게시글 업데이트
+      await updateDoc(doc(db, 'posts', postId), updateData);
 
       Alert.alert('성공', '게시글이 수정되었습니다.', [
         {
@@ -129,11 +149,24 @@ export default function EditPostPage() {
     }
   };
 
-  if (isLoading) {
+  // 이미지 업로드 핸들러
+  const handleImageUpload = (attachment: { type: 'image'; url: string; name: string; size: number }) => {
+    setAttachments(prev => [...prev, attachment]);
+  };
+
+  // 이미지 삭제 핸들러
+  const handleImageRemove = (imageUrl: string) => {
+    console.log('이미지 삭제:', imageUrl);
+    setAttachments(prev => prev.filter(attachment => attachment.url !== imageUrl));
+  };
+
+  if (isLoading || authLoading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#10b981" />
-        <Text style={styles.loadingText}>게시글을 불러오는 중...</Text>
+        <Text style={styles.loadingText}>
+          {authLoading ? '사용자 정보를 확인하고 있습니다...' : '게시글을 불러오는 중...'}
+        </Text>
       </SafeAreaView>
     );
   }
@@ -206,6 +239,8 @@ export default function EditPostPage() {
                 <RichTextEditor
                   content={content}
                   onChange={setContent}
+                  onImageUpload={handleImageUpload}
+                  onImageRemove={handleImageRemove}
                   placeholder="내용을 입력하세요..."
                 />
               </View>

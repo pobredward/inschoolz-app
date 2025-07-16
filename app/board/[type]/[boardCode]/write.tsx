@@ -78,6 +78,12 @@ export default function WritePostPage() {
     setAttachments(prev => [...prev, attachment]);
   };
 
+  // 이미지 삭제 핸들러 (Rich Text Editor에서 호출)
+  const handleImageRemove = (imageUrl: string) => {
+    console.log('이미지 삭제:', imageUrl);
+    setAttachments(prev => prev.filter(attachment => attachment.url !== imageUrl));
+  };
+
   // 게시판 정보 로드
   useEffect(() => {
     const loadBoard = async () => {
@@ -437,6 +443,7 @@ export default function WritePostPage() {
                   content={content}
                   onChange={setContent}
                   onImageUpload={handleImageUpload}
+                  onImageRemove={handleImageRemove}
                   placeholder="내용을 입력하세요..."
                 />
               </View>

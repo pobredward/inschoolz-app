@@ -26,6 +26,7 @@ interface RichTextEditorProps {
   onChange: (content: string) => void;
   placeholder?: string;
   onImageUpload?: (attachment: { type: 'image'; url: string; name: string; size: number }) => void;
+  onImageRemove?: (imageUrl: string) => void;
 }
 
 export default function RichTextEditor({
@@ -33,6 +34,7 @@ export default function RichTextEditor({
   onChange,
   placeholder = '내용을 입력하세요...',
   onImageUpload,
+  onImageRemove,
 }: RichTextEditorProps) {
   const richText = useRef<RichEditor>(null);
   const scrollRef = useRef<ScrollView>(null);
@@ -43,17 +45,46 @@ export default function RichTextEditor({
   const [editorInitialized, setEditorInitialized] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
   const [lastContent, setLastContent] = useState(content);
+  const [previousImages, setPreviousImages] = useState<string[]>([]);
 
   // 에디터 초기화 완료 시 호출
   const onEditorInitialized = () => {
     console.log('에디터 초기화 완료');
     setEditorInitialized(true);
+    // 초기 이미지 목록 추출
+    const initialImages = extractImageUrls(content);
+    setPreviousImages(initialImages);
+  };
+
+  // HTML에서 이미지 URL 추출하는 함수
+  const extractImageUrls = (html: string): string[] => {
+    const imgRegex = /<img[^>]+src="([^"]+)"/g;
+    const urls: string[] = [];
+    let match;
+    while ((match = imgRegex.exec(html)) !== null) {
+      urls.push(match[1]);
+    }
+    return urls;
   };
 
   // 콘텐츠 변경 처리
   const handleContentChange = (html: string) => {
     setLastContent(html);
     onChange(html);
+    
+    // 이미지 삭제 감지
+    if (onImageRemove) {
+      const currentImages = extractImageUrls(html);
+      const removedImages = previousImages.filter(url => !currentImages.includes(url));
+      
+      // 삭제된 이미지들에 대해 콜백 호출
+      removedImages.forEach(imageUrl => {
+        console.log('이미지 삭제 감지:', imageUrl);
+        onImageRemove(imageUrl);
+      });
+      
+      setPreviousImages(currentImages);
+    }
   };
 
   // 이미지 선택 및 업로드
