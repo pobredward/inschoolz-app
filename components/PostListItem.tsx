@@ -55,9 +55,9 @@ const PostListItem: React.FC<PostListItemProps> = ({
             {post.title}
           </Text>
           
-          {(post as any).previewContent && (
+          {((post as any).previewContent || post.content) && (
             <Text style={styles.postPreview} numberOfLines={2}>
-              {(post as any).previewContent}
+              {(post as any).previewContent || post.content?.replace(/<[^>]*>/g, '').slice(0, 150) || ''}
             </Text>
           )}
         </View>
@@ -174,6 +174,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#4b5563',
     marginBottom: 8,
+    lineHeight: 20,
   },
   postImagePreviewContainer: {
     flexDirection: 'row',
