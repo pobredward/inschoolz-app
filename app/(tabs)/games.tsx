@@ -53,7 +53,14 @@ export default function GamesScreen() {
     }
     
     if (!user) {
-      Alert.alert('로그인 필요', '게임을 플레이하려면 로그인이 필요합니다.');
+      Alert.alert(
+        '로그인 필요', 
+        '게임을 플레이하려면 로그인이 필요합니다.',
+        [
+          { text: '취소', style: 'cancel' },
+          { text: '로그인', onPress: () => router.push('/auth') }
+        ]
+      );
       return;
     }
 
@@ -67,6 +74,15 @@ export default function GamesScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>🎮 미니게임</Text>
         <Text style={styles.subtitle}>게임을 플레이하고 경험치를 획득하세요!</Text>
+        
+        {/* 비회원 안내 메시지 */}
+        {!user && (
+          <View style={styles.guestNotice}>
+            <Text style={styles.guestNoticeText}>
+              🎯 게임 목록은 누구나 볼 수 있지만, 실제 게임을 플레이하려면 로그인이 필요합니다.
+            </Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.gameGrid}>
@@ -112,7 +128,12 @@ export default function GamesScreen() {
                 styles.playButtonText,
                 !game.isActive && styles.playButtonTextInactive
               ]}>
-                {game.isActive ? '플레이하기' : '준비 중'}
+                {!game.isActive 
+                  ? '준비 중' 
+                  : !user 
+                    ? '로그인하고 플레이하기' 
+                    : '플레이하기'
+                }
               </Text>
             </View>
           </TouchableOpacity>
@@ -137,6 +158,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
+  },
+  guestNotice: {
+    backgroundColor: '#fef3c7',
+    borderColor: '#fcd34d',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 16,
+    marginHorizontal: 16,
+  },
+  guestNoticeText: {
+    color: '#92400e',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
   },
   gameGrid: {
     padding: 16,
