@@ -350,31 +350,29 @@ export default function ProfileScreen() {
               style={styles.statCard}
               onPress={() => router.push('/my-posts')}
             >
+              <Text style={styles.statIcon}>📝</Text>
               <Text style={styles.statLabel}>내가 쓴 글</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.statCard}
               onPress={() => router.push('/my-comments')}
             >
+              <Text style={styles.statIcon}>💬</Text>
               <Text style={styles.statLabel}>내 댓글</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.statCard}
               onPress={() => router.push('/my-likes')}
             >
+              <Text style={styles.statIcon}>❤️</Text>
               <Text style={styles.statLabel}>좋아요한 글</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.statCard}
               onPress={() => router.push('/my-bookmarks')}
             >
+              <Text style={styles.statIcon}>🔖</Text>
               <Text style={styles.statLabel}>스크랩</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.statCard}
-              onPress={() => router.push('/my-reports')}
-            >
-              <Text style={styles.statLabel}>신고 기록</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -384,30 +382,48 @@ export default function ProfileScreen() {
           <Text style={styles.sectionTitle}>⚙️ 설정</Text>
           <View style={styles.menuCard}>
             <TouchableOpacity 
-              style={styles.menuItem}
+              style={styles.settingButton}
               onPress={() => router.push('/profile-edit')}
             >
-              <Ionicons name="person-outline" size={20} color="#6b7280" />
-              <Text style={styles.menuText}>프로필 수정</Text>
-              <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
+              <Text style={styles.settingIcon}>✏️</Text>
+              <Text style={styles.settingText}>프로필 수정</Text>
+              <Text style={styles.settingArrow}>›</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={styles.menuItem}
+              style={styles.settingButton}
+              onPress={() => router.push('/notifications')}
+            >
+              <Text style={styles.settingIcon}>🔔</Text>
+              <Text style={styles.settingText}>알림 설정</Text>
+              <Text style={styles.settingArrow}>›</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.settingButton}
               onPress={() => router.push('/favorite-schools')}
             >
-              <Ionicons name="school-outline" size={20} color="#6b7280" />
-              <Text style={styles.menuText}>즐겨찾기 학교</Text>
-              <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
+              <Text style={styles.settingIcon}>🏫</Text>
+              <Text style={styles.settingText}>즐겨찾기 학교</Text>
+              <Text style={styles.settingArrow}>›</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={[styles.menuItem, styles.signOutItem]}
+              style={styles.settingButton}
+              onPress={() => router.push('/my-reports')}
+            >
+              <Text style={styles.settingIcon}>🚨</Text>
+              <Text style={styles.settingText}>신고 기록</Text>
+              <Text style={styles.settingArrow}>›</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.settingButton, styles.signOutButton]}
               onPress={handleSignOut}
             >
-              <Ionicons name="log-out-outline" size={20} color="#ef4444" />
-              <Text style={[styles.menuText, styles.signOutText]}>로그아웃</Text>
-              <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
+              <Text style={styles.settingIcon}>🚪</Text>
+              <Text style={[styles.settingText, styles.signOutText]}>로그아웃</Text>
+              <Text style={styles.settingArrow}>›</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -677,6 +693,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2563eb',
   },
+  statIcon: {
+    fontSize: 24,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
   statLabel: {
     fontSize: 14,
     color: '#374151',
@@ -700,6 +721,36 @@ const styles = StyleSheet.create({
   menuCard: {
     gap: 8,
   },
+  settingButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    padding: 16,
+    width: '100%',
+  },
+  settingIcon: {
+    fontSize: 16,
+    marginRight: 12,
+  },
+  settingText: {
+    fontSize: 16,
+    color: '#374151',
+    flex: 1,
+  },
+  settingArrow: {
+    fontSize: 16,
+    color: '#9ca3af',
+    marginLeft: 'auto',
+  },
+  signOutButton: {
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  signOutText: {
+    color: '#ef4444',
+  },
   menuItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -719,9 +770,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#fecaca',
   },
-     signOutText: {
-     color: '#ef4444',
-   },
    sectionTitle: {
      fontSize: 18,
      fontWeight: 'bold',
