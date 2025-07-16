@@ -276,10 +276,11 @@ export default function CommunityScreen() {
     
     // 새로운 라우팅 구조로 리다이렉트
     if (newTab === 'school') {
-      // 사용자 정보가 없는 경우
+      // 사용자 정보가 없는 경우 - 로그인 안내 화면 표시
       if (!user?.uid) {
-        console.log('사용자 정보 없음, 로그인 필요');
-        router.push('/auth');
+        console.log('사용자 정보 없음, 로그인 안내 화면 표시');
+        // URL만 업데이트하고 리다이렉트하지 않음
+        router.setParams({ tab: 'school' });
         return;
       }
       
@@ -311,10 +312,11 @@ export default function CommunityScreen() {
       }
     } else if (newTab === 'regional') {
       console.log('=== 지역 탭 선택됨 ===');
-      // 사용자 정보가 없는 경우
+      // 사용자 정보가 없는 경우 - 로그인 안내 화면 표시
       if (!user?.uid) {
-        console.log('사용자 정보 없음, 로그인 필요');
-        router.push('/auth');
+        console.log('사용자 정보 없음, 로그인 안내 화면 표시');
+        // URL만 업데이트하고 리다이렉트하지 않음
+        router.setParams({ tab: 'regional' });
         return;
       }
       

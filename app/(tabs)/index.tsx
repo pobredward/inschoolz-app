@@ -282,7 +282,7 @@ export default function HomeScreen() {
               
               <TouchableOpacity 
                 style={styles.communityCard}
-                onPress={() => Alert.alert('로그인 필요', '지역 커뮤니티를 이용하려면 로그인해주세요.')}
+                onPress={() => navigateToCommunity('regional')}
               >
                 <Text style={styles.communityIcon}>🏘️</Text>
                 <Text style={styles.communityTitle}>지역</Text>
@@ -291,7 +291,7 @@ export default function HomeScreen() {
               
               <TouchableOpacity 
                 style={styles.communityCard}
-                onPress={() => Alert.alert('로그인 필요', '학교 커뮤니티를 이용하려면 로그인해주세요.')}
+                onPress={() => navigateToCommunity('school')}
               >
                 <Text style={styles.communityIcon}>🏫</Text>
                 <Text style={styles.communityTitle}>학교</Text>
@@ -454,9 +454,7 @@ export default function HomeScreen() {
             >
               <Text style={styles.communityIcon}>🏘️</Text>
               <Text style={styles.communityTitle}>지역</Text>
-              <Text style={styles.communityDesc}>
-                {user.regions?.sigungu || '지역 설정 필요'}
-              </Text>
+              <Text style={styles.communityDesc}>우리 지역 친구들과 소통</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -465,9 +463,7 @@ export default function HomeScreen() {
             >
               <Text style={styles.communityIcon}>🏫</Text>
               <Text style={styles.communityTitle}>학교</Text>
-              <Text style={styles.communityDesc}>
-                {mainSchool?.KOR_NAME || '학교 설정 필요'}
-              </Text>
+              <Text style={styles.communityDesc}>우리 학교만의 공간</Text>
             </TouchableOpacity>
           </View>
         </View>

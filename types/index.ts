@@ -239,10 +239,18 @@ export interface Comment {
   id: string;
   postId: string;
   content: string;
-  authorId: string;
+  authorId: string | null; // 익명 댓글의 경우 null
   isAnonymous: boolean;
   parentId: string | null;
   createdAt: number;
+  
+  // 익명 댓글 정보 (비회원 작성 시)
+  anonymousAuthor?: {
+    nickname: string; // 익명 닉네임
+    passwordHash: string; // 4자리 비밀번호 해시
+    ipAddress?: string; // IP 주소 (관리 목적)
+  };
+  
   stats: {
     likeCount: number;
   };

@@ -14,7 +14,8 @@ import {
   Timestamp,
   writeBatch,
   increment,
-  serverTimestamp
+  serverTimestamp,
+  runTransaction
 } from 'firebase/firestore';
 import { Board, BoardType, Post } from '../types';
 
@@ -1119,5 +1120,174 @@ export const createComment = async (
   } catch (error) {
     console.error('댓글 작성 오류:', error);
     throw new Error('댓글을 작성하는 중 오류가 발생했습니다.');
+  }
+}; 
+
+// 4자리 비밀번호를 해시화합니다. (Web Crypto API 사용)
+const hashPassword = async (password: string): Promise<string> => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password + 'inschoolz_salt'); // 간단한 솔트 추가
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
+// 비밀번호를 검증합니다.
+const verifyPassword = async (password: string, hash: string): Promise<boolean> => {
+  const hashedInput = await hashPassword(password);
+  return hashedInput === hash;
+};
+
+// 익명 댓글 작성하기
+export const createAnonymousComment = async ({
+  postId,
+  content,
+  nickname,
+  password,
+  parentId = null,
+  ipAddress
+}: {
+  postId: string;
+  content: string;
+  nickname: string;
+  password: string;
+  parentId?: string | null;
+  ipAddress?: string;
+}) => {
+  try {
+    // 게시글 정보 가져오기
+    const postDoc = await getDoc(doc(db, 'posts', postId));
+    if (!postDoc.exists()) {
+      throw new Error('존재하지 않는 게시글입니다.');
+    }
+
+    // 비밀번호 해시화
+    const passwordHash = await hashPassword(password);
+    
+    // 댓글 데이터 생성
+    const commentData = {
+      postId,
+      content,
+      authorId: null,
+      isAnonymous: true,
+      parentId,
+      anonymousAuthor: {
+        nickname,
+        passwordHash,
+        ipAddress: ipAddress || null,
+      },
+      stats: {
+        likeCount: 0,
+      },
+      status: {
+        isDeleted: false,
+        isBlocked: false,
+      },
+      createdAt: Date.now(),
+    };
+
+    // Firestore에 댓글 추가
+    const commentRef = await addDoc(collection(db, 'posts', postId, 'comments'), commentData);
+    
+    // 게시글의 댓글 수 증가
+    await updateDoc(doc(db, 'posts', postId), {
+      'stats.commentCount': increment(1),
+    });
+
+    return commentRef.id;
+  } catch (error) {
+    console.error('익명 댓글 작성 실패:', error);
+    throw new Error('댓글 작성에 실패했습니다.');
+  }
+};
+
+// 익명 댓글의 비밀번호를 검증합니다.
+export const verifyAnonymousCommentPassword = async (
+  postId: string,
+  commentId: string,
+  password: string
+): Promise<boolean> => {
+  try {
+    const commentDoc = await getDoc(doc(db, 'posts', postId, 'comments', commentId));
+    
+    if (!commentDoc.exists()) {
+      return false;
+    }
+
+    const comment = commentDoc.data();
+    
+    // 익명 댓글이 아니거나 비밀번호 해시가 없는 경우
+    if (!comment.isAnonymous || !comment.anonymousAuthor?.passwordHash) {
+      return false;
+    }
+
+    return verifyPassword(password, comment.anonymousAuthor.passwordHash);
+  } catch (error) {
+    console.error('익명 댓글 비밀번호 검증 실패:', error);
+    return false;
+  }
+};
+
+// 익명 댓글을 수정합니다.
+export const updateAnonymousComment = async (
+  postId: string,
+  commentId: string,
+  content: string,
+  password: string
+): Promise<void> => {
+  try {
+    // 비밀번호 검증
+    const isValidPassword = await verifyAnonymousCommentPassword(postId, commentId, password);
+    
+    if (!isValidPassword) {
+      throw new Error('비밀번호가 일치하지 않습니다.');
+    }
+
+    // 댓글 수정
+    const commentRef = doc(db, 'posts', postId, 'comments', commentId);
+    await updateDoc(commentRef, {
+      content,
+      updatedAt: Date.now(),
+    });
+  } catch (error) {
+    console.error('익명 댓글 수정 실패:', error);
+    throw error;
+  }
+};
+
+// 익명 댓글을 삭제합니다.
+export const deleteAnonymousComment = async (
+  postId: string,
+  commentId: string,
+  password: string
+): Promise<void> => {
+  try {
+    // 비밀번호 검증
+    const isValidPassword = await verifyAnonymousCommentPassword(postId, commentId, password);
+    
+    if (!isValidPassword) {
+      throw new Error('비밀번호가 일치하지 않습니다.');
+    }
+
+    // 트랜잭션으로 댓글 삭제 및 게시글 댓글 수 감소
+    await runTransaction(db, async (transaction) => {
+      const commentRef = doc(db, 'posts', postId, 'comments', commentId);
+      const postRef = doc(db, 'posts', postId);
+      
+      // 댓글 상태를 삭제로 변경 (실제 삭제하지 않고 상태만 변경)
+      transaction.update(commentRef, {
+        'status.isDeleted': true,
+        content: '삭제된 댓글입니다.',
+        deletedAt: Date.now(),
+      });
+      
+      // 게시글의 댓글 수 감소
+      transaction.update(postRef, {
+        'stats.commentCount': increment(-1),
+      });
+    });
+  } catch (error) {
+    console.error('익명 댓글 삭제 실패:', error);
+    throw error;
   }
 }; 
