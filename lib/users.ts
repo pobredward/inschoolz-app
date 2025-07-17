@@ -76,7 +76,7 @@ export interface AdminUserListParams {
   search?: string;
   role?: 'all' | 'admin' | 'user';
   status?: 'all' | 'active' | 'inactive' | 'suspended';
-  sortBy?: 'createdAt' | 'lastActiveAt' | 'experience' | 'userName';
+  sortBy?: 'createdAt' | 'lastActiveAt' | 'totalExperience' | 'userName';
   sortOrder?: 'asc' | 'desc';
 }
 
@@ -321,27 +321,16 @@ export const updateUserExperienceAdmin = async (userId: string, newExperience: n
   try {
     const userRef = doc(db, 'users', userId);
     
-    // 레벨 계산 (간단화된 버전)
-    const calculateLevel = (exp: number): number => {
-      let level = 1;
-      let requiredExp = 10;
-      let totalRequired = 0;
-      
-      while (totalRequired + requiredExp <= exp) {
-        totalRequired += requiredExp;
-        level++;
-        requiredExp += 10;
-      }
-      
-      return level;
-    };
-
-    const newLevel = calculateLevel(newExperience);
+    // 경험치 시스템 함수 사용
+    const { calculateCurrentLevelProgress } = await import('./experience');
+    const progress = calculateCurrentLevelProgress(newExperience);
     
     await updateDoc(userRef, {
-      'stats.experience': newExperience,
-      'stats.level': newLevel,
-      'stats.currentXP': newExperience,
+      'stats.totalExperience': newExperience,
+      // 'stats.experience': newExperience, // experience 필드 제거
+      'stats.level': progress.level,
+      'stats.currentExp': progress.currentExp,
+      'stats.currentLevelRequiredXp': progress.currentLevelRequiredXp,
       updatedAt: serverTimestamp()
     });
 

@@ -505,7 +505,7 @@ export const syncUserExperienceData = async (userId: string): Promise<void> => {
     // 데이터 동기화
     await updateDoc(userRef, {
       'stats.totalExperience': totalExp,
-      'stats.experience': totalExp, // 호환성을 위해 유지
+      // 'stats.experience': totalExp, // experience 필드 제거
       'stats.level': progress.level,
       'stats.currentExp': progress.currentExp,
       'stats.currentLevelRequiredXp': progress.currentLevelRequiredXp,
@@ -520,7 +520,7 @@ export const syncUserExperienceData = async (userId: string): Promise<void> => {
 };
 
 /**
- * 사용자 경험치 업데이트 및 레벨업 처리
+ * 사용자 경험치 업데이트 및 레벨업 처리 (완전히 새로운 로직)
  */
 export const updateUserExperience = async (
   userId: string, 
@@ -543,43 +543,42 @@ export const updateUserExperience = async (
     
     const userData = userDoc.data() as User;
     const currentLevel = userData.stats?.level || 1;
-    const currentExp = userData.stats?.currentExp || 0;
-    const currentLevelRequiredXp = userData.stats?.currentLevelRequiredXp || getExpRequiredForNextLevel(currentLevel);
     const totalExperience = userData.stats?.totalExperience || 0;
     
-    // 새로운 경험치 계산
-    const newCurrentExp = currentExp + xp;
+    // 새로운 총 경험치 계산
     const newTotalExperience = totalExperience + xp;
     
-    // 레벨업 체크
-    const levelUpResult = checkLevelUp(currentLevel, newCurrentExp, currentLevelRequiredXp);
+    // 새로운 총 경험치 기준으로 레벨과 현재 경험치 계산
+    const progress = calculateCurrentLevelProgress(newTotalExperience);
     
     // 데이터 업데이트
     const updateData = {
       'stats.totalExperience': newTotalExperience,
-      'stats.level': levelUpResult.newLevel,
-      'stats.currentExp': levelUpResult.newCurrentExp,
-      'stats.currentLevelRequiredXp': levelUpResult.newCurrentLevelRequiredXp,
-      'stats.experience': newTotalExperience, // 호환성을 위해 유지 (totalExperience와 동일)
+      'stats.level': progress.level,
+      'stats.currentExp': progress.currentExp,
+      'stats.currentLevelRequiredXp': progress.currentLevelRequiredXp,
+      // 'stats.experience': newTotalExperience, // experience 필드 제거
       'updatedAt': serverTimestamp()
     };
     
     await updateDoc(userRef, updateData);
     
-    if (levelUpResult.shouldLevelUp) {
-      console.log(`🎉 사용자 ${userId}가 레벨 ${currentLevel}에서 레벨 ${levelUpResult.newLevel}로 레벨업했습니다!`);
+    const leveledUp = progress.level > currentLevel;
+    
+    if (leveledUp) {
+      console.log(`🎉 사용자 ${userId}가 레벨 ${currentLevel}에서 레벨 ${progress.level}로 레벨업했습니다!`);
     }
     
-    console.log(`✨ 사용자 ${userId}에게 ${xp} 경험치가 추가되었습니다. (총 ${newTotalExperience}XP)`);
+    console.log(`✨ 사용자 ${userId}에게 ${xp} 경험치가 추가되었습니다. (총 ${newTotalExperience}XP, 레벨 ${progress.level}, 현재 ${progress.currentExp}/${progress.currentLevelRequiredXp})`);
     
     // 업데이트된 사용자 데이터 조회
     const updatedUserDoc = await getDoc(userRef);
     const updatedUserData = updatedUserDoc.data() as User;
     
     return { 
-      leveledUp: levelUpResult.shouldLevelUp, 
+      leveledUp: leveledUp, 
       oldLevel: currentLevel, 
-      newLevel: levelUpResult.newLevel, 
+      newLevel: progress.level, 
       userData: updatedUserData 
     };
     
@@ -604,7 +603,7 @@ export const getRankingData = async (
   displayName: string;
   schoolName?: string;
   level: number;
-  experience: number;
+  totalExperience: number;
   profileImageUrl?: string;
 }>> => {
   try {
@@ -650,7 +649,7 @@ export const getRankingData = async (
       displayName: string;
       schoolName?: string;
       level: number;
-      experience: number;
+      totalExperience: number;
       profileImageUrl?: string;
     }> = [];
     
@@ -662,7 +661,7 @@ export const getRankingData = async (
         displayName: userData.profile.userName,
         schoolName: userData.school?.name,
         level: userData.stats?.level || 1,
-        experience: userData.stats?.totalExperience || 0,
+        totalExperience: userData.stats?.totalExperience || 0,
         profileImageUrl: userData.profile.profileImageUrl
       });
     });
@@ -916,7 +915,7 @@ export const getAdminStats = async (): Promise<{
     let totalExperience = 0;
     usersQuerySnapshot.forEach((userDoc) => {
       const userData = userDoc.data();
-      const userXP = userData.stats?.experience || 0;
+      const userXP = userData.stats?.totalExperience || 0;
       totalExperience += userXP;
     });
 
@@ -1106,5 +1105,43 @@ export const resetDailyActivityLimits = async (userId: string): Promise<void> =>
     }
   } catch (error) {
     console.error('일일 활동 제한 리셋 오류:', error);
+  }
+}; 
+
+/**
+ * 특정 사용자의 경험치 데이터를 총 경험치 기준으로 재계산 및 동기화
+ */
+export const fixUserExperienceData = async (userId: string): Promise<void> => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    
+    if (!userDoc.exists()) {
+      throw new Error('사용자를 찾을 수 없습니다.');
+    }
+    
+    const userData = userDoc.data() as User;
+    
+    // totalExperience를 기준으로 정확한 레벨과 현재 경험치 계산
+    const totalExp = userData.stats?.totalExperience || (userData.stats as any)?.experience || 0;
+    const progress = calculateCurrentLevelProgress(totalExp);
+    
+    // 데이터 동기화
+    await updateDoc(userRef, {
+      'stats.totalExperience': totalExp,
+      // 'stats.experience': totalExp, // experience 필드 제거
+      'stats.level': progress.level,
+      'stats.currentExp': progress.currentExp,
+      'stats.currentLevelRequiredXp': progress.currentLevelRequiredXp,
+      'updatedAt': serverTimestamp()
+    });
+    
+    console.log(`✅ 사용자 ${userId}의 경험치 데이터가 수정되었습니다.`);
+    console.log(`- 총 경험치: ${totalExp}XP`);
+    console.log(`- 레벨: ${progress.level}`);
+    console.log(`- 현재 경험치: ${progress.currentExp}/${progress.currentLevelRequiredXp}`);
+  } catch (error) {
+    console.error('경험치 데이터 수정 오류:', error);
+    throw error;
   }
 }; 

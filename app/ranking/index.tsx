@@ -184,21 +184,21 @@ export default function RankingScreen() {
         global: globalData.map((item, index) => ({
           ...item,
           userName: item.displayName,
-          totalExperience: item.experience,
+          totalExperience: item.totalExperience,
           avatar: item.profileImageUrl,
           rank: item.rank
         })),
         regional: regionalData.map((item, index) => ({
           ...item,
           userName: item.displayName,
-          totalExperience: item.experience,
+          totalExperience: item.totalExperience,
           avatar: item.profileImageUrl,
           rank: item.rank
         })),
         school: schoolData.map((item, index) => ({
           ...item,
           userName: item.displayName,
-          totalExperience: item.experience,
+          totalExperience: item.totalExperience,
           avatar: item.profileImageUrl,
           rank: item.rank
         })),

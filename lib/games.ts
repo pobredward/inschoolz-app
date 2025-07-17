@@ -113,11 +113,9 @@ export const updateGameScore = async (userId: string, gameType: GameType, score:
     };
     
     if (xpEarned > 0) {
-      // 앱에서는 경험치 업데이트 함수를 직접 구현하거나 간단하게 처리
-      await updateDoc(userRef, {
-        'stats.experience': increment(xpEarned),
-        'stats.totalExperience': increment(xpEarned)
-      });
+      // 경험치 업데이트 및 레벨업 처리
+      const { updateUserExperience } = await import('./experience');
+      result = await updateUserExperience(userId, xpEarned);
     }
     
     return {

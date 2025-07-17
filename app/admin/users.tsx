@@ -52,7 +52,7 @@ export default function AdminUsersScreen({}: AdminUsersScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRole, setSelectedRole] = useState<'all' | 'admin' | 'user'>('all');
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'active' | 'inactive' | 'suspended'>('all');
-  const [sortBy, setSortBy] = useState<'createdAt' | 'lastActiveAt' | 'experience' | 'userName'>('createdAt');
+  const [sortBy, setSortBy] = useState<'createdAt' | 'lastActiveAt' | 'totalExperience' | 'userName'>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -259,7 +259,7 @@ export default function AdminUsersScreen({}: AdminUsersScreenProps) {
       <View style={styles.userStats}>
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>경험치</Text>
-          <Text style={styles.statValue}>{item.stats?.experience || 0}</Text>
+          <Text style={styles.statValue}>{item.stats?.totalExperience || 0}</Text>
         </View>
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>게시글</Text>
@@ -465,7 +465,7 @@ export default function AdminUsersScreen({}: AdminUsersScreenProps) {
                 {[
                   { key: 'createdAt', label: '가입일' },
                   { key: 'lastActiveAt', label: '마지막 활동' },
-                  { key: 'experience', label: '경험치' },
+                  { key: 'totalExperience', label: '경험치' },
                   { key: 'userName', label: '이름' }
                 ].map(sort => (
                   <TouchableOpacity

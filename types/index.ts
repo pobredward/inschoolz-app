@@ -91,7 +91,6 @@ export interface UserProfile {
 export interface UserStats {
   level: number; // 레벨
   currentExp: number; // 현재 레벨에서의 경험치 (0부터 시작)
-  experience: number; // 총 경험치 (호환성을 위해 유지, totalExperience와 동일)
   totalExperience: number; // 누적 경험치 (메인 필드)
   currentLevelRequiredXp: number; // 현재 레벨에서 다음 레벨로 가기 위해 필요한 경험치
   postCount: number; // 게시글 수

@@ -6,7 +6,7 @@ import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 // @ts-ignore - Firebase auth 타입 이슈
 import { auth, db } from '../lib/firebase';
 import { User } from '../types';
-import { checkLevelUp, getExpRequiredForNextLevel, resetDailyActivityLimits } from '../lib/experience';
+import { calculateCurrentLevelProgress, resetDailyActivityLimits } from '../lib/experience';
 import { logger } from '../utils/logger';
 
 // 인증 상태 타입 정의
@@ -244,31 +244,24 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
       // 즐겨찾기 학교 기능은 향후 구현 예정
 
-      // 경험치 증가 (새로운 로직)
+      // 경험치 증가 (완전히 새로운 로직)
       incrementExperience: (amount) => {
         const { user } = get();
         if (user) {
-          const currentLevel = user.stats.level;
-          const currentExp = user.stats.currentExp || 0;
-          const currentLevelRequiredXp = user.stats.currentLevelRequiredXp || getExpRequiredForNextLevel(currentLevel);
           const totalExperience = user.stats.totalExperience + amount;
           
-          // 새로운 경험치 계산
-          const newCurrentExp = currentExp + amount;
-          
-          // 레벨업 체크
-          const levelUpResult = checkLevelUp(currentLevel, newCurrentExp, currentLevelRequiredXp);
+          // 새로운 총 경험치 기준으로 레벨과 현재 경험치 계산
+          const progress = calculateCurrentLevelProgress(totalExperience);
           
           set({
             user: {
               ...user,
               stats: {
                 ...user.stats,
-                currentExp: levelUpResult.newCurrentExp,
                 totalExperience: totalExperience,
-                experience: totalExperience, // 호환성을 위해 유지
-                level: levelUpResult.newLevel,
-                currentLevelRequiredXp: levelUpResult.newCurrentLevelRequiredXp,
+                level: progress.level,
+                currentExp: progress.currentExp,
+                currentLevelRequiredXp: progress.currentLevelRequiredXp,
               },
             },
           });
