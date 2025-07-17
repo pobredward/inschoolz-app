@@ -96,7 +96,7 @@ export async function createSystemNotification(
   }
 }
 
-// 추천인 설정 알림
+// 추천인 설정 알림 (추천인에게 보내는 알림)
 export async function createReferralNotification(
   referredUserId: string,
   referrerName: string,
@@ -119,6 +119,33 @@ export async function createReferralNotification(
     });
   } catch (error) {
     console.error('추천인 알림 생성 실패:', error);
+    throw error;
+  }
+}
+
+// 추천인 등록 성공 알림 (추천받은 사용자에게 보내는 알림)
+export async function createReferralSuccessNotification(
+  newUserId: string,
+  referredUserName: string,
+  referredUserId: string,
+  expGained?: number
+): Promise<void> {
+  try {
+    const expText = expGained ? ` ${expGained} 경험치를 받았습니다!` : '!';
+    
+    await createNotification({
+      userId: newUserId,
+      type: 'referral',
+      title: '추천인 등록 완료',
+      message: `${referredUserName}님을 추천인으로 성공적으로 등록했습니다${expText}`,
+      data: {
+        referrerName: referredUserName,
+        targetUserId: referredUserId,
+        expGained: expGained || 0
+      }
+    });
+  } catch (error) {
+    console.error('추천인 등록 성공 알림 생성 실패:', error);
     throw error;
   }
 }

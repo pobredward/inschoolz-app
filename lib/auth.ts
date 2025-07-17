@@ -263,14 +263,26 @@ export const registerWithEmail = async (
           // 신규 사용자 경험치 업데이트 (레벨업 계산 포함)
           await updateUserExperience(firebaseUser.uid, refereeExp);
 
-          // 추천인에게 알림 발송
+          // 알림 발송
           try {
-            const { createReferralNotification } = await import('./notifications');
+            const { createReferralNotification, createReferralSuccessNotification } = await import('./notifications');
+            
+            // 1. 추천인에게 알림 발송
             await createReferralNotification(
               referrerId,
               userName,
               firebaseUser.uid,
               referrerExp // 추천인이 받은 경험치 정보 포함
+            );
+
+            // 2. 추천받은 사용자(신규 가입자)에게 성공 알림 발송
+            const referrerData = referrerDoc.data();
+            const referrerName = referrerData?.profile?.userName || '추천인';
+            await createReferralSuccessNotification(
+              firebaseUser.uid,
+              referrerName,
+              referrerId,
+              refereeExp // 추천받은 사용자가 받은 경험치 정보 포함
             );
           } catch (notificationError) {
             logger.error('추천인 알림 발송 실패:', notificationError);
