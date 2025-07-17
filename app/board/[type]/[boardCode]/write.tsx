@@ -69,8 +69,7 @@ export default function WritePostPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [isPollEnabled, setIsPollEnabled] = useState(false);
-  const [pollQuestion, setPollQuestion] = useState('');
-  const [pollOptions, setPollOptions] = useState(['', '']);
+  const [pollOptions, setPollOptions] = useState<{ text: string; imageUrl?: string }[]>([{ text: '' }, { text: '' }]);
   const [attachments, setAttachments] = useState<{ type: 'image' | 'file'; url: string; name: string; size: number }[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
 
@@ -124,7 +123,7 @@ export default function WritePostPage() {
 
   const addPollOption = () => {
     if (pollOptions.length < 5) {
-      setPollOptions([...pollOptions, '']);
+      setPollOptions([...pollOptions, { text: '' }]);
     }
   };
 
@@ -134,10 +133,64 @@ export default function WritePostPage() {
     }
   };
 
-  const updatePollOption = (index: number, value: string) => {
+  const updatePollOption = (index: number, text: string) => {
     const newOptions = [...pollOptions];
-    newOptions[index] = value;
+    newOptions[index] = { ...newOptions[index], text };
     setPollOptions(newOptions);
+  };
+
+  const updatePollOptionImage = (index: number, imageUrl?: string) => {
+    const newOptions = [...pollOptions];
+    if (imageUrl) {
+      newOptions[index] = { ...newOptions[index], imageUrl };
+    } else {
+      // imageUrl이 undefined일 때는 속성을 완전히 제거
+      const { imageUrl: _, ...optionWithoutImage } = newOptions[index];
+      newOptions[index] = optionWithoutImage;
+    }
+    setPollOptions(newOptions);
+  };
+
+  // 투표 옵션 이미지 선택 및 크롭
+  const handlePollOptionImageUpload = async (index: number) => {
+    try {
+      // 권한 확인
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('권한 필요', '이미지를 선택하려면 갤러리 접근 권한이 필요합니다.');
+        return;
+      }
+
+      // expo-image-picker를 사용하여 이미지 선택 및 크롭
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1], // 정사각형 비율
+        quality: 0.8,
+        allowsMultipleSelection: false,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        setUploadingImages(true);
+        
+        // Firebase Storage에 업로드
+        const imageUrl = await uploadImage(result.assets[0].uri);
+        
+        // 투표 옵션에 이미지 URL 설정
+        updatePollOptionImage(index, imageUrl);
+        
+        setUploadingImages(false);
+      }
+    } catch (error: any) {
+      setUploadingImages(false);
+      console.error('이미지 선택 오류:', error);
+      Alert.alert('오류', '이미지를 선택하는 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 투표 옵션 이미지 제거
+  const removePollOptionImage = (index: number) => {
+    updatePollOptionImage(index, undefined);
   };
 
   // 경험치 모달 닫기 핸들러
@@ -180,12 +233,7 @@ export default function WritePostPage() {
     }
 
     if (isPollEnabled) {
-      if (!pollQuestion.trim()) {
-        Alert.alert('오류', '투표 질문을 입력해주세요.');
-        return;
-      }
-      
-      const validOptions = pollOptions.filter(option => option.trim());
+      const validOptions = pollOptions.filter(option => option.text.trim());
       if (validOptions.length < 2) {
         Alert.alert('오류', '투표 선택지를 최소 2개 이상 입력해주세요.');
         return;
@@ -240,15 +288,22 @@ export default function WritePostPage() {
         },
         attachments: attachments, // Rich Text Editor에서 업로드된 이미지들
         tags: [],
-        ...(isPollEnabled && pollQuestion.trim() && {
+        ...(isPollEnabled && pollOptions.filter(option => option.text.trim()).length >= 2 && {
           poll: {
             isActive: true,
-            question: pollQuestion.trim(),
-            options: pollOptions.filter(option => option.trim()).map((option, index) => ({
-              text: option.trim(),
-              voteCount: 0,
-              index
-            })),
+            question: '', // 질문 없이 빈 문자열
+            options: pollOptions.filter(option => option.text.trim()).map((option, index) => {
+              const pollOption: any = {
+                text: option.text.trim(),
+                voteCount: 0,
+                index
+              }
+              // imageUrl이 있을 때만 추가
+              if (option.imageUrl) {
+                pollOption.imageUrl = option.imageUrl
+              }
+              return pollOption
+            }),
             voters: [],
           }
         })
@@ -465,31 +520,55 @@ export default function WritePostPage() {
 
               {isPollEnabled && (
                 <View style={styles.pollContainer}>
-                  <TextInput
-                    style={styles.pollQuestionInput}
-                    placeholder="투표 질문을 입력하세요"
-                    value={pollQuestion}
-                    onChangeText={setPollQuestion}
-                    multiline={true}
-                    maxLength={200}
-                  />
                   
                   {pollOptions.map((option, index) => (
                     <View key={index} style={styles.pollOptionContainer}>
-                      <TextInput
-                        style={styles.pollOptionInput}
-                        placeholder={`선택지 ${index + 1}`}
-                        value={option}
-                        onChangeText={(value) => updatePollOption(index, value)}
-                        maxLength={100}
-                      />
-                      {pollOptions.length > 2 && (
+                      <View style={styles.pollOptionRow}>
+                        <TextInput
+                          style={[styles.pollOptionInput, { flex: 1 }]}
+                          placeholder={`선택지 ${index + 1}`}
+                          value={option.text}
+                          onChangeText={(text) => updatePollOption(index, text)}
+                          maxLength={100}
+                        />
+                        
+                        {/* 이미지 업로드 버튼 */}
                         <TouchableOpacity
-                          onPress={() => removePollOption(index)}
-                          style={styles.removeOptionButton}
+                          onPress={() => handlePollOptionImageUpload(index)}
+                          style={styles.imageUploadButton}
+                          disabled={uploadingImages}
                         >
-                          <Ionicons name="close-circle" size={24} color="#EF4444" />
+                          <Ionicons 
+                            name="camera" 
+                            size={20} 
+                            color={uploadingImages ? "#999" : "#10B981"} 
+                          />
                         </TouchableOpacity>
+                        
+                        {pollOptions.length > 2 && (
+                          <TouchableOpacity
+                            onPress={() => removePollOption(index)}
+                            style={styles.removeOptionButton}
+                          >
+                            <Ionicons name="close-circle" size={24} color="#EF4444" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      
+                      {/* 이미지 미리보기 */}
+                      {option.imageUrl && (
+                        <View style={styles.pollOptionImageContainer}>
+                          <Image 
+                            source={{ uri: option.imageUrl }} 
+                            style={styles.pollOptionImage}
+                          />
+                          <TouchableOpacity
+                            onPress={() => removePollOptionImage(index)}
+                            style={styles.removeImageButton}
+                          >
+                            <Ionicons name="close-circle" size={20} color="#EF4444" />
+                          </TouchableOpacity>
+                        </View>
                       )}
                     </View>
                   ))}
@@ -666,16 +745,11 @@ const styles = StyleSheet.create({
   pollContainer: {
     marginTop: 12,
   },
-  pollQuestionInput: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#F9FAFB',
+
+  pollOptionContainer: {
     marginBottom: 12,
   },
-  pollOptionContainer: {
+  pollOptionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
@@ -692,6 +766,35 @@ const styles = StyleSheet.create({
   removeOptionButton: {
     marginLeft: 8,
     padding: 4,
+  },
+  imageUploadButton: {
+    marginLeft: 8,
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#F0FDF4',
+  },
+  pollOptionImageContainer: {
+    marginTop: 8,
+    position: 'relative',
+    alignSelf: 'flex-start',
+  },
+  pollOptionImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
   addOptionButton: {
     flexDirection: 'row',

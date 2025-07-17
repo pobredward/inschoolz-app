@@ -13,6 +13,7 @@ import {
   Platform,
   StatusBar,
   SafeAreaView,
+  Image,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +23,8 @@ import { db } from '@/lib/firebase';
 import { getBoard } from '@/lib/boards';
 import { Board, Post } from '@/types';
 import RichTextEditor from '@/components/RichTextEditor';
+import * as ImagePicker from 'expo-image-picker';
+import { uploadImage } from '@/lib/firebase';
 
 export default function EditPostPage() {
   const { type, boardCode, postId } = useLocalSearchParams<{
@@ -41,6 +44,11 @@ export default function EditPostPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [attachments, setAttachments] = useState<{ type: 'image'; url: string; name: string; size: number }[]>([]);
+  const [isPollEnabled, setIsPollEnabled] = useState(false);
+  const [pollOptions, setPollOptions] = useState<{ text: string; imageUrl?: string }[]>([
+    { text: '' },
+    { text: '' }
+  ]);
 
   // 게시글 및 게시판 정보 로드
   useEffect(() => {
@@ -76,6 +84,15 @@ export default function EditPostPage() {
         setTitle(postData.title);
         setContent(postData.content);
         setIsAnonymous(postData.authorInfo?.isAnonymous || false);
+        
+        // 기존 투표 정보 설정
+        if (postData.poll) {
+          setIsPollEnabled(true);
+          setPollOptions(postData.poll.options.map(option => ({
+            text: option.text,
+            imageUrl: option.imageUrl
+          })));
+        }
         
         // 기존 첨부파일 정보 설정 (이미지만 필터링)
         if (postData.attachments && Array.isArray(postData.attachments)) {
@@ -114,6 +131,14 @@ export default function EditPostPage() {
       return;
     }
 
+    if (isPollEnabled) {
+      const validOptions = pollOptions.filter(option => option.text.trim());
+      if (validOptions.length < 2) {
+        Alert.alert('오류', '투표 선택지를 최소 2개 이상 입력해주세요.');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -126,11 +151,31 @@ export default function EditPostPage() {
         updatedAt: serverTimestamp()
       };
 
-      // 투표 기능이 없는 앱에서는 기존 poll 필드가 있다면 제거
-      // (웹에서 작성된 투표 게시글을 앱에서 수정할 경우를 대비)
-      if (post?.poll) {
+      // 투표 데이터 처리
+      if (isPollEnabled && pollOptions.filter(option => option.text.trim()).length >= 2) {
+        updateData.poll = {
+          isActive: true,
+          question: '', // 질문 없이 빈 문자열
+          options: pollOptions.filter(option => option.text.trim()).map((option, index) => {
+            const pollOption: any = {
+              text: option.text.trim(),
+              voteCount: 0,
+              index
+            }
+            // imageUrl이 있을 때만 추가
+            if (option.imageUrl) {
+              pollOption.imageUrl = option.imageUrl
+            }
+            return pollOption
+          }),
+          voters: [],
+        };
+      } else {
+        // 투표를 비활성화하면 poll 필드 삭제
         updateData.poll = deleteField();
       }
+
+
 
       // 게시글 업데이트
       await updateDoc(doc(db, 'posts', postId), updateData);
@@ -159,6 +204,74 @@ export default function EditPostPage() {
   const handleImageRemove = (imageUrl: string) => {
     console.log('이미지 삭제:', imageUrl);
     setAttachments(prev => prev.filter(attachment => attachment.url !== imageUrl));
+  };
+
+  // 투표 옵션 관련 함수들
+  const addPollOption = () => {
+    if (pollOptions.length < 5) {
+      setPollOptions([...pollOptions, { text: '' }]);
+    }
+  };
+
+  const removePollOption = (index: number) => {
+    if (pollOptions.length > 2) {
+      setPollOptions(pollOptions.filter((_, i) => i !== index));
+    }
+  };
+
+  const updatePollOption = (index: number, text: string) => {
+    const newOptions = [...pollOptions];
+    newOptions[index] = { ...newOptions[index], text };
+    setPollOptions(newOptions);
+  };
+
+  const updatePollOptionImage = (index: number, imageUrl?: string) => {
+    const newOptions = [...pollOptions];
+    if (imageUrl) {
+      newOptions[index] = { ...newOptions[index], imageUrl };
+    } else {
+      // imageUrl이 undefined일 때는 속성을 완전히 제거
+      const { imageUrl: _, ...optionWithoutImage } = newOptions[index];
+      newOptions[index] = optionWithoutImage;
+    }
+    setPollOptions(newOptions);
+  };
+
+  // 투표 옵션 이미지 선택 및 크롭
+  const handlePollOptionImageUpload = async (index: number) => {
+    try {
+      // 권한 확인
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('권한 필요', '이미지를 선택하려면 갤러리 접근 권한이 필요합니다.');
+        return;
+      }
+
+      // expo-image-picker를 사용하여 이미지 선택 및 크롭
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1], // 정사각형 비율
+        quality: 0.8,
+        allowsMultipleSelection: false,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        // Firebase Storage에 업로드
+        const imageUrl = await uploadImage(result.assets[0].uri);
+        
+        // 투표 옵션에 이미지 URL 설정
+        updatePollOptionImage(index, imageUrl);
+      }
+    } catch (error: any) {
+      console.error('이미지 선택 오류:', error);
+      Alert.alert('오류', '이미지를 선택하는 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 투표 옵션 이미지 제거
+  const removePollOptionImage = (index: number) => {
+    updatePollOptionImage(index, undefined);
   };
 
   if (isLoading || authLoading) {
@@ -268,6 +381,86 @@ export default function EditPostPage() {
                     thumbColor={isAnonymous ? '#fff' : '#f4f3f4'}
                   />
                 </View>
+              </View>
+            )}
+
+            {/* 투표 섹션 */}
+            {(board as any)?.allowPolls && (
+              <View style={styles.section}>
+                <View style={styles.switchContainer}>
+                  <Text style={styles.sectionTitle}>투표 만들기</Text>
+                  <Switch
+                    value={isPollEnabled}
+                    onValueChange={setIsPollEnabled}
+                    trackColor={{ false: '#767577', true: '#10B981' }}
+                    thumbColor={isPollEnabled ? '#fff' : '#f4f3f4'}
+                  />
+                </View>
+
+                {isPollEnabled && (
+                  <View style={styles.pollSection}>
+                    <Text style={styles.pollSectionTitle}>투표 선택지</Text>
+                    {pollOptions.map((option, index) => (
+                      <View key={index} style={[styles.pollOptionContainer, { minHeight: 100 }]}>
+                        <View style={styles.pollOptionContent}>
+                          <TextInput
+                            style={styles.pollOptionInput}
+                            placeholder={`선택지 ${index + 1}`}
+                            value={option.text}
+                            onChangeText={(text) => updatePollOption(index, text)}
+                            multiline
+                            maxLength={100}
+                          />
+                          
+                          {/* 투표 옵션 이미지 영역 */}
+                          <View style={styles.pollImageContainer}>
+                            {option.imageUrl ? (
+                              <View style={styles.pollImageWrapper}>
+                                <Image
+                                  source={{ uri: option.imageUrl }}
+                                  style={[styles.pollImage, { width: 80, height: 100 }]}
+                                  resizeMode="cover"
+                                />
+                                <TouchableOpacity
+                                  style={styles.pollImageRemoveButton}
+                                  onPress={() => removePollOptionImage(index)}
+                                >
+                                  <Ionicons name="close" size={16} color="#fff" />
+                                </TouchableOpacity>
+                              </View>
+                            ) : (
+                              <TouchableOpacity
+                                style={styles.pollImageAddButton}
+                                onPress={() => handlePollOptionImageUpload(index)}
+                              >
+                                <Ionicons name="camera" size={20} color="#10B981" />
+                                <Text style={styles.pollImageAddText}>이미지</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        </View>
+                        
+                        {/* 옵션 삭제 버튼 */}
+                        {pollOptions.length > 2 && (
+                          <TouchableOpacity
+                            style={styles.pollOptionRemoveButton}
+                            onPress={() => removePollOption(index)}
+                          >
+                            <Ionicons name="trash-outline" size={16} color="#ef4444" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ))}
+                    
+                    {/* 옵션 추가 버튼 */}
+                    {pollOptions.length < 5 && (
+                      <TouchableOpacity style={styles.addPollOptionButton} onPress={addPollOption}>
+                        <Ionicons name="add" size={20} color="#10B981" />
+                        <Text style={styles.addPollOptionText}>선택지 추가</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
               </View>
             )}
 
@@ -398,5 +591,99 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 120,
+  },
+  // 투표 관련 스타일
+  pollSection: {
+    marginTop: 16,
+  },
+  pollSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 12,
+  },
+  pollOptionContainer: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    marginBottom: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  pollOptionContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  pollOptionInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 6,
+    padding: 8,
+    fontSize: 14,
+    backgroundColor: '#F9FAFB',
+    marginRight: 8,
+    minHeight: 40,
+    textAlignVertical: 'top',
+  },
+  pollImageContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pollImageWrapper: {
+    position: 'relative',
+  },
+  pollImage: {
+    borderRadius: 6,
+  },
+  pollImageRemoveButton: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#ef4444',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pollImageAddButton: {
+    width: 60,
+    height: 40,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#10B981',
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderStyle: 'dashed',
+  },
+  pollImageAddText: {
+    fontSize: 10,
+    color: '#10B981',
+    marginTop: 2,
+  },
+  pollOptionRemoveButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  addPollOptionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#10B981',
+    borderRadius: 8,
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  addPollOptionText: {
+    color: '#10B981',
+    fontWeight: '600',
+    marginLeft: 4,
   },
 }); 

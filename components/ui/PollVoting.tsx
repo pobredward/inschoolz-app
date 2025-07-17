@@ -6,7 +6,8 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  Dimensions
+  Dimensions,
+  Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
@@ -212,23 +213,20 @@ export const PollVoting = ({ postId, poll, onVoteUpdate }: PollVotingProps) => {
 
   return (
     <View style={styles.container}>
-      {/* 투표 헤더 */}
-      <View style={styles.header}>
-        <Text style={styles.question}>{localPoll.question}</Text>
-        <View style={styles.badges}>
-          {!localPoll.isActive && (
-            <View style={[styles.badge, styles.endedBadge]}>
-              <Ionicons name="time-outline" size={12} color="#6b7280" />
-              <Text style={styles.badgeText}>종료</Text>
-            </View>
-          )}
-          {showResults && (
-            <View style={[styles.badge, styles.voteBadge]}>
-              <Ionicons name="people-outline" size={12} color="#3b82f6" />
-              <Text style={[styles.badgeText, { color: '#3b82f6' }]}>{totalVotes}표</Text>
-            </View>
-          )}
-        </View>
+      {/* 투표 상태 뱃지 */}
+      <View style={styles.badges}>
+        {!localPoll.isActive && (
+          <View style={[styles.badge, styles.endedBadge]}>
+            <Ionicons name="time-outline" size={12} color="#6b7280" />
+            <Text style={styles.badgeText}>종료</Text>
+          </View>
+        )}
+        {showResults && (
+          <View style={[styles.badge, styles.voteBadge]}>
+            <Ionicons name="people-outline" size={12} color="#3b82f6" />
+            <Text style={[styles.badgeText, { color: '#3b82f6' }]}>{totalVotes}표</Text>
+          </View>
+        )}
       </View>
 
       {/* 투표 옵션들 */}
@@ -236,12 +234,14 @@ export const PollVoting = ({ postId, poll, onVoteUpdate }: PollVotingProps) => {
         {localPoll.options.map((option, index) => {
           const percentage = totalVotes > 0 ? (option.voteCount / totalVotes) * 100 : 0;
           const isSelected = selectedOption === index;
+          const hasImage = !!option.imageUrl;
           
           return (
             <TouchableOpacity
               key={index}
               style={[
                 styles.optionButton,
+                hasImage && styles.optionButtonWithImage,
                 showResults && styles.optionButtonResult,
                 isSelected && showResults && styles.selectedOption,
                 !user && styles.disabledOption,
@@ -265,22 +265,35 @@ export const PollVoting = ({ postId, poll, onVoteUpdate }: PollVotingProps) => {
               )}
               
               <View style={styles.optionContent}>
-                <View style={styles.optionLeft}>
-                  <Text style={[
-                    styles.optionText,
-                    isSelected && showResults && styles.selectedOptionText
-                  ]}>
-                    {option.text}
-                  </Text>
-                  {isSelected && showResults && (
-                    <Ionicons name="checkmark" size={16} color="#3b82f6" style={styles.checkIcon} />
+                <View style={styles.optionTextContainer}>
+                  <View style={styles.textAndCheck}>
+                    <Text style={[
+                      styles.optionText,
+                      isSelected && showResults && styles.selectedOptionText
+                    ]}>
+                      {option.text}
+                    </Text>
+                    {isSelected && showResults && (
+                      <Ionicons name="checkmark" size={16} color="#3b82f6" style={styles.checkIcon} />
+                    )}
+                  </View>
+                  
+                  {showResults && (
+                    <View style={styles.voteInfo}>
+                      <Text style={styles.voteCount}>{option.voteCount}표</Text>
+                      <Text style={styles.percentage}>({percentage.toFixed(1)}%)</Text>
+                    </View>
                   )}
                 </View>
                 
-                {showResults && (
-                  <View style={styles.optionRight}>
-                    <Text style={styles.voteCount}>{option.voteCount}표</Text>
-                    <Text style={styles.percentage}>({percentage.toFixed(1)}%)</Text>
+                {/* 이미지 표시 - 오른쪽 끝에 박스 높이와 동일하게 */}
+                {option.imageUrl && (
+                  <View style={styles.imageContainer}>
+                    <Image
+                      source={{ uri: option.imageUrl }}
+                      style={styles.optionImage}
+                      resizeMode="cover"
+                    />
                   </View>
                 )}
               </View>
@@ -323,29 +336,12 @@ export const PollVoting = ({ postId, poll, onVoteUpdate }: PollVotingProps) => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
     marginVertical: 8,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  question: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    flex: 1,
-    marginRight: 12,
   },
   badges: {
     flexDirection: 'row',
     gap: 8,
+    marginBottom: 12,
   },
   badge: {
     flexDirection: 'row',
@@ -378,46 +374,55 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     position: 'relative',
     overflow: 'hidden',
-    minHeight: 48,
+    minHeight: 100,
+  },
+  optionButtonWithImage: {
+    minHeight: 100,
   },
   optionButtonResult: {
     backgroundColor: '#f9fafb',
+    borderColor: '#e5e7eb',
   },
   optionButtonVoting: {
     backgroundColor: '#fafafa',
   },
   selectedOption: {
     borderColor: '#3b82f6',
-    borderWidth: 2,
+    backgroundColor: '#eff6ff',
   },
   disabledOption: {
     opacity: 0.5,
   },
   resultBackground: {
     position: 'absolute',
-    left: 0,
     top: 0,
+    left: 0,
     bottom: 0,
-    backgroundColor: '#3b82f6',
-    opacity: 0.1,
+    backgroundColor: '#dbeafe',
+    opacity: 0.3,
   },
   optionContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    position: 'relative',
-    zIndex: 1,
+    alignItems: 'stretch',
+    flex: 1,
+    height: '100%',
   },
-  optionLeft: {
+  optionTextContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  textAndCheck: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    marginBottom: 4,
   },
   optionText: {
     fontSize: 16,
     fontWeight: '500',
     color: '#374151',
+    flex: 1,
   },
   selectedOptionText: {
     color: '#1f2937',
@@ -426,19 +431,30 @@ const styles = StyleSheet.create({
   checkIcon: {
     marginLeft: 8,
   },
-  optionRight: {
+  voteInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginTop: 4,
   },
   voteCount: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#6b7280',
   },
   percentage: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 12,
+    color: '#9ca3af',
+  },
+  imageContainer: {
+    height: '100%',
+    alignSelf: 'stretch',
+  },
+  optionImage: {
+    width: 80,
+    height: '100%',
+    borderTopRightRadius: 6,
+    borderBottomRightRadius: 6,
   },
   footer: {
     flexDirection: 'row',
@@ -455,13 +471,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cancelButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#dc2626',
   },
   cancelButtonText: {
+    color: '#dc2626',
     fontSize: 14,
-    color: '#ef4444',
     fontWeight: '500',
   },
 }); 
