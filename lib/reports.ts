@@ -96,7 +96,7 @@ export async function createReport(data: {
       reporterId: data.reporterId,
       reporterInfo: data.reporterInfo,
       status: 'pending',
-      createdAt: Timestamp.now().toMillis(),
+      createdAt: serverTimestamp(),
       // 조건부로 필드 추가 (undefined 값 제외)
       ...(data.customReason && { customReason: data.customReason }),
       ...(data.description && { description: data.description }),
@@ -218,7 +218,7 @@ export async function updateReport(reportId: string, data: {
     const docRef = doc(db, 'reports', reportId);
     await updateDoc(docRef, {
       ...data,
-      updatedAt: Timestamp.now().toMillis(),
+      updatedAt: serverTimestamp(),
     });
   } catch (error) {
     console.error('신고 수정 실패:', error);

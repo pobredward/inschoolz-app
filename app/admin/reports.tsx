@@ -17,6 +17,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAuthStore } from '@/store/authStore';
 import { router } from 'expo-router';
+import { FirebaseTimestamp } from '@/types';
+import { toDate } from '@/utils/timeUtils';
 import { createNotification } from '@/lib/notifications';
 import { 
   Report,
@@ -34,7 +36,8 @@ import {
   where, 
   orderBy, 
   limit,
-  Timestamp
+  Timestamp,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { toTimestamp } from '@/utils/timeUtils';
@@ -270,7 +273,7 @@ export default function AdminReportsScreen() {
       const updateData: any = {
         status: newStatus,
         adminId: user.uid,
-        updatedAt: Timestamp.now().toMillis(),
+        updatedAt: serverTimestamp(),
       };
 
       if (actionNote.trim()) {
@@ -282,7 +285,7 @@ export default function AdminReportsScreen() {
       }
       
       if (newStatus === 'resolved') {
-        updateData.resolvedAt = Timestamp.now().toMillis();
+        updateData.resolvedAt = serverTimestamp();
       }
 
       console.log('Firestore 업데이트 데이터:', updateData);
@@ -439,8 +442,9 @@ export default function AdminReportsScreen() {
     }
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString('ko-KR', {
+  const formatDate = (timestamp: FirebaseTimestamp) => {
+    const date = toDate(timestamp);
+    return date.toLocaleDateString('ko-KR', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

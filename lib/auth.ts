@@ -132,7 +132,7 @@ export const registerWithEmail = async (
         birthDay: extraProfile?.birthDay || 0,
         phoneNumber: extraProfile?.phoneNumber || '',
         profileImageUrl: firebaseUser.photoURL || '',
-        createdAt: Timestamp.now().toMillis(), // Timestamp를 밀리초로 변환
+        createdAt: serverTimestamp(), // Timestamp를 밀리초로 변환
         isAdmin: false
       },
       
@@ -155,8 +155,8 @@ export const registerWithEmail = async (
       },
       
       // 시스템 정보 (Timestamp 사용)
-      createdAt: Timestamp.now().toMillis(),
-      updatedAt: Timestamp.now().toMillis()
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
     };
     
     // 학교 정보가 있는 경우에만 추가 (추가 필드들도 저장)
@@ -326,8 +326,8 @@ export const loginWithEmail = async (
     if (userDoc.exists()) {
       // 마지막 로그인 시간 업데이트
       await updateDoc(doc(db, 'users', firebaseUser.uid), {
-        lastLoginAt: Timestamp.now().toMillis(),
-        updatedAt: Timestamp.now().toMillis()
+        lastLoginAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       });
       
       const userData = userDoc.data() as User;

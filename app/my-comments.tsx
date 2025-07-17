@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
+import { FirebaseTimestamp } from '../types';
 import { getUserComments } from '../lib/users';
 import { SafeScreenContainer } from '../components/SafeScreenContainer';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,7 +23,7 @@ interface Comment {
   id: string;
   content: string;
   postId: string;
-  createdAt: number;
+  createdAt: FirebaseTimestamp;
   postData?: {
     title: string;
     type: string;
@@ -65,7 +66,7 @@ export default function MyCommentsScreen() {
     setRefreshing(false);
   };
 
-  const formatDate = (timestamp: number) => {
+  const formatDate = (timestamp: FirebaseTimestamp) => {
     return formatRelativeTime(timestamp);
   };
 

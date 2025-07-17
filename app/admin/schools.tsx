@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAuthStore } from '@/store/authStore';
+import { FirebaseTimestamp } from '@/types';
 import { router } from 'expo-router';
 import { 
   adminGetAllSchools,
@@ -50,8 +51,8 @@ interface DisplaySchool {
   logoUrl?: string;
   memberCount?: number;
   favoriteCount?: number;
-  createdAt?: number;
-  updatedAt?: number;
+  createdAt?: FirebaseTimestamp;
+  updatedAt?: FirebaseTimestamp;
 }
 
 interface SchoolFormData {

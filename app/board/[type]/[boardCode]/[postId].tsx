@@ -23,7 +23,7 @@ import { BoardType, Post, Comment, Board } from '@/types';
 import { getBoardsByType, deleteAnonymousComment } from '@/lib/boards';
 import { useAuthStore } from '@/store/authStore';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, collection, getDocs, addDoc, query, where, orderBy, Timestamp, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, addDoc, query, where, orderBy, Timestamp, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import AnonymousCommentForm from '../../../../components/ui/AnonymousCommentForm';
 import AnonymousPasswordModal from '../../../../components/ui/AnonymousPasswordModal';
 import AnonymousCommentEditor from '../../../../components/ui/AnonymousCommentEditor';
@@ -456,7 +456,7 @@ export default function PostDetailScreen() {
         authorId: user.uid,
         isAnonymous: false,
         parentId: null,
-        createdAt: Timestamp.now().toMillis(),
+        createdAt: serverTimestamp(),
         stats: {
           likeCount: 0
         },
@@ -538,7 +538,7 @@ export default function PostDetailScreen() {
         authorId: user.uid,
         isAnonymous: false,
         parentId: parentId,
-        createdAt: Timestamp.now().toMillis(),
+        createdAt: serverTimestamp(),
         stats: {
           likeCount: 0
         },

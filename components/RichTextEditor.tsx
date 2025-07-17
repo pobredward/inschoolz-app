@@ -123,7 +123,7 @@ export default function RichTextEditor({
             onImageUpload({
               type: 'image',
               url: uploadedUrl,
-              name: `image_${Timestamp.now().toMillis()}.jpg`,
+              name: `image_${Date.now()}.jpg`,
               size: result.assets[0].fileSize || 0,
             });
           }

@@ -6,7 +6,7 @@ import { Timestamp } from 'firebase/firestore';
  * @returns Unix timestamp (milliseconds)
  */
 export function now(): number {
-  return Timestamp.now().toMillis();
+  return Date.now();
 }
 
 /**

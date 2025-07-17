@@ -433,7 +433,7 @@ export default function ReactionGameScreen() {
                     </View>
                   </View>
                   <View style={styles.rankingRight}>
-                    <Text style={styles.reactionTime}>{user.bestReactionTime}ms</Text>
+                    <Text style={styles.reactionTime}>{user.bestReactionTime.toFixed(2)}ms</Text>
                   </View>
                 </View>
               ))

@@ -65,7 +65,7 @@ export async function createNotification(data: {
       title: data.title,
       message: data.message,
       isRead: false,
-      createdAt: Timestamp.now().toMillis(), // 클라이언트에서 즉시 사용하기 위해 현재 시간 반환
+      createdAt: serverTimestamp(), // 클라이언트에서 즉시 사용하기 위해 현재 시간 반환
       ...(data.data && Object.keys(data.data).length > 0 && { data: data.data })
     };
   } catch (error) {
@@ -663,7 +663,7 @@ export async function sendBroadcastNotification(data: {
             message: data.message,
             data: data.data || {},
             isRead: false,
-            createdAt: Timestamp.now().toMillis(),
+            createdAt: serverTimestamp(),
           };
 
           batchPromises.push(

@@ -74,7 +74,7 @@ export const uploadImage = async (imageUri: string): Promise<string> => {
     const response = await fetch(imageUri);
     const blob = await response.blob();
     
-    const fileName = `${Timestamp.now().toMillis()}_${Math.random().toString(36).substring(2, 15)}.jpg`;
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.jpg`;
     const storageRef = ref(storage, `images/${fileName}`);
     
     await uploadBytes(storageRef, blob);

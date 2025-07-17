@@ -1,7 +1,7 @@
 import { Timestamp, FieldValue } from 'firebase/firestore';
 
 // Firebase Timestamp와 number 타입을 모두 지원하는 타입
-export type FirebaseTimestamp = Timestamp | number;
+export type FirebaseTimestamp = Timestamp | number | FieldValue;
 
 // Firestore FieldValue를 포함한 타임스탬프 타입 (생성 시 사용)
 export type FirebaseTimestampInput = FirebaseTimestamp | FieldValue;

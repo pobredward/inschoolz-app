@@ -56,7 +56,7 @@ interface Comment {
   content: string;
   authorId: string;
   postId: string;
-  createdAt: number;
+  createdAt: FirebaseTimestamp;
   status: {
     isDeleted: boolean;
   };
@@ -651,7 +651,7 @@ export const updateProfileImage = async (
     const oldImageUrl = userData?.profile?.profileImageUrl;
     
     // Firebase Storage 경로 설정
-    const fileName = `${userId}_${Timestamp.now().toMillis()}.jpg`;
+    const fileName = `${userId}_${Date.now()}.jpg`;
     const storageRef = ref(storage, `profile_images/${fileName}`);
     
     // 이미지를 blob으로 변환 후 업로드
@@ -884,7 +884,7 @@ export const getUserComments = async (
     }
     
     // 생성일 기준 정렬 (최신 댓글이 위에)
-    allComments.sort((a, b) => b.createdAt - a.createdAt);
+    allComments.sort((a, b) => toTimestamp(b.createdAt) - toTimestamp(a.createdAt));
     
     // 페이징 처리
     const totalCount = allComments.length;

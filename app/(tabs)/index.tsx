@@ -408,7 +408,7 @@ export default function HomeScreen() {
               <Text style={styles.gameTitle}>반응속도</Text>
               <Text style={styles.gameDesc}>
                 {gameStats.bestReactionTimes.reactionGame 
-                  ? `최고: ${gameStats.bestReactionTimes.reactionGame}ms` 
+                                          ? `최고: ${gameStats.bestReactionTimes.reactionGame.toFixed(2)}ms` 
                   : '도전해보세요!'
                 }
               </Text>

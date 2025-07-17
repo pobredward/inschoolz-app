@@ -12,7 +12,8 @@ import {
   limit, 
   getDocs,
   startAfter,
-  Timestamp
+  Timestamp,
+  serverTimestamp
 } from 'firebase/firestore';
 
 export interface School {
@@ -78,7 +79,7 @@ export const toggleFavoriteSchool = async (
     // 사용자 문서 업데이트
     await updateDoc(userRef, {
       'favorites.schools': updatedFavoriteSchools,
-      updatedAt: Timestamp.now().toMillis()
+      updatedAt: serverTimestamp()
     });
     
     // 학교 문서의 즐겨찾기 카운트 업데이트
@@ -185,7 +186,7 @@ export const getUserFavoriteSchools = async (userId: string): Promise<School[]> 
       // Firestore에 업데이트
       await updateDoc(userRef, {
         'favorites.schools': favoriteSchoolIds,
-        updatedAt: Timestamp.now().toMillis()
+        updatedAt: serverTimestamp()
       });
       
       // 학교의 즐겨찾기 카운트도 증가
@@ -338,7 +339,7 @@ export const setMainSchool = async (userId: string, schoolId: string): Promise<{
     // 메인 학교 설정 (올바른 경로로 수정)
     await updateDoc(userRef, {
       school: updatedSchoolData,
-      updatedAt: Timestamp.now().toMillis()
+      updatedAt: serverTimestamp()
     });
     
     // 이전 학교와 현재 선택한 학교가 다른 경우 memberCount 업데이트
@@ -354,7 +355,7 @@ export const setMainSchool = async (userId: string, schoolId: string): Promise<{
           
           await updateDoc(prevSchoolRef, {
             memberCount: Math.max(0, currentMemberCount - 1),
-            updatedAt: Timestamp.now().toMillis()
+            updatedAt: serverTimestamp()
           });
         }
       } catch (prevSchoolError) {
@@ -373,7 +374,7 @@ export const setMainSchool = async (userId: string, schoolId: string): Promise<{
           
           await updateDoc(newSchoolRef, {
             memberCount: currentMemberCount + 1,
-            updatedAt: Timestamp.now().toMillis()
+            updatedAt: serverTimestamp()
           });
         }
       } catch (newSchoolError) {
@@ -392,7 +393,7 @@ export const setMainSchool = async (userId: string, schoolId: string): Promise<{
           
           await updateDoc(schoolRef, {
             memberCount: currentMemberCount + 1,
-            updatedAt: Timestamp.now().toMillis()
+            updatedAt: serverTimestamp()
           });
         }
       } catch (schoolError) {
@@ -405,7 +406,7 @@ export const setMainSchool = async (userId: string, schoolId: string): Promise<{
     const updatedUser = {
       ...userData,
       school: updatedSchoolData,
-      updatedAt: Timestamp.now().toMillis()
+      updatedAt: serverTimestamp()
     };
     
     return {
@@ -553,8 +554,8 @@ export const adminCreateSchool = async (schoolData: Omit<School, 'id'>): Promise
       ...schoolData,
       memberCount: schoolData.memberCount || 0,
       favoriteCount: schoolData.favoriteCount || 0,
-      createdAt: Timestamp.now().toMillis(),
-      updatedAt: Timestamp.now().toMillis(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     });
     
     return docRef.id;
@@ -569,7 +570,7 @@ export const adminUpdateSchool = async (schoolId: string, schoolData: Partial<Sc
     const schoolRef = doc(db, 'schools', schoolId);
     await updateDoc(schoolRef, {
       ...schoolData,
-      updatedAt: Timestamp.now().toMillis(),
+      updatedAt: serverTimestamp(),
     });
   } catch (error) {
     console.error('학교 수정 오류:', error);

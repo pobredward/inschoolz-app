@@ -17,7 +17,7 @@ import { useAuthStore } from '@/store/authStore';
 import { router } from 'expo-router';
 import { Board, BoardType } from '@/types';
 import { getAllBoards, createBoard, updateBoard, deleteBoard, toggleBoardStatus } from '@/lib/boards';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, serverTimestamp } from 'firebase/firestore';
 
 // 파스텔 그린 색상 팔레트
 const pastelGreenColors = {
@@ -154,7 +154,7 @@ export default function CommunityManagementScreen() {
         await updateBoard(editingBoard.id, formData);
         setBoards(prev => prev.map(board => 
           board.id === editingBoard.id 
-            ? { ...board, ...formData, updatedAt: Timestamp.now().toMillis() }
+            ? { ...board, ...formData, updatedAt: serverTimestamp() }
             : board
         ));
         Alert.alert('성공', '게시판이 수정되었습니다.');
