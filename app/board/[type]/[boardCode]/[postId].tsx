@@ -23,13 +23,13 @@ import { BoardType, Post, Comment, Board } from '@/types';
 import { getBoardsByType, deleteAnonymousComment } from '@/lib/boards';
 import { useAuthStore } from '@/store/authStore';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, collection, getDocs, addDoc, query, where, orderBy, Timestamp, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, addDoc, query, where, orderBy, Timestamp, updateDoc, deleteDoc, serverTimestamp, increment } from 'firebase/firestore';
 import AnonymousCommentForm from '../../../../components/ui/AnonymousCommentForm';
 import AnonymousPasswordModal from '../../../../components/ui/AnonymousPasswordModal';
 import AnonymousCommentEditor from '../../../../components/ui/AnonymousCommentEditor';
 import { PollVoting } from '../../../../components/ui/PollVoting';
 // 유틸리티 함수 import
-import { formatRelativeTime, toTimestamp } from '../../../../utils/timeUtils';
+import { formatRelativeTime, formatAbsoluteTime, toTimestamp } from '../../../../utils/timeUtils';
 
 const parseContentText = (content: string) => {
   if (!content) return '';
@@ -171,6 +171,10 @@ export default function PostDetailScreen() {
     totalDailyLimit: number;
     reason?: string;
   } | null>(null);
+  
+  // 좋아요/북마크 상태
+  const [isLiked, setIsLiked] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(false);
 
   // 게시판 타입을 한글로 변환하는 함수
   const getBoardTypeLabel = (type: string) => {
@@ -186,11 +190,148 @@ export default function PostDetailScreen() {
     }
   };
 
+  // 사용자 액션 상태 확인 (좋아요/북마크)
+  const checkUserActions = async (postId: string, userId: string) => {
+    try {
+      // 좋아요 상태 확인
+      const likesRef = collection(db, 'posts', postId, 'likes');
+      const likeQuery = query(likesRef, where('userId', '==', userId));
+      const likeSnapshot = await getDocs(likeQuery);
+      setIsLiked(!likeSnapshot.empty);
+
+      // 북마크 상태 확인
+      const userRef = doc(db, 'users', userId);
+      const userDoc = await getDoc(userRef);
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const bookmarks = userData.bookmarks || [];
+        setIsBookmarked(bookmarks.includes(postId));
+      }
+    } catch (error) {
+      console.error('사용자 액션 상태 확인 실패:', error);
+    }
+  };
+
+  // 좋아요 토글
+  const handleLike = async () => {
+    if (!user || !post) {
+      Alert.alert('알림', '로그인이 필요합니다.');
+      return;
+    }
+
+    try {
+      const likesRef = collection(db, 'posts', post.id, 'likes');
+      const likeQuery = query(likesRef, where('userId', '==', user.uid));
+      const likeSnapshot = await getDocs(likeQuery);
+
+      if (!likeSnapshot.empty) {
+        // 좋아요 취소
+        const likeDoc = likeSnapshot.docs[0];
+        await deleteDoc(doc(db, 'posts', post.id, 'likes', likeDoc.id));
+        
+        // 게시글 좋아요 수 감소
+        await updateDoc(doc(db, 'posts', post.id), {
+          'stats.likeCount': increment(-1)
+        });
+        
+        setIsLiked(false);
+        setLikeCount(prev => Math.max(0, prev - 1));
+      } else {
+        // 좋아요 추가
+        await addDoc(likesRef, {
+          userId: user.uid,
+          postId: post.id,
+          createdAt: serverTimestamp()
+        });
+        
+        // 게시글 좋아요 수 증가
+        await updateDoc(doc(db, 'posts', post.id), {
+          'stats.likeCount': increment(1)
+        });
+        
+        setIsLiked(true);
+        setLikeCount(prev => prev + 1);
+      }
+    } catch (error) {
+      console.error('좋아요 처리 실패:', error);
+      Alert.alert('오류', '좋아요 처리에 실패했습니다.');
+    }
+  };
+
+  // 북마크 토글
+  const handleBookmark = async () => {
+    if (!user || !post) {
+      Alert.alert('알림', '로그인이 필요합니다.');
+      return;
+    }
+
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userRef);
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const bookmarks = userData.bookmarks || [];
+        const isCurrentlyBookmarked = bookmarks.includes(post.id);
+        
+        let updatedBookmarks;
+        if (isCurrentlyBookmarked) {
+          updatedBookmarks = bookmarks.filter((id: string) => id !== post.id);
+        } else {
+          updatedBookmarks = [...bookmarks, post.id];
+        }
+        
+        await updateDoc(userRef, {
+          bookmarks: updatedBookmarks,
+          updatedAt: serverTimestamp()
+        });
+        
+        setIsBookmarked(!isCurrentlyBookmarked);
+        Alert.alert('알림', isCurrentlyBookmarked ? '북마크를 해제했습니다.' : '북마크에 추가했습니다.');
+      }
+    } catch (error) {
+      console.error('북마크 처리 실패:', error);
+      Alert.alert('오류', '북마크 처리에 실패했습니다.');
+    }
+  };
+
+  // 공유 기능 (링크 복사)
+  const handleShare = async () => {
+    if (!post) return;
+
+    try {
+      let shareUrl = '';
+      
+      // URL 구조에 맞게 생성
+      if (type === 'national') {
+        shareUrl = `https://inschoolz.com/community/national/${boardCode}/${post.id}`;
+      } else if (type === 'regional' && post.regions) {
+        shareUrl = `https://inschoolz.com/community/region/${encodeURIComponent(post.regions.sido)}/${encodeURIComponent(post.regions.sigungu)}/${boardCode}/${post.id}`;
+      } else if (type === 'school' && post.schoolId) {
+        shareUrl = `https://inschoolz.com/community/school/${post.schoolId}/${boardCode}/${post.id}`;
+      } else {
+        shareUrl = `https://inschoolz.com/community/${type}/${boardCode}/${post.id}`;
+      }
+      
+      // 간단한 Alert로 URL 표시 (추후 실제 클립보드 기능으로 업그레이드 가능)
+      Alert.alert(
+        '게시글 공유',
+        `링크가 준비되었습니다:\n${shareUrl}`,
+        [
+          { text: '확인', style: 'default' }
+        ]
+      );
+    } catch (error) {
+      console.error('공유 실패:', error);
+      Alert.alert('오류', '공유에 실패했습니다.');
+    }
+  };
+
   const loadPostDetail = async () => {
     try {
       setIsLoading(true);
       
-      // 게시글 상세 정보 가져오기
+      // 게시글 상세 정보 가져오기 (조회수 증가 없이)
       const postRef = doc(db, 'posts', postId);
       const postDoc = await getDoc(postRef);
       
@@ -201,6 +342,19 @@ export default function PostDetailScreen() {
       }
 
       const postData = { id: postDoc.id, ...postDoc.data() } as Post;
+      
+      // 조회수 증가 (별도 처리)
+      try {
+        await updateDoc(postRef, {
+          'stats.viewCount': increment(1),
+          updatedAt: serverTimestamp()
+        });
+        // UI에 반영할 조회수 업데이트
+        postData.stats.viewCount = (postData.stats.viewCount || 0) + 1;
+      } catch (viewError) {
+        console.error('조회수 증가 실패:', viewError);
+        // 조회수 증가 실패는 무시하고 계속 진행
+      }
       
       // 게시판 정보 가져오기
       const boards = await getBoardsByType(type as BoardType);
@@ -225,6 +379,11 @@ export default function PostDetailScreen() {
       setPost(postData);
       setBoard(boardData);
       setLikeCount(postData.stats.likeCount);
+      
+      // 좋아요/북마크 상태 확인
+      if (user) {
+        await checkUserActions(postId, user.uid);
+      }
     } catch (error) {
       console.error('게시글 로드 실패:', error);
       Alert.alert('오류', '게시글을 불러오는데 실패했습니다.');
@@ -356,7 +515,7 @@ export default function PostDetailScreen() {
   };
 
   const formatDate = (timestamp: unknown) => {
-    return formatRelativeTime(timestamp);
+    return formatAbsoluteTime(timestamp, 'datetime');
   };
 
   // 작성자 확인
@@ -928,11 +1087,29 @@ export default function PostDetailScreen() {
 
               {/* 작성자 정보 */}
               <View style={styles.authorInfo}>
-                <Text style={styles.authorName}>
-                  {post.authorInfo?.displayName || '익명'}
-                </Text>
-                <Text style={styles.postDate}>{formatDate(post.createdAt)}</Text>
-                <Text style={styles.viewCount}>조회 {post.stats.viewCount}</Text>
+                <View style={styles.authorAvatarContainer}>
+                  {post.authorInfo?.profileImageUrl ? (
+                    <Image 
+                      source={{ uri: post.authorInfo.profileImageUrl }} 
+                      style={styles.authorAvatar}
+                    />
+                  ) : (
+                    <View style={styles.authorAvatarPlaceholder}>
+                      <Text style={styles.authorAvatarText}>
+                        {post.authorInfo?.isAnonymous ? '익명' : (post.authorInfo?.displayName?.substring(0, 1) || 'U')}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.authorTextInfo}>
+                  <Text style={styles.authorName}>
+                    {post.authorInfo?.displayName || '익명'}
+                  </Text>
+                  <View style={styles.authorMetaInfo}>
+                    <Text style={styles.postDate}>{formatDate(post.createdAt)}</Text>
+                    <Text style={styles.viewCount}>조회 {post.stats.viewCount}</Text>
+                  </View>
+                </View>
               </View>
 
               {/* 내용 (HTML 렌더링으로 인라인 이미지 포함) */}
@@ -956,18 +1133,41 @@ export default function PostDetailScreen() {
 
               {/* 액션 버튼 */}
               <View style={styles.actionButtons}>
-                <TouchableOpacity style={styles.actionButton}>
-                  <Ionicons name="heart-outline" size={18} color="#6b7280" />
-                  <Text style={styles.actionButtonText}>좋아요 {likeCount}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton}>
-                  <Ionicons name="chatbubble-outline" size={18} color="#6b7280" />
-                  <Text style={styles.actionButtonText}>댓글 {comments.length}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton}>
-                  <Ionicons name="bookmark-outline" size={18} color="#6b7280" />
-                  <Text style={styles.actionButtonText}>스크랩</Text>
-                </TouchableOpacity>
+                {/* 왼쪽: 조회수, 좋아요, 댓글 */}
+                <View style={styles.actionButtonsLeft}>
+                  <View style={styles.actionButton}>
+                    <Ionicons name="eye-outline" size={16} color="#6b7280" />
+                    <Text style={styles.actionButtonText}>{post.stats.viewCount}</Text>
+                  </View>
+                  <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
+                    <Ionicons 
+                      name={isLiked ? "heart" : "heart-outline"} 
+                      size={16} 
+                      color={isLiked ? "#ef4444" : "#6b7280"} 
+                    />
+                    <Text style={[styles.actionButtonText, isLiked && { color: "#ef4444" }]}>
+                      {likeCount}
+                    </Text>
+                  </TouchableOpacity>
+                  <View style={styles.actionButton}>
+                    <Ionicons name="chatbubble-outline" size={16} color="#6b7280" />
+                    <Text style={styles.actionButtonText}>{comments.length}</Text>
+                  </View>
+                </View>
+                
+                {/* 오른쪽: 스크랩, 공유 */}
+                <View style={styles.actionButtonsRight}>
+                  <TouchableOpacity style={styles.actionButton} onPress={handleBookmark}>
+                    <Ionicons 
+                      name={isBookmarked ? "bookmark" : "bookmark-outline"} 
+                      size={16} 
+                      color={isBookmarked ? "#3b82f6" : "#6b7280"} 
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
+                    <Ionicons name="share-outline" size={16} color="#6b7280" />
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
 
@@ -1205,6 +1405,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
+  authorAvatarContainer: {
+    marginRight: 12,
+  },
+  authorAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  authorAvatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  authorAvatarText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  authorTextInfo: {
+    flex: 1,
+  },
+  authorMetaInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
   boardTypeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1230,12 +1460,10 @@ const styles = StyleSheet.create({
   postDate: {
     fontSize: 12,
     color: '#6b7280',
-    marginLeft: 8,
   },
   viewCount: {
     fontSize: 12,
     color: '#6b7280',
-    marginLeft: 8,
   },
   postContent: {
     fontSize: 16,
@@ -1272,7 +1500,20 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+  },
+  actionButtonsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 16,
+  },
+  actionButtonsRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   actionButton: {
     flexDirection: 'row',
