@@ -157,7 +157,7 @@ export default function ReactionGameScreen() {
     const delay = Math.random() * 3000 + 2000;
     const id = setTimeout(() => {
       setGameState('active');
-      setStartTime(Date.now());
+      setStartTime(performance.now());
     }, delay);
     
     setTimeoutId(id);
@@ -168,7 +168,7 @@ export default function ReactionGameScreen() {
     if (gameState === 'waiting') {
       startGame();
     } else if (gameState === 'active') {
-      const endTime = Date.now();
+      const endTime = performance.now();
       const reactionTime = endTime - startTime;
       
       // timeout 정리

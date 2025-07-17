@@ -33,9 +33,11 @@ import {
   query, 
   where, 
   orderBy, 
-  limit 
+  limit,
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { toTimestamp } from '@/utils/timeUtils';
 
 // 개선된 색상 팔레트
 const colors = {
@@ -192,7 +194,7 @@ export default function AdminReportsScreen() {
       
       // 최근 신고 10개
       const recentReports = allReports
-        .sort((a, b) => b.createdAt - a.createdAt)
+        .sort((a, b) => toTimestamp(b.createdAt) - toTimestamp(a.createdAt))
         .slice(0, 10);
       
       const stats: ReportStats = {
@@ -268,7 +270,7 @@ export default function AdminReportsScreen() {
       const updateData: any = {
         status: newStatus,
         adminId: user.uid,
-        updatedAt: Date.now(),
+        updatedAt: Timestamp.now().toMillis(),
       };
 
       if (actionNote.trim()) {
@@ -280,7 +282,7 @@ export default function AdminReportsScreen() {
       }
       
       if (newStatus === 'resolved') {
-        updateData.resolvedAt = Date.now();
+        updateData.resolvedAt = Timestamp.now().toMillis();
       }
 
       console.log('Firestore 업데이트 데이터:', updateData);
@@ -581,7 +583,7 @@ export default function AdminReportsScreen() {
                         신고자: {report.reporterInfo.displayName}
                       </Text>
                       <Text style={styles.reportMetaText}>
-                        신고일: {formatDate(report.createdAt)}
+                        신고일: {formatDate(toTimestamp(report.createdAt))}
                       </Text>
                     </View>
                   </View>

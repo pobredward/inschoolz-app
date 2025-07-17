@@ -19,12 +19,14 @@ import { getUserPosts } from '../lib/users';
 import { SafeScreenContainer } from '../components/SafeScreenContainer';
 import { Ionicons } from '@expo/vector-icons';
 import { formatRelativeTime } from '../utils/timeUtils';
+import { FirebaseTimestamp } from '../types';
 
-interface Post {
+// users.ts에서 반환하는 Post 타입
+interface UserPost {
   id: string;
   title: string;
   content: string;
-  createdAt: number;
+  createdAt: FirebaseTimestamp;
   boardCode: string;
   type: string;
   schoolId?: string;
@@ -47,8 +49,8 @@ type BoardType = 'all' | 'national' | 'regional' | 'school';
 
 export default function MyPostsScreen() {
   const { user } = useAuthStore();
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [filteredPosts, setFilteredPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<UserPost[]>([]);
+  const [filteredPosts, setFilteredPosts] = useState<UserPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedType, setSelectedType] = useState<BoardType>('all');
@@ -68,7 +70,7 @@ export default function MyPostsScreen() {
     }
   };
 
-  const filterPosts = (posts: Post[], type: BoardType) => {
+  const filterPosts = (posts: UserPost[], type: BoardType) => {
     if (type === 'all') {
       setFilteredPosts(posts);
     } else {
@@ -90,11 +92,11 @@ export default function MyPostsScreen() {
     setRefreshing(false);
   };
 
-  const formatDate = (timestamp: number) => {
+  const formatDate = (timestamp: unknown) => {
     return formatRelativeTime(timestamp);
   };
 
-  const handlePostPress = (post: Post) => {
+  const handlePostPress = (post: UserPost) => {
     // 게시글 타입별 라우팅
     let route = '';
     if (post.type === 'national') {
@@ -114,7 +116,7 @@ export default function MyPostsScreen() {
     setSelectedType(type);
   };
 
-  const getTypeLabel = (type: BoardType, post?: Post) => {
+  const getTypeLabel = (type: BoardType, post?: UserPost) => {
     switch (type) {
       case 'all': return '전체';
       case 'national': return '전국';
@@ -164,7 +166,7 @@ export default function MyPostsScreen() {
     );
   };
 
-  const renderPost = ({ item }: { item: Post }) => (
+  const renderPost = ({ item }: { item: UserPost }) => (
     <TouchableOpacity style={styles.postCard} onPress={() => handlePostPress(item)}>
       <View style={styles.postHeader}>
         <View style={styles.boardBadgeContainer}>

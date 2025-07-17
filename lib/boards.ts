@@ -18,6 +18,7 @@ import {
   runTransaction
 } from 'firebase/firestore';
 import { Board, BoardType, Post } from '../types';
+import { toTimestamp } from '../utils/timeUtils';
 
 /**
  * 타입별 게시판 목록 가져오기
@@ -196,7 +197,7 @@ export const initializeDefaultBoards = async (): Promise<void> => {
         stats: { postCount: 0 },
         accessLevel: { read: 'all', write: 'all' },
         settings: { allowAnonymous: true, allowAttachment: true, maxAttachmentSize: 10 },
-        createdAt: Date.now()
+        createdAt: Timestamp.now().toMillis()
       },
       {
         name: '질문/답변',
@@ -209,7 +210,7 @@ export const initializeDefaultBoards = async (): Promise<void> => {
         stats: { postCount: 0 },
         accessLevel: { read: 'all', write: 'all' },
         settings: { allowAnonymous: true, allowAttachment: true, maxAttachmentSize: 10 },
-        createdAt: Date.now()
+        createdAt: Timestamp.now().toMillis()
       },
       {
         name: '정보공유',
@@ -222,7 +223,7 @@ export const initializeDefaultBoards = async (): Promise<void> => {
         stats: { postCount: 0 },
         accessLevel: { read: 'all', write: 'all' },
         settings: { allowAnonymous: false, allowAttachment: true, maxAttachmentSize: 10 },
-        createdAt: Date.now()
+        createdAt: Timestamp.now().toMillis()
       },
       {
         name: '동아리',
@@ -235,7 +236,7 @@ export const initializeDefaultBoards = async (): Promise<void> => {
         stats: { postCount: 0 },
         accessLevel: { read: 'all', write: 'all' },
         settings: { allowAnonymous: false, allowAttachment: true, maxAttachmentSize: 10 },
-        createdAt: Date.now()
+        createdAt: Timestamp.now().toMillis()
       },
       
       // 지역 게시판
@@ -250,7 +251,7 @@ export const initializeDefaultBoards = async (): Promise<void> => {
         stats: { postCount: 0 },
         accessLevel: { read: 'all', write: 'all' },
         settings: { allowAnonymous: false, allowAttachment: true, maxAttachmentSize: 10 },
-        createdAt: Date.now()
+        createdAt: Timestamp.now().toMillis()
       },
       {
         name: '학원정보',
@@ -263,7 +264,7 @@ export const initializeDefaultBoards = async (): Promise<void> => {
         stats: { postCount: 0 },
         accessLevel: { read: 'all', write: 'all' },
         settings: { allowAnonymous: false, allowAttachment: true, maxAttachmentSize: 10 },
-        createdAt: Date.now()
+        createdAt: Timestamp.now().toMillis()
       },
       {
         name: '동네소식',
@@ -276,7 +277,7 @@ export const initializeDefaultBoards = async (): Promise<void> => {
         stats: { postCount: 0 },
         accessLevel: { read: 'all', write: 'all' },
         settings: { allowAnonymous: false, allowAttachment: true, maxAttachmentSize: 10 },
-        createdAt: Date.now()
+        createdAt: Timestamp.now().toMillis()
       },
       {
         name: '함께해요',
@@ -289,7 +290,7 @@ export const initializeDefaultBoards = async (): Promise<void> => {
         stats: { postCount: 0 },
         accessLevel: { read: 'all', write: 'all' },
         settings: { allowAnonymous: false, allowAttachment: true, maxAttachmentSize: 10 },
-        createdAt: Date.now()
+        createdAt: Timestamp.now().toMillis()
       },
       
       // 전국 게시판
@@ -304,7 +305,7 @@ export const initializeDefaultBoards = async (): Promise<void> => {
         stats: { postCount: 0 },
         accessLevel: { read: 'all', write: 'all' },
         settings: { allowAnonymous: false, allowAttachment: true, maxAttachmentSize: 10 },
-        createdAt: Date.now()
+        createdAt: Timestamp.now().toMillis()
       },
       {
         name: '진로상담',
@@ -317,7 +318,7 @@ export const initializeDefaultBoards = async (): Promise<void> => {
         stats: { postCount: 0 },
         accessLevel: { read: 'all', write: 'all' },
         settings: { allowAnonymous: true, allowAttachment: true, maxAttachmentSize: 10 },
-        createdAt: Date.now()
+        createdAt: Timestamp.now().toMillis()
       },
       {
         name: '대학생활',
@@ -330,7 +331,7 @@ export const initializeDefaultBoards = async (): Promise<void> => {
         stats: { postCount: 0 },
         accessLevel: { read: 'all', write: 'all' },
         settings: { allowAnonymous: false, allowAttachment: true, maxAttachmentSize: 10 },
-        createdAt: Date.now()
+        createdAt: Timestamp.now().toMillis()
       },
       {
         name: '취미생활',
@@ -343,7 +344,7 @@ export const initializeDefaultBoards = async (): Promise<void> => {
         stats: { postCount: 0 },
         accessLevel: { read: 'all', write: 'all' },
         settings: { allowAnonymous: false, allowAttachment: true, maxAttachmentSize: 10 },
-        createdAt: Date.now()
+        createdAt: Timestamp.now().toMillis()
       }
     ];
 
@@ -412,7 +413,7 @@ export const createBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'u
   try {
     const newBoardData = {
       ...boardData,
-      createdAt: Date.now(),
+      createdAt: Timestamp.now().toMillis(),
       stats: boardData.stats || { postCount: 0, memberCount: 0, todayPostCount: 0 },
     };
     
@@ -436,7 +437,7 @@ export const updateBoard = async (boardId: string, boardData: Partial<Board>): P
     const boardRef = doc(db, 'boards', boardId);
     await updateDoc(boardRef, {
       ...boardData,
-      updatedAt: Date.now(),
+      updatedAt: Timestamp.now().toMillis(),
     } as any);
   } catch (error) {
     console.error('게시판 수정 오류:', error);
@@ -465,7 +466,7 @@ export const toggleBoardStatus = async (boardId: string, isActive: boolean): Pro
     const boardRef = doc(db, 'boards', boardId);
     await updateDoc(boardRef, {
       isActive,
-      updatedAt: Date.now(),
+      updatedAt: Timestamp.now().toMillis(),
     });
   } catch (error) {
     console.error('게시판 상태 변경 오류:', error);
@@ -583,7 +584,7 @@ export const getAllPostsByType = async (
       } as Post);
     });
     
-    return posts;
+    return posts.sort((a, b) => toTimestamp(b.createdAt) - toTimestamp(a.createdAt));
   } catch (error) {
     console.error('전체 게시글 목록 가져오기 오류:', error);
     throw new Error('게시글 목록을 가져오는 중 오류가 발생했습니다.');
@@ -700,7 +701,7 @@ export const getAllPostsByRegion = async (
 export const getPopularPostsForHome = async (count = 10): Promise<Post[]> => {
   try {
     // 14일 전 Timestamp 계산
-    const fourteenDaysAgo = Timestamp.fromDate(new Date(Date.now() - (14 * 24 * 60 * 60 * 1000)));
+    const fourteenDaysAgo = Timestamp.fromDate(new Date(Timestamp.now().toMillis() - (14 * 24 * 60 * 60 * 1000)));
     
     const q = query(
       collection(db, 'posts'),
@@ -842,8 +843,8 @@ export const createPost = async (userId: string, params: CreatePostParams): Prom
       },
       attachments: [],
       tags: tags || [],
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+      createdAt: serverTimestamp() as any,
+      updatedAt: serverTimestamp() as any
     };
 
     // Firestore에 게시글 추가
@@ -929,7 +930,7 @@ export const togglePostBookmark = async (postId: string, userId: string): Promis
     // 사용자 문서 업데이트
     await updateDoc(userRef, {
       scraps: updatedScraps,
-      updatedAt: Date.now()
+      updatedAt: Timestamp.now().toMillis()
     });
     
     return !isBookmarked; // 새로운 북마크 상태 반환
@@ -981,7 +982,7 @@ export const getBookmarkedPosts = async (userId: string): Promise<Post[]> => {
     }
     
     // 최신순으로 정렬
-    return posts.sort((a, b) => b.createdAt - a.createdAt);
+    return posts.sort((a, b) => toTimestamp(b.createdAt) - toTimestamp(a.createdAt));
   } catch (error) {
     console.error('북마크 목록 조회 오류:', error);
     throw new Error('북마크 목록을 가져오는 중 오류가 발생했습니다.');
@@ -1047,8 +1048,8 @@ export const createComment = async (
         isDeleted: false,
         isBlocked: false
       },
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+      createdAt: Timestamp.now().toMillis(),
+      updatedAt: Timestamp.now().toMillis()
     };
 
     // 댓글 저장
@@ -1192,7 +1193,7 @@ export const createAnonymousComment = async ({
         isDeleted: false,
         isBlocked: false,
       },
-      createdAt: Date.now(),
+      createdAt: Timestamp.now().toMillis(),
     };
 
     // Firestore에 댓글 추가
@@ -1256,7 +1257,7 @@ export const updateAnonymousComment = async (
     const commentRef = doc(db, 'posts', postId, 'comments', commentId);
     await updateDoc(commentRef, {
       content,
-      updatedAt: Date.now(),
+      updatedAt: Timestamp.now().toMillis(),
     });
   } catch (error) {
     console.error('익명 댓글 수정 실패:', error);
@@ -1287,7 +1288,7 @@ export const deleteAnonymousComment = async (
       transaction.update(commentRef, {
         'status.isDeleted': true,
         content: '삭제된 댓글입니다.',
-        deletedAt: Date.now(),
+        deletedAt: Timestamp.now().toMillis(),
       });
       
       // 게시글의 댓글 수 감소

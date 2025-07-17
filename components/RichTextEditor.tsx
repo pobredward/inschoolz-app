@@ -18,6 +18,7 @@ import { RichEditor, RichToolbar, actions } from 'react-native-pell-rich-editor'
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadImage } from '@/lib/firebase';
+import { Timestamp } from 'firebase/firestore';
 
 const { width } = Dimensions.get('window');
 
@@ -122,7 +123,7 @@ export default function RichTextEditor({
             onImageUpload({
               type: 'image',
               url: uploadedUrl,
-              name: `image_${Date.now()}.jpg`,
+              name: `image_${Timestamp.now().toMillis()}.jpg`,
               size: result.assets[0].fileSize || 0,
             });
           }

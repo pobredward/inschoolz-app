@@ -1,3 +1,11 @@
+import { Timestamp, FieldValue } from 'firebase/firestore';
+
+// Firebase Timestamp와 number 타입을 모두 지원하는 타입
+export type FirebaseTimestamp = Timestamp | number;
+
+// Firestore FieldValue를 포함한 타임스탬프 타입 (생성 시 사용)
+export type FirebaseTimestampInput = FirebaseTimestamp | FieldValue;
+
 // 사용자 역할 타입
 export type UserRole = 'student' | 'teacher' | 'admin';
 
@@ -15,7 +23,7 @@ export interface UserAttendance {
   streak: number;
   totalCount: number;
   monthCount: number;
-  lastAttendance?: number;
+  lastAttendance?: FirebaseTimestamp;
   monthlyLog?: AttendanceLog;
   // 경험치 관련 정보 (출석체크 수행 시에만 포함)
   expGained?: number;
@@ -48,8 +56,8 @@ export interface Board {
     allowAttachment: boolean;
     maxAttachmentSize: number;
   };
-  createdAt: number;
-  updatedAt?: number;
+  createdAt: FirebaseTimestamp;
+  updatedAt?: FirebaseTimestamp;
   parentCode?: string;
   isPublic: boolean;
   categories?: {
@@ -83,7 +91,7 @@ export interface UserProfile {
   birthDay: number; // 생일
   phoneNumber: string; // 전화번호
   profileImageUrl: string; // 프로필 이미지
-  createdAt: number; // 생성일
+  createdAt: FirebaseTimestamp; // 생성일
   isAdmin: boolean; // 관리자 여부
 }
 
@@ -176,14 +184,14 @@ export interface User {
       flappyBird: number;
       reactionGame: number;
       tileGame: number;
-      lastRewardTime: number;
+      lastRewardTime: FirebaseTimestamp;
     }
   };
   
   // 시스템 정보
-  createdAt: number;
-  updatedAt: number;
-  lastLoginAt?: number;
+  createdAt: FirebaseTimestamp;
+  updatedAt: FirebaseTimestamp;
+  lastLoginAt?: FirebaseTimestamp;
   referrerId?: string; // 추천인 ID
 }
 
@@ -204,8 +212,8 @@ export interface Post {
     id: string;
     name: string;
   };
-  createdAt: number;
-  updatedAt?: number;
+  createdAt: FirebaseTimestamp;
+  updatedAt?: FirebaseTimestamp;
   schoolId?: string;
   regions?: {
     sido: string;
@@ -238,7 +246,7 @@ export interface Post {
       voteCount: number;
       index: number;
     }[];
-    expiresAt?: number;
+    expiresAt?: FirebaseTimestamp;
     multipleChoice: boolean;
   };
 }
@@ -251,7 +259,7 @@ export interface Comment {
   authorId: string | null; // 익명 댓글의 경우 null
   isAnonymous: boolean;
   parentId: string | null;
-  createdAt: number;
+  createdAt: FirebaseTimestamp;
   
   // 익명 댓글 정보 (비회원 작성 시)
   anonymousAuthor?: {
@@ -335,9 +343,9 @@ export interface Report {
   actionTaken?: string;  // 취한 조치
   
   // 시간 정보
-  createdAt: number;
-  updatedAt?: number;
-  resolvedAt?: number;
+  createdAt: FirebaseTimestamp;
+  updatedAt?: FirebaseTimestamp;
+  resolvedAt?: FirebaseTimestamp;
   
   // 추가 정보
   boardCode?: string;    // 게시판 코드 (게시글/댓글 신고 시)
@@ -464,7 +472,7 @@ export interface Notification {
     [key: string]: unknown;
   };
   isRead: boolean;
-  createdAt: number;
+  createdAt: FirebaseTimestamp;
 } 
 
 // 이의제기 관련 타입 정의
@@ -480,7 +488,7 @@ export interface Appeal {
   adminId?: string; // 처리한 관리자 ID
   adminNote?: string; // 관리자 메모
   adminDecision?: string; // 관리자 결정
-  createdAt: number;
-  updatedAt?: number;
-  resolvedAt?: number;
+  createdAt: FirebaseTimestamp;
+  updatedAt?: FirebaseTimestamp;
+  resolvedAt?: FirebaseTimestamp;
 } 

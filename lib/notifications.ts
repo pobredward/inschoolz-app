@@ -12,10 +12,11 @@ import {
   Timestamp,
   getDoc,
   startAt,
-  endAt
+  endAt,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Notification, NotificationType } from '../types';
+import { Notification, NotificationType, FirebaseTimestampInput } from '../types';
 
 // 알림 생성
 export async function createNotification(data: {
@@ -28,13 +29,13 @@ export async function createNotification(data: {
   try {
     console.log('createNotification 호출됨:', data);
     
-    const notificationData: Omit<Notification, 'id'> = {
+    const notificationData = {
       userId: data.userId,
       type: data.type,
       title: data.title,
       message: data.message,
       isRead: false,
-      createdAt: Date.now(),
+      createdAt: serverTimestamp(),
     };
 
     // data 필드가 유효할 때만 추가 (undefined 방지)
@@ -47,7 +48,7 @@ export async function createNotification(data: {
       console.log('data 필터링 결과:', { original: data.data, filtered: filteredData });
       
       if (Object.keys(filteredData).length > 0) {
-        notificationData.data = filteredData;
+        (notificationData as any).data = filteredData;
       }
     }
 
@@ -59,7 +60,13 @@ export async function createNotification(data: {
     
     return {
       id: docRef.id,
-      ...notificationData,
+      userId: data.userId,
+      type: data.type,
+      title: data.title,
+      message: data.message,
+      isRead: false,
+      createdAt: Timestamp.now().toMillis(), // 클라이언트에서 즉시 사용하기 위해 현재 시간 반환
+      ...(data.data && Object.keys(data.data).length > 0 && { data: data.data })
     };
   } catch (error) {
     console.error('알림 생성 실패:', error);
@@ -656,7 +663,7 @@ export async function sendBroadcastNotification(data: {
             message: data.message,
             data: data.data || {},
             isRead: false,
-            createdAt: Date.now(),
+            createdAt: Timestamp.now().toMillis(),
           };
 
           batchPromises.push(

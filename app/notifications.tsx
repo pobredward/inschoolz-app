@@ -8,7 +8,8 @@ import {
   RefreshControl, 
   Alert,
   SafeAreaView,
-  Dimensions
+  Dimensions,
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
@@ -21,27 +22,10 @@ import {
 } from '../lib/notifications';
 import { Notification, NotificationType } from '../types';
 import { useRouter } from 'expo-router';
+import { Timestamp } from 'firebase/firestore';
+import { formatRelativeTime } from '../utils/timeUtils';
 
 const { width } = Dimensions.get('window');
-
-// 시간 차이를 한국어로 표시하는 간단한 함수
-function getTimeAgo(timestamp: number): string {
-  const now = Date.now();
-  const diff = now - timestamp;
-  
-  const minutes = Math.floor(diff / (1000 * 60));
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  
-  if (minutes < 1) return '방금 전';
-  if (minutes < 60) return `${minutes}분 전`;
-  if (hours < 24) return `${hours}시간 전`;
-  if (days < 7) return `${days}일 전`;
-  
-  // 7일 이상이면 날짜 표시
-  const date = new Date(timestamp);
-  return `${date.getMonth() + 1}/${date.getDate()}`;
-}
 
 // 알림 타입별 아이콘 및 색상
 const getNotificationIcon = (type: NotificationType): keyof typeof Ionicons.glyphMap => {
@@ -183,7 +167,7 @@ function NotificationItem({ notification, onPress, onDelete }: NotificationItemP
 
                      <View style={styles.bottomRow}>
              <Text style={styles.timeText}>
-               {getTimeAgo(notification.createdAt)}
+               {formatRelativeTime(notification.createdAt)}
              </Text>
            </View>
         </View>

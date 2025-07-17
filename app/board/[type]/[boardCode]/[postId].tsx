@@ -27,16 +27,8 @@ import { doc, getDoc, collection, getDocs, addDoc, query, where, orderBy, Timest
 import AnonymousCommentForm from '../../../../components/ui/AnonymousCommentForm';
 import AnonymousPasswordModal from '../../../../components/ui/AnonymousPasswordModal';
 import AnonymousCommentEditor from '../../../../components/ui/AnonymousCommentEditor';
-// 삭제된 유틸리티 파일들 - 기본 함수로 대체
-const formatRelativeTime = (timestamp: any) => {
-  const date = new Date(timestamp?.seconds * 1000 || Date.now());
-  const now = new Date();
-  const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-  
-  if (diffInHours < 1) return '방금 전';
-  if (diffInHours < 24) return `${diffInHours}시간 전`;
-  return `${Math.floor(diffInHours / 24)}일 전`;
-};
+// 유틸리티 함수 import
+import { formatRelativeTime, toTimestamp } from '../../../../utils/timeUtils';
 
 const parseContentText = (content: string) => {
   if (!content) return '';
@@ -344,7 +336,7 @@ export default function PostDetailScreen() {
         }
         
         // 대댓글도 시간순으로 정렬
-        replies.sort((a, b) => a.createdAt - b.createdAt);
+        replies.sort((a, b) => toTimestamp(a.createdAt) - toTimestamp(b.createdAt));
         
         commentsData.push({
           ...commentData,
@@ -354,7 +346,7 @@ export default function PostDetailScreen() {
       }
 
       // 모든 댓글을 시간순으로 확실히 정렬 (익명 댓글 포함)
-      commentsData.sort((a, b) => a.createdAt - b.createdAt);
+      commentsData.sort((a, b) => toTimestamp(a.createdAt) - toTimestamp(b.createdAt));
 
       setComments(commentsData);
     } catch (error) {
@@ -464,7 +456,7 @@ export default function PostDetailScreen() {
         authorId: user.uid,
         isAnonymous: false,
         parentId: null,
-        createdAt: Date.now(),
+        createdAt: Timestamp.now().toMillis(),
         stats: {
           likeCount: 0
         },
@@ -546,7 +538,7 @@ export default function PostDetailScreen() {
         authorId: user.uid,
         isAnonymous: false,
         parentId: parentId,
-        createdAt: Date.now(),
+        createdAt: Timestamp.now().toMillis(),
         stats: {
           likeCount: 0
         },

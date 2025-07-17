@@ -195,7 +195,7 @@ export default function MyReportsScreen() {
     }
   };
 
-  const formatDate = (timestamp: number) => {
+  const formatDate = (timestamp: unknown) => {
     return formatRelativeTime(timestamp);
   };
 

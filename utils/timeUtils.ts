@@ -1,11 +1,12 @@
 // React Native 환경에서 사용할 시간 관련 유틸리티 함수들
+import { Timestamp } from 'firebase/firestore';
 
 /**
  * 현재 시간을 number(milliseconds)로 반환
  * @returns Unix timestamp (milliseconds)
  */
 export function now(): number {
-  return Date.now();
+  return Timestamp.now().toMillis();
 }
 
 /**
@@ -71,18 +72,21 @@ export function isToday(timestamp: unknown): boolean {
 
 /**
  * 다양한 형태의 timestamp를 Date 객체로 변환
- * @param timestamp 시간 데이터
+ * @param timestamp 시간 데이터 (Timestamp, number, string, Date 등)
  * @returns Date 객체
  */
 export function toDate(timestamp: unknown): Date {
+  // Date 객체인 경우
   if (timestamp instanceof Date) {
     return timestamp;
   }
   
+  // number 타입인 경우 (Unix timestamp)
   if (typeof timestamp === 'number') {
     return new Date(timestamp);
   }
   
+  // string 타입인 경우
   if (typeof timestamp === 'string') {
     const date = new Date(timestamp);
     if (!isNaN(date.getTime())) {
@@ -90,24 +94,32 @@ export function toDate(timestamp: unknown): Date {
     }
   }
   
-  // Firebase Timestamp 타입 처리
-  if (timestamp && typeof timestamp === 'object' && 'toDate' in timestamp) {
-    return (timestamp as any).toDate();
+  // Firebase Timestamp 객체인 경우
+  if (timestamp && typeof timestamp === 'object') {
+    // Timestamp 객체의 toDate 메소드 사용
+    if ('toDate' in timestamp && typeof (timestamp as Timestamp).toDate === 'function') {
+      return (timestamp as Timestamp).toDate();
+    }
+    
+    // Firestore에서 직렬화된 Timestamp 형태 (seconds, nanoseconds)
+    if ('seconds' in timestamp && typeof (timestamp as any).seconds === 'number') {
+      const { seconds, nanoseconds = 0 } = timestamp as { seconds: number; nanoseconds?: number };
+      return new Date(seconds * 1000 + nanoseconds / 1000000);
+    }
+    
+    // serverTimestamp() 후 아직 서버에서 처리되지 않은 경우 (null)
+    if (timestamp === null) {
+      console.warn('serverTimestamp()가 아직 처리되지 않았습니다. 현재 시간을 사용합니다.');
+      return new Date();
+    }
   }
   
-  // Firebase Timestamp의 seconds, nanoseconds 처리
-  if (timestamp && typeof timestamp === 'object' && 'seconds' in timestamp) {
-    const seconds = (timestamp as any).seconds;
-    const nanoseconds = (timestamp as any).nanoseconds || 0;
-    return new Date(seconds * 1000 + nanoseconds / 1000000);
-  }
-  
-  console.warn('알 수 없는 timestamp 형태:', timestamp);
+  console.warn('알 수 없는 timestamp 형태:', timestamp, typeof timestamp);
   return new Date();
 }
 
 /**
- * 시간 데이터를 timestamp(milliseconds)로 변환
+ * 다양한 형태의 timestamp를 number(milliseconds)로 변환
  * @param timestamp 시간 데이터
  * @returns Unix timestamp (milliseconds)
  */
@@ -149,42 +161,43 @@ export function formatRelativeTime(timestamp: unknown): string {
 }
 
 /**
- * 절대 시간 포맷팅 (예: "2024-01-15", "01-15")
+ * 절대 시간 포맷팅 (예: "2024-01-15", "2024-01-15 14:30")
  * @param timestamp 시간 데이터
- * @param format 포맷 형태 ('full' | 'short' | 'time')
+ * @param format 'short' | 'long' | 'datetime'
  * @returns 포맷된 절대 시간 문자열
  */
-export function formatAbsoluteTime(timestamp: unknown, format: 'full' | 'short' | 'time' = 'short'): string {
+export function formatAbsoluteTime(timestamp: unknown, format: 'short' | 'long' | 'datetime' = 'short'): string {
   try {
     const date = toDate(timestamp);
     
     if (isNaN(date.getTime())) {
-      return '날짜 오류';
+      return '-';
     }
     
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    
     switch (format) {
-      case 'full':
+      case 'short':
+        return `${year}-${month}-${day}`;
+      case 'long':
         return date.toLocaleDateString('ko-KR', {
           year: 'numeric',
-          month: '2-digit',
-          day: '2-digit'
+          month: 'long',
+          day: 'numeric',
+          weekday: 'long'
         });
-      case 'short':
-        return date.toLocaleDateString('ko-KR', {
-          month: '2-digit',
-          day: '2-digit'
-        });
-      case 'time':
-        return date.toLocaleTimeString('ko-KR', {
-          hour: '2-digit',
-          minute: '2-digit'
-        });
+      case 'datetime':
+        const hour = String(date.getHours()).padStart(2, '0');
+        const minute = String(date.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hour}:${minute}`;
       default:
-        return date.toLocaleDateString('ko-KR');
+        return `${year}-${month}-${day}`;
     }
   } catch (error) {
-    console.error('날짜 포맷팅 오류:', error);
-    return '날짜 오류';
+    console.error('절대 시간 포맷팅 오류:', error);
+    return '-';
   }
 }
 
@@ -217,7 +230,28 @@ export function formatSmartTime(timestamp: unknown): string {
     console.error('스마트 시간 포맷팅 오류:', error);
     return '방금 전';
   }
-} 
+}
+
+/**
+ * 두 시간이 같은 날인지 확인
+ * @param timestamp1 첫 번째 시간
+ * @param timestamp2 두 번째 시간
+ * @returns 같은 날인지 여부
+ */
+export function isSameDay(timestamp1: unknown, timestamp2: unknown): boolean {
+  try {
+    const date1 = toDate(timestamp1);
+    const date2 = toDate(timestamp2);
+    
+    return (
+      date1.getDate() === date2.getDate() &&
+      date1.getMonth() === date2.getMonth() &&
+      date1.getFullYear() === date2.getFullYear()
+    );
+  } catch (error) {
+    return false;
+  }
+}
 
 /**
  * 게시글에서 이미지 URL들을 추출하는 함수 (content와 attachments 모두 고려)

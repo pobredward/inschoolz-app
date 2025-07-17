@@ -1,6 +1,6 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, initializeAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, Timestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 // 기본 logger 함수
@@ -74,7 +74,7 @@ export const uploadImage = async (imageUri: string): Promise<string> => {
     const response = await fetch(imageUri);
     const blob = await response.blob();
     
-    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.jpg`;
+    const fileName = `${Timestamp.now().toMillis()}_${Math.random().toString(36).substring(2, 15)}.jpg`;
     const storageRef = ref(storage, `images/${fileName}`);
     
     await uploadBytes(storageRef, blob);

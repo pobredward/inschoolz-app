@@ -15,17 +15,10 @@ import { syncUserExperienceData } from '../../lib/experience';
 import { SafeScreenContainer } from '../../components/SafeScreenContainer';
 import { Ionicons } from '@expo/vector-icons';
 import PostListItem from '../../components/PostListItem';
+import { Timestamp } from 'firebase/firestore';
 
-// 기본 시간 포맷팅 함수
-const formatSmartTime = (timestamp: any) => {
-  const date = new Date(timestamp?.seconds * 1000 || Date.now());
-  const now = new Date();
-  const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-  
-  if (diffInHours < 1) return '방금 전';
-  if (diffInHours < 24) return `${diffInHours}시간 전`;
-  return `${Math.floor(diffInHours / 24)}일 전`;
-};
+// 시간 포맷팅 함수 - 유틸리티 함수 활용
+import { formatSmartTime } from '../../utils/timeUtils';
 
 // 랭킹 미리보기 타입
 interface RankingPreview {

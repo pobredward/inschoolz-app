@@ -17,7 +17,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
-import { doc, getDoc, updateDoc, Timestamp, deleteField } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, deleteField, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getBoard } from '@/lib/boards';
 import { Board, Post } from '@/types';
@@ -123,7 +123,7 @@ export default function EditPostPage() {
         content: content.trim(),
         'authorInfo.isAnonymous': isAnonymous,
         attachments: attachments, // 업데이트된 첨부파일 정보 포함
-        updatedAt: Timestamp.now()
+        updatedAt: serverTimestamp()
       };
 
       // 투표 기능이 없는 앱에서는 기존 poll 필드가 있다면 제거

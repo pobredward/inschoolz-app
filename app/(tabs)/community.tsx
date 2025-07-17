@@ -16,16 +16,9 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import PostListItem from '../../components/PostListItem';
-// 기본 유틸리티 함수들
-const formatRelativeTime = (timestamp: any) => {
-  const date = new Date(timestamp?.seconds * 1000 || Date.now());
-  const now = new Date();
-  const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-  
-  if (diffInHours < 1) return '방금 전';
-  if (diffInHours < 24) return `${diffInHours}시간 전`;
-  return `${Math.floor(diffInHours / 24)}일 전`;
-};
+import { Timestamp } from 'firebase/firestore';
+// 유틸리티 함수 import
+import { formatRelativeTime } from '../../utils/timeUtils';
 
 const parseContentText = (content: string) => {
   if (!content) return '';
@@ -76,7 +69,6 @@ import { useAuthStore } from '../../store/authStore';
 import { Board, BoardType, Post } from '../../types';
 import BoardSelector from '@/components/board/BoardSelector';
 import SchoolSelector from '@/components/board/SchoolSelector';
-import { Timestamp } from 'firebase/firestore';
 import { SafeScreenContainer } from '../../components/SafeScreenContainer';
 
 interface CommunityPost extends Post {

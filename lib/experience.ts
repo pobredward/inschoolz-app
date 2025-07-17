@@ -1,4 +1,4 @@
-import { doc, getDoc, updateDoc, serverTimestamp, increment, collection, query, where, orderBy, limit, getDocs, FieldValue, getCountFromServer } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, increment, collection, query, where, orderBy, limit, getDocs, FieldValue, getCountFromServer, Timestamp } from 'firebase/firestore';
 import { db } from './firebase';
 import { User, SystemSettings } from '../types';
 
@@ -879,7 +879,7 @@ export const getAdminStats = async (): Promise<{
     const totalUsers = usersSnapshot.data().count;
 
     // 활성 사용자 수 계산 (최근 30일 내 활동)
-    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = Timestamp.now().toMillis() - (30 * 24 * 60 * 60 * 1000);
     const activeUsersQuery = query(
       collection(db, 'users'),
       where('lastActiveAt', '>=', thirtyDaysAgo)
@@ -1041,7 +1041,7 @@ export const getHomeStats = async (): Promise<{
     const todayPosts = todayPostsSnapshot.data().count;
 
     // 온라인 사용자 수 계산 (최근 5분 내 활동)
-    const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+    const fiveMinutesAgo = Timestamp.now().toMillis() - (5 * 60 * 1000);
     const onlineUsersQuery = query(
       collection(db, 'users'),
       where('lastActiveAt', '>=', fiveMinutesAgo)

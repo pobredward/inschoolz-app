@@ -12,22 +12,24 @@ import {
   serverTimestamp,
   deleteDoc,
   increment,
-  getCountFromServer
+  getCountFromServer,
+  Timestamp
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { User } from '../types'; // 통일된 타입 사용
+import { User, FirebaseTimestamp } from '../types'; // 통일된 타입 사용
 import { storage } from './firebase'; // storage 추가
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'; // storage 관련 함수 추가
 import { getBoard } from './boards'; // 게시판 정보 조회를 위해 추가
 import { getSchoolById } from './schools'; // 학교 정보 조회를 위해 추가
+import { toTimestamp } from '../utils/timeUtils'; // toTimestamp 함수 import
 
 interface Post {
   id: string;
   title: string;
   content: string;
   authorId: string;
-  createdAt: number;
-  updatedAt?: number;
+  createdAt: FirebaseTimestamp;
+  updatedAt?: FirebaseTimestamp;
   boardCode: string;
   type: string;
   schoolId?: string;
@@ -224,8 +226,8 @@ export const getUserDetail = async (userId: string): Promise<User & {
         warningCount: 0 // warnings는 별도 컬렉션에서 관리
       },
       recentActivity: {
-        lastLoginAt: userData.lastLoginAt,
-        lastActiveAt: userData.updatedAt,
+        lastLoginAt: userData.lastLoginAt ? toTimestamp(userData.lastLoginAt) : undefined,
+        lastActiveAt: userData.updatedAt ? toTimestamp(userData.updatedAt) : undefined,
         recentPosts,
         recentComments
       }
@@ -649,7 +651,7 @@ export const updateProfileImage = async (
     const oldImageUrl = userData?.profile?.profileImageUrl;
     
     // Firebase Storage 경로 설정
-    const fileName = `${userId}_${Date.now()}.jpg`;
+    const fileName = `${userId}_${Timestamp.now().toMillis()}.jpg`;
     const storageRef = ref(storage, `profile_images/${fileName}`);
     
     // 이미지를 blob으로 변환 후 업로드

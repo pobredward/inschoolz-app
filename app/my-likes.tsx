@@ -3,14 +3,17 @@ import { View, Text, TouchableOpacity, StyleSheet, FlatList, RefreshControl, Ale
 import { router } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
 import { getUserLikedPosts } from '../lib/users';
+import { formatRelativeTime } from '../utils/timeUtils';
+import { FirebaseTimestamp } from '../types';
 import { SafeScreenContainer } from '../components/SafeScreenContainer';
 import { Ionicons } from '@expo/vector-icons';
 
-interface Post {
+// users.ts에서 반환하는 Post 타입
+interface UserPost {
   id: string;
   title: string;
   content: string;
-  createdAt: number;
+  createdAt: FirebaseTimestamp;
   stats: {
     viewCount: number;
     likeCount: number;
@@ -20,7 +23,7 @@ interface Post {
 
 export default function MyLikesScreen() {
   const { user } = useAuthStore();
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<UserPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -48,22 +51,16 @@ export default function MyLikesScreen() {
     setRefreshing(false);
   };
 
-  const formatDate = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
-    if (diffInHours < 1) return '방금 전';
-    if (diffInHours < 24) return `${diffInHours}시간 전`;
-    return `${Math.floor(diffInHours / 24)}일 전`;
+  const formatDate = (timestamp: unknown) => {
+    return formatRelativeTime(timestamp);
   };
 
-  const handlePostPress = (post: Post) => {
+  const handlePostPress = (post: UserPost) => {
     // 게시글 상세 페이지로 이동 (추후 구현)
     Alert.alert('게시글 보기', '게시글 상세 페이지는 준비중입니다.');
   };
 
-  const renderPost = ({ item }: { item: Post }) => (
+  const renderPost = ({ item }: { item: UserPost }) => (
     <TouchableOpacity style={styles.postCard} onPress={() => handlePostPress(item)}>
       <View style={styles.postHeader}>
         <View style={styles.likeIndicator}>

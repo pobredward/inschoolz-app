@@ -7,7 +7,7 @@ import {
   signOut,
   User as FirebaseUser,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { User } from '../types';
 import { logger } from '../utils/logger';
@@ -132,7 +132,7 @@ export const registerWithEmail = async (
         birthDay: extraProfile?.birthDay || 0,
         phoneNumber: extraProfile?.phoneNumber || '',
         profileImageUrl: firebaseUser.photoURL || '',
-        createdAt: Date.now(), // number 타입으로 변경 (웹과 일치)
+        createdAt: Timestamp.now().toMillis(), // Timestamp를 밀리초로 변환
         isAdmin: false
       },
       
@@ -154,9 +154,9 @@ export const registerWithEmail = async (
         marketing: extraProfile?.marketingAgreed || false
       },
       
-      // 시스템 정보 (number 타입으로 변경, 웹과 일치)
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+      // 시스템 정보 (Timestamp 사용)
+      createdAt: Timestamp.now().toMillis(),
+      updatedAt: Timestamp.now().toMillis()
     };
     
     // 학교 정보가 있는 경우에만 추가 (추가 필드들도 저장)
@@ -326,8 +326,8 @@ export const loginWithEmail = async (
     if (userDoc.exists()) {
       // 마지막 로그인 시간 업데이트
       await updateDoc(doc(db, 'users', firebaseUser.uid), {
-        lastLoginAt: Date.now(),
-        updatedAt: Date.now()
+        lastLoginAt: Timestamp.now().toMillis(),
+        updatedAt: Timestamp.now().toMillis()
       });
       
       const userData = userDoc.data() as User;

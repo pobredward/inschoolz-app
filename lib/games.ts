@@ -1,4 +1,4 @@
-import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, increment, Timestamp } from 'firebase/firestore';
 import { db } from './firebase';
 import { User } from '../types';
 import { updateUserExperience, getSystemSettings } from './experience';
@@ -258,7 +258,7 @@ export const canWatchAdForExtraPlay = async (
     
     // 마지막 광고 시청 후 30분 대기
     const lastRewardTime = adRewards.lastRewardTime || 0;
-    const now = Date.now();
+    const now = Timestamp.now().toMillis();
     const cooldownTime = 30 * 60 * 1000; // 30분
     
     if (now - lastRewardTime < cooldownTime) {
@@ -295,7 +295,7 @@ export const completeAdWatch = async (
     
     await updateDoc(userRef, {
       [`activityLimits.adRewards.${gameType}`]: increment(1),
-      'activityLimits.adRewards.lastRewardTime': Date.now()
+      'activityLimits.adRewards.lastRewardTime': Timestamp.now().toMillis()
     });
     
     return {
