@@ -127,6 +127,16 @@ export interface User {
   school?: {
     id: string;
     name: string;
+    grade?: string | null;
+    classNumber?: string | null;
+    studentNumber?: string | null;
+    isGraduate?: boolean | null;
+  };
+  
+  // 즐겨찾기 정보
+  favorites?: {
+    schools: string[]; // 즐겨찾는 학교 ID 리스트 (최대 5개)
+    boards: string[]; // 즐겨찾는 게시판 코드 리스트
   };
   
   // 지역 정보

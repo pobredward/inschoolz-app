@@ -63,7 +63,25 @@ export default function Step2School({ formData, updateForm, nextStep, prevStep }
   };
 
   const handleSelect = (school: School) => {
-    updateForm({ schoolId: school.id, schoolName: school.name, schoolAddress: school.address });
+    // 웹과 동일한 구조로 학교 정보 저장 (추가 필드는 null로 저장)
+    updateForm({ 
+      school: {
+        id: school.id,
+        name: school.name,
+        grade: null,
+        classNumber: null,
+        studentNumber: null,
+        isGraduate: null,
+      },
+      schoolId: school.id, // 호환성을 위해 유지
+      schoolName: school.name, // 호환성을 위해 유지
+      schoolAddress: school.address, // 호환성을 위해 유지
+      // favorites.schools 배열에 해당 학교 ID 추가
+      favorites: {
+        schools: [school.id],
+        boards: []
+      }
+    });
     setError(null);
     nextStep();
   };

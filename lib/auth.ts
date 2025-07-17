@@ -92,6 +92,10 @@ export const registerWithEmail = async (
     privacyAgreed?: boolean;
     locationAgreed?: boolean;
     marketingAgreed?: boolean;
+    favorites?: {
+      schools: string[];
+      boards: string[];
+    };
   }
 ): Promise<User> => {
   logger.debug('registerWithEmail 시작');
@@ -111,7 +115,7 @@ export const registerWithEmail = async (
     // Firestore에 사용자 정보 저장 (통일된 구조 - Timestamp 사용)
     
     // 기본 사용자 데이터 구조 (undefined 필드 제거, Timestamp 사용)
-    const newUser: any = {
+    let newUser: any = {
       uid: firebaseUser.uid,
       email: firebaseUser.email || '',
       role: 'student',
@@ -128,7 +132,7 @@ export const registerWithEmail = async (
         birthDay: extraProfile?.birthDay || 0,
         phoneNumber: extraProfile?.phoneNumber || '',
         profileImageUrl: firebaseUser.photoURL || '',
-        createdAt: serverTimestamp(), // Timestamp 사용
+        createdAt: Date.now(), // number 타입으로 변경 (웹과 일치)
         isAdmin: false
       },
       
@@ -150,22 +154,35 @@ export const registerWithEmail = async (
         marketing: extraProfile?.marketingAgreed || false
       },
       
-      // 시스템 정보 (Timestamp 사용)
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
+      // 시스템 정보 (number 타입으로 변경, 웹과 일치)
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     };
     
-    // 학교 정보가 있는 경우에만 추가
+    // 학교 정보가 있는 경우에만 추가 (추가 필드들도 저장)
     if (extraProfile?.schoolId) {
       newUser.school = {
         id: extraProfile.schoolId,
-        name: extraProfile.schoolName || ''
+        name: extraProfile.schoolName || '',
+        grade: null, // 나중에 사용할 수 있도록 null로 저장
+        classNumber: null, // 나중에 사용할 수 있도록 null로 저장
+        studentNumber: null, // 나중에 사용할 수 있도록 null로 저장
+        isGraduate: null, // 나중에 사용할 수 있도록 null로 저장
       };
-      
-      // 선택한 학교를 즐겨찾기에 자동으로 추가
+    }
+    
+    // 즐겨찾기 학교 정보 추가 (favorites 배열 사용)
+    const favoriteSchoolIds = extraProfile?.favorites?.schools || [];
+    
+    // 선택한 메인 학교가 즐겨찾기에 없으면 추가
+    if (extraProfile?.schoolId && !favoriteSchoolIds.includes(extraProfile.schoolId)) {
+      favoriteSchoolIds.unshift(extraProfile.schoolId); // 메인 학교를 첫 번째로
+    }
+    
+    if (favoriteSchoolIds.length > 0) {
       newUser.favorites = {
-        schools: [extraProfile.schoolId], // 학교 ID를 즐겨찾기 배열에 추가
-        boards: []
+        schools: favoriteSchoolIds.slice(0, 5), // 최대 5개로 제한
+        boards: extraProfile?.favorites?.boards || []
       };
     }
     
@@ -186,6 +203,15 @@ export const registerWithEmail = async (
     logger.firebase('Firestore에 사용자 데이터 저장 시작');
     await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
     logger.firebase('Firestore 사용자 데이터 저장 완료');
+    
+    // 저장된 사용자 데이터를 다시 읽어와서 정확한 데이터로 반환
+    const savedUserDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+    if (savedUserDoc.exists()) {
+      const savedUserData = savedUserDoc.data() as User;
+      savedUserData.uid = firebaseUser.uid;
+      newUser = savedUserData;
+      logger.debug('저장된 사용자 데이터 확인 완료');
+    }
     
     // 선택한 학교가 있는 경우, 학교의 멤버 카운트와 즐겨찾기 카운트 증가
     if (extraProfile?.schoolId) {

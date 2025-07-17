@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert, SafeAreaView, StatusBa
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { registerWithEmail } from '../../lib/auth';
+import { useAuthStore } from '../../store/authStore';
 // 기본 logger 함수
 const logger = {
   debug: (message: string, ...args: any[]) => {
@@ -33,6 +34,7 @@ import Step4Profile from './step4-profile';
 export default function SignupContainer() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { setUser } = useAuthStore();
   const [formData, setFormData] = useState({
     // 1단계: 이메일, 비밀번호
     email: '',
@@ -43,10 +45,10 @@ export default function SignupContainer() {
     school: {
       id: '',
       name: '',
-      grade: '',
-      classNumber: '',
-      studentNumber: '',
-      isGraduate: false,
+      grade: null,
+      classNumber: null,
+      studentNumber: null,
+      isGraduate: null,
     },
     
     // 3단계: 지역 정보
@@ -71,6 +73,12 @@ export default function SignupContainer() {
     privacyAgreed: false,
     locationAgreed: false,
     marketingAgreed: false,
+    
+    // 즐겨찾기 정보
+    favorites: {
+      schools: [],
+      boards: []
+    },
   });
 
   const updateForm = (data: Partial<typeof formData>) => {
@@ -110,8 +118,8 @@ export default function SignupContainer() {
 
       logger.debug('SignupContainer 검증 통과, registerWithEmail 호출 시작');
       
-      // Firebase에 회원가입 요청 (기존 registerWithEmail 함수 형태에 맞춤)
-      await registerWithEmail(
+      // Firebase에 회원가입 요청 (웹과 동일한 구조로 수정)
+      const newUser = await registerWithEmail(
         formData.email,
         formData.password,
         formData.userName,
@@ -131,10 +139,17 @@ export default function SignupContainer() {
           privacyAgreed: formData.privacyAgreed,
           locationAgreed: formData.locationAgreed,
           marketingAgreed: formData.marketingAgreed,
+          favorites: formData.favorites, // favorites 정보도 전달
         }
       );
       
       logger.debug('registerWithEmail 완료');
+      
+      // 사용자 정보를 AuthStore에 설정 (자동 로그인)
+      if (newUser) {
+        logger.debug('사용자 정보를 AuthStore에 설정');
+        setUser(newUser);
+      }
       
       Alert.alert(
         '회원가입 성공',
@@ -144,7 +159,10 @@ export default function SignupContainer() {
             text: '확인',
             onPress: () => {
               logger.info('메인 페이지로 이동');
-              router.replace('/');
+              // 약간의 지연 후 이동 (AuthStore 상태 업데이트 대기)
+              setTimeout(() => {
+                router.replace('/');
+              }, 500);
             }
           }
         ]
