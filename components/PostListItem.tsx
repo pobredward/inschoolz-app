@@ -31,10 +31,10 @@ const PostListItem: React.FC<PostListItemProps> = ({
       style={styles.postCard}
       onPress={() => onPress(post)}
     >
-      {/* 헤더 - 뱃지들 */}
+      {/* 헤더 - 모든 뱃지들을 한 줄에 정렬 */}
       {showBadges && (
         <View style={styles.postHeader}>
-          <View style={styles.postBadgeContainer}>
+          <View style={styles.allBadgesContainer}>
             {typeBadgeText && (
               <Text style={styles.postTypeBadge}>{typeBadgeText}</Text>
             )}
@@ -42,7 +42,14 @@ const PostListItem: React.FC<PostListItemProps> = ({
               <Text style={styles.postBoardBadge}>{boardBadgeText}</Text>
             )}
             {previewImages.length > 0 && (
-              <Text style={styles.imageBadge}>📷</Text>
+              <View style={styles.photoBadge}>
+                <Text style={styles.photoBadgeText}>📷 사진</Text>
+              </View>
+            )}
+            {post.poll && (
+              <View style={styles.pollBadge}>
+                <Text style={styles.pollBadgeText}>📊 투표</Text>
+              </View>
             )}
           </View>
         </View>
@@ -117,14 +124,13 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   postHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 8,
   },
-  postBadgeContainer: {
+  allBadgesContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
+    alignItems: 'center',
   },
   postTypeBadge: {
     fontSize: 12,
@@ -207,6 +213,33 @@ const styles = StyleSheet.create({
   postStatItem: {
     fontSize: 12,
     color: '#6b7280',
+  },
+
+  photoBadge: {
+    backgroundColor: '#f3f4f6',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  photoBadgeText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  pollBadge: {
+    backgroundColor: '#dbeafe',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#93c5fd',
+  },
+  pollBadgeText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#1d4ed8',
   },
 });
 

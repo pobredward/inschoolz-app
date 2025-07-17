@@ -530,7 +530,8 @@ export const getPostsByBoardType = async (
         attachments: postData.attachments || [],
         tags: postData.tags || [],
         stats: postData.stats,
-        status: postData.status
+        status: postData.status,
+        poll: postData.poll // poll 필드 추가
       } as Post);
     });
     
@@ -580,7 +581,8 @@ export const getAllPostsByType = async (
         attachments: postData.attachments || [],
         tags: postData.tags || [],
         stats: postData.stats,
-        status: postData.status
+        status: postData.status,
+        poll: postData.poll // poll 필드 추가
       } as Post);
     });
     
@@ -631,7 +633,8 @@ export const getAllPostsBySchool = async (
         attachments: postData.attachments || [],
         tags: postData.tags || [],
         stats: postData.stats,
-        status: postData.status
+        status: postData.status,
+        poll: postData.poll // poll 필드 추가
       } as Post);
     });
     
@@ -684,7 +687,8 @@ export const getAllPostsByRegion = async (
         attachments: postData.attachments || [],
         tags: postData.tags || [],
         stats: postData.stats,
-        status: postData.status
+        status: postData.status,
+        poll: postData.poll // poll 필드 추가
       } as Post);
     });
     
@@ -737,7 +741,8 @@ export const getPopularPostsForHome = async (count = 10): Promise<Post[]> => {
         attachments: postData.attachments || [],
         tags: postData.tags || [],
         stats: postData.stats,
-        status: postData.status
+        status: postData.status,
+        poll: postData.poll // poll 필드 추가
       } as Post);
     });
     

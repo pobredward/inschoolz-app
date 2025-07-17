@@ -27,6 +27,7 @@ import { doc, getDoc, collection, getDocs, addDoc, query, where, orderBy, Timest
 import AnonymousCommentForm from '../../../../components/ui/AnonymousCommentForm';
 import AnonymousPasswordModal from '../../../../components/ui/AnonymousPasswordModal';
 import AnonymousCommentEditor from '../../../../components/ui/AnonymousCommentEditor';
+import { PollVoting } from '../../../../components/ui/PollVoting';
 // 유틸리티 함수 import
 import { formatRelativeTime, toTimestamp } from '../../../../utils/timeUtils';
 
@@ -940,6 +941,18 @@ export default function PostDetailScreen() {
                 contentWidth={width - 32}
                 baseStyle={styles.postContent}
               />
+
+              {/* 투표 */}
+              {post.poll && (
+                <PollVoting 
+                  postId={post.id} 
+                  poll={post.poll}
+                  onVoteUpdate={(updatedPoll) => {
+                    // 투표 업데이트 시 post 상태도 업데이트
+                    setPost(prev => prev ? { ...prev, poll: updatedPoll } : null);
+                  }}
+                />
+              )}
 
               {/* 액션 버튼 */}
               <View style={styles.actionButtons}>
