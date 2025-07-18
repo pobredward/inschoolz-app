@@ -1,6 +1,6 @@
 import { doc, getDoc, updateDoc, setDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
-import { UserAttendance, AttendanceLog } from '../types';
+import { UserAttendance, AttendanceLog, FirebaseTimestamp } from '../types';
 import { awardExperience, getSystemSettings } from './experience';
 import { getKoreanDateString } from '../utils/timeUtils';
 
@@ -11,7 +11,7 @@ interface AttendanceRecord {
   userId: string;
   attendances: Record<string, boolean>;
   streak: number;
-  lastAttendance: number;
+  lastAttendance: FirebaseTimestamp;
   monthlyLog: AttendanceLog;
 }
 
@@ -138,64 +138,83 @@ export const checkAttendance = async (
     let streak = existingData?.streak || 0;
     const monthlyLog = existingData?.monthlyLog || {};
     
-    // 어제까지의 출석 체크
-    const yesterday = new Date(todayStr); // 오늘 날짜를 어제 날짜로 사용
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+    // 오늘 출석체크 여부 확인
+    const checkedToday = attendances[todayStr] === true;
     
-    // 연속 출석 계산
-    if (attendances[yesterdayStr]) {
-      streak += 1;
-    } else {
-      streak = 1; // 연속이 끊어진 경우
+    // 출석체크 요청인 경우 처리
+    if (doCheck && !checkedToday) {
+      // 어제까지의 출석 체크
+      const yesterday = new Date(todayStr); // 오늘 날짜를 어제 날짜로 사용
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+      
+      // 연속 출석 계산
+      if (attendances[yesterdayStr]) {
+        streak += 1;
+      } else {
+        streak = 1; // 연속이 끊어진 경우
+      }
+      
+      // 이번 달 출석 카운트
+      const thisMonth = todayStr.substring(0, 7); // YYYY-MM
+      const monthlyCount = monthlyLog[thisMonth] || 0;
+      
+      // 출석체크 업데이트
+      await updateDoc(attendanceRef, {
+        [`attendances.${todayStr}`]: true,
+        streak: streak,
+        lastAttendance: serverTimestamp(),
+        [`monthlyLog.${thisMonth}`]: monthlyCount + 1
+      });
+      
+      // 기본 출석 경험치 추가 - 시스템 설정 기반
+      const expResult = await awardExperience(userId, 'attendance');
+      let totalXp = expResult.expAwarded;
+      
+      // 연속 출석 보너스 계산
+      const settings = await getSystemSettings();
+      const streakBonus = calculateStreakBonus(streak, streak, settings); // 현재 streak와 이전 streak를 비교하여 계산
+      
+      // 연속 출석 보너스가 있다면 추가 경험치 지급
+      if (streakBonus > 0) {
+        const streakExpResult = await awardExperience(userId, 'attendanceStreak', streakBonus);
+        totalXp += streakExpResult.expAwarded;
+      }
+      
+      // 사용자의 streak 통계도 업데이트
+      await updateDoc(doc(db, 'users', userId), {
+        'stats.streak': streak
+      });
+      
+      // 월별 출석 일수 계산
+      const monthCount = Object.keys(monthlyLog).length + 1;
+      const totalCount = Object.keys(attendances).length + 1;
+      
+             return {
+         checkedToday: true,
+         streak,
+         totalCount,
+         monthCount,
+         lastAttendance: serverTimestamp(),
+         monthlyLog: { ...monthlyLog, [todayStr]: true },
+         expGained: totalXp,
+         leveledUp: expResult.leveledUp,
+         oldLevel: expResult.oldLevel,
+         newLevel: expResult.newLevel
+       };
     }
     
-    // 이번 달 출석 카운트
-    const thisMonth = todayStr.substring(0, 7); // YYYY-MM
-    const monthlyCount = monthlyLog[thisMonth] || 0;
-    
-    // 출석체크 업데이트
-    await updateDoc(attendanceRef, {
-      [`attendances.${todayStr}`]: true,
-      streak: streak,
-      lastAttendance: serverTimestamp(),
-      [`monthlyLog.${thisMonth}`]: monthlyCount + 1
-    });
-    
-    // 기본 출석 경험치 추가 - 시스템 설정 기반
-    const expResult = await awardExperience(userId, 'attendance');
-    let totalXp = expResult.expAwarded;
-    
-    // 연속 출석 보너스 계산
-    const settings = await getSystemSettings();
-    const streakBonus = calculateStreakBonus(streak, streak, settings); // 현재 streak와 이전 streak를 비교하여 계산
-    
-    // 연속 출석 보너스가 있다면 추가 경험치 지급
-    if (streakBonus > 0) {
-      const streakExpResult = await awardExperience(userId, 'attendanceStreak', streakBonus);
-      totalXp += streakExpResult.expAwarded;
-    }
-    
-    // 사용자의 streak 통계도 업데이트
-    await updateDoc(doc(db, 'users', userId), {
-      'stats.streak': streak
-    });
-    
-    // 월별 출석 일수 계산
+    // 출석체크 정보만 조회하는 경우
     const monthCount = Object.keys(monthlyLog).length;
     const totalCount = Object.keys(attendances).length;
     
     return {
-      checkedToday: true,
+      checkedToday,
       streak,
       totalCount,
       monthCount,
-      lastAttendance: Timestamp.now(),
-      monthlyLog,
-      expGained: totalXp,
-      leveledUp: expResult.leveledUp,
-      oldLevel: expResult.oldLevel,
-      newLevel: expResult.newLevel
+      lastAttendance: existingData?.lastAttendance || null,
+      monthlyLog
     };
     
   } catch (error) {
