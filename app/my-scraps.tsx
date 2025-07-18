@@ -74,30 +74,7 @@ export default function MyScrapsScreen() {
   };
 
   const getBoardName = (post: Post) => {
-    // boardName이 있으면 직접 사용
-    if (post.boardName) {
-      return post.boardName;
-    }
-    
-    // fallback for existing posts without boardName
-    switch (post.boardCode) {
-      case 'free': return '자유게시판';
-      case 'qa': return '질문/답변';
-      case 'study': return '스터디';
-      case 'club': return '동아리';
-      case 'notice': return '공지사항';
-      case 'graduate': return '졸업생';
-      case 'academy': return '학원정보';
-      case 'restaurant': return '맛집추천';
-      case 'local': return '동네소식';
-      case 'together': return '함께해요';
-      case 'job': return '구인구직';
-      case 'exam': return '입시정보';
-      case 'career': return '진로상담';
-      case 'university': return '대학생활';
-      case 'hobby': return '취미생활';
-      default: return post.boardCode || '게시판';
-    }
+    return post.boardName || '게시판';
   };
 
   const renderPost = ({ item }: { item: Post }) => (

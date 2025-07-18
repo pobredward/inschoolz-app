@@ -90,11 +90,33 @@ export default function MyCommentsScreen() {
     }
   };
 
+  const getBoardTypeLabel = (type: string) => {
+    switch (type) {
+      case 'national': return '전국';
+      case 'regional': return '지역';
+      case 'school': return '학교';
+      default: return type;
+    }
+  };
+
+  const getBoardName = (postData: any) => {
+    return postData?.boardName || '게시판';
+  };
+
   const renderComment = ({ item }: { item: Comment }) => (
     <TouchableOpacity style={styles.commentCard} onPress={() => handleCommentPress(item)}>
       <View style={styles.commentHeader}>
-        <View style={styles.commentBadge}>
-          <Text style={styles.commentBadgeText}>댓글</Text>
+        <View style={styles.boardBadgeContainer}>
+          {item.postData && (
+            <>
+              <View style={styles.typeBadge}>
+                <Text style={styles.typeBadgeText}>{getBoardTypeLabel(item.postData.type)}</Text>
+              </View>
+              <View style={styles.boardBadge}>
+                <Text style={styles.boardBadgeText}>{getBoardName(item.postData)}</Text>
+              </View>
+            </>
+          )}
         </View>
         <Text style={styles.commentDate}>{formatDate(item.createdAt)}</Text>
       </View>
@@ -122,34 +144,19 @@ export default function MyCommentsScreen() {
     </View>
   );
 
-  const renderHeader = () => (
-    <View style={styles.headerContainer}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={20} color="#1F2937" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>내 댓글</Text>
-        <View style={styles.placeholder} />
-      </View>
-      <View style={styles.countContainer}>
-        <Text style={styles.commentCount}>총 {comments.length}개</Text>
-      </View>
-    </View>
-  );
+
 
   if (loading) {
     return (
       <View style={styles.container}>
         <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
         <SafeAreaView style={styles.safeArea}>
-          <View style={styles.headerContainer}>
-            <View style={styles.header}>
-              <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                <Ionicons name="arrow-back" size={20} color="#1F2937" />
-              </TouchableOpacity>
-              <Text style={styles.headerTitle}>내 댓글</Text>
-              <View style={styles.placeholder} />
-            </View>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={20} color="#1F2937" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>내 댓글</Text>
+            <View style={styles.placeholder} />
           </View>
           <View style={styles.loadingContainer}>
             <Text>로딩 중...</Text>
@@ -163,11 +170,22 @@ export default function MyCommentsScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
       <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={20} color="#1F2937" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>내 댓글</Text>
+          <View style={styles.placeholder} />
+        </View>
+        
+        <View style={styles.countContainer}>
+          <Text style={styles.commentCount}>총 {comments.length}개</Text>
+        </View>
+
         <FlatList
           data={comments}
           renderItem={renderComment}
           keyExtractor={(item) => item.id}
-          ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyState}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -190,12 +208,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerContainer: {
-    backgroundColor: '#f9fafb',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    paddingBottom: 12,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -203,6 +215,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     backgroundColor: '#f9fafb',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
     elevation: 0,
     shadowOpacity: 0,
   },
@@ -238,7 +252,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 12,
     padding: 16,
-    marginHorizontal: 16,
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: {
@@ -255,16 +268,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  commentBadge: {
-    backgroundColor: '#DBEAFE',
+  boardBadgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  typeBadge: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  typeBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  boardBadge: {
+    backgroundColor: '#F3F4F6',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
-  commentBadgeText: {
-    fontSize: 12,
+  boardBadgeText: {
+    fontSize: 10,
     fontWeight: '500',
-    color: '#1E40AF',
+    color: '#374151',
   },
   commentDate: {
     fontSize: 12,
@@ -311,6 +340,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContainer: {
+    padding: 20,
     flexGrow: 1,
   },
 }); 

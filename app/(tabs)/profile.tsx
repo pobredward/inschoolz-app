@@ -362,17 +362,10 @@ export default function ProfileScreen() {
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.statCard}
-              onPress={() => router.push('/my-likes')}
-            >
-              <Text style={styles.statIcon}>❤️</Text>
-              <Text style={styles.statLabel}>좋아요한 글</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.statCard}
               onPress={() => router.push('/my-scraps' as any)}
             >
               <Text style={styles.statIcon}>🔖</Text>
-              <Text style={styles.statLabel}>스크랩</Text>
+              <Text style={styles.statLabel}>스크랩한 글</Text>
             </TouchableOpacity>
           </View>
         </View>
