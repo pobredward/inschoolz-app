@@ -19,6 +19,7 @@ import {
 const { width } = Dimensions.get('window');
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { BoardType, Post, Comment, Board } from '@/types';
 import { getBoardsByType, deleteAnonymousComment } from '@/lib/boards';
 import { useAuthStore } from '@/store/authStore';
@@ -286,7 +287,7 @@ export default function PostDetailScreen() {
     try {
       let shareUrl = '';
       
-      // URL 구조에 맞게 생성
+      // 웹 버전과 일치하는 URL 구조로 생성
       if (type === 'national') {
         shareUrl = `https://inschoolz.com/community/national/${boardCode}/${post.id}`;
       } else if (type === 'regional' && post.regions) {
@@ -294,20 +295,56 @@ export default function PostDetailScreen() {
       } else if (type === 'school' && post.schoolId) {
         shareUrl = `https://inschoolz.com/community/school/${post.schoolId}/${boardCode}/${post.id}`;
       } else {
-        shareUrl = `https://inschoolz.com/community/${type}/${boardCode}/${post.id}`;
+        // fallback for unknown types
+        shareUrl = `https://inschoolz.com/community/national/${boardCode}/${post.id}`;
       }
       
-      // 간단한 Alert로 URL 표시 (추후 실제 클립보드 기능으로 업그레이드 가능)
-      Alert.alert(
-        '게시글 공유',
-        `링크가 준비되었습니다:\n${shareUrl}`,
-        [
-          { text: '확인', style: 'default' }
-        ]
-      );
+      // 플랫폼별 클립보드 복사 처리
+      if (Platform.OS === 'web') {
+        // 웹 환경에서 클립보드 API 사용
+        try {
+          if (navigator.clipboard) {
+            await navigator.clipboard.writeText(shareUrl);
+            Alert.alert('📋 공유 완료', '게시글 링크가 복사되었습니다!\n다른 곳에 붙여넣기해서 공유해보세요.');
+          } else {
+            // fallback 방법
+            const textArea = document.createElement('textarea');
+            textArea.value = shareUrl;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            Alert.alert('📋 공유 완료', '게시글 링크가 복사되었습니다!');
+          }
+        } catch (clipboardError) {
+          Alert.alert(
+            '게시글 링크', 
+            `다음 링크를 복사해서 공유하세요:\n\n${shareUrl}`,
+            [
+              { text: '확인', style: 'default' }
+            ]
+          );
+        }
+      } else {
+        // 모바일 환경에서는 실제 클립보드 복사
+        try {
+          await Clipboard.setStringAsync(shareUrl);
+          Alert.alert('📋 공유 완료', '게시글 링크가 복사되었습니다!\n다른 앱에서 붙여넣기하여 공유해보세요.');
+        } catch (clipboardError) {
+          console.error('클립보드 복사 실패:', clipboardError);
+          // 복사 실패 시 URL을 직접 표시
+          Alert.alert(
+            '📋 게시글 공유',
+            `링크를 수동으로 복사해주세요:\n\n${shareUrl}`,
+            [
+              { text: '확인', style: 'default' }
+            ]
+          );
+        }
+      }
     } catch (error) {
       console.error('공유 실패:', error);
-      Alert.alert('오류', '공유에 실패했습니다.');
+      Alert.alert('❌ 오류', '공유에 실패했습니다. 다시 시도해주세요.');
     }
   };
 
@@ -1162,7 +1199,12 @@ export default function PostDetailScreen() {
                       {scrapCount}
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
+                  <TouchableOpacity 
+                    style={styles.actionButton} 
+                    onPress={handleShare}
+                    accessibilityLabel="게시글 공유하기"
+                    accessibilityHint="이 게시글의 링크를 복사하여 다른 사람과 공유할 수 있습니다"
+                  >
                     <Ionicons name="share-outline" size={16} color="#6b7280" />
                   </TouchableOpacity>
                 </View>
