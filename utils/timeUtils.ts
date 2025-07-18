@@ -15,22 +15,20 @@ export function now(): number {
  * @returns 한국 시간대 기준 날짜 문자열
  */
 export function getKoreanDateString(date: Date = new Date()): string {
+  // 현재 UTC 시간 가져오기
+  const now = date;
+  
   // 한국 시간으로 변환 (UTC+9)
   const koreaTimezoneOffset = 9 * 60; // 9시간을 분 단위로
-  const utcMinutes = date.getUTCHours() * 60 + date.getUTCMinutes();
+  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
   const koreaMinutes = utcMinutes + koreaTimezoneOffset;
   
-  // 한국 날짜 계산
-  const koreaDate = new Date(date);
-  koreaDate.setUTCHours(0, koreaMinutes, 0, 0);
+  // 한국 시간 계산
+  const koreaDate = new Date(now);
+  koreaDate.setUTCHours(Math.floor(koreaMinutes / 60));
+  koreaDate.setUTCMinutes(koreaMinutes % 60);
   
-  // 날짜가 바뀌었는지 확인하고 조정
-  if (koreaMinutes >= 24 * 60) {
-    koreaDate.setUTCDate(koreaDate.getUTCDate() + 1);
-  } else if (koreaMinutes < 0) {
-    koreaDate.setUTCDate(koreaDate.getUTCDate() - 1);
-  }
-  
+  // 날짜 부분만 추출
   const year = koreaDate.getUTCFullYear();
   const month = String(koreaDate.getUTCMonth() + 1).padStart(2, '0');
   const day = String(koreaDate.getUTCDate()).padStart(2, '0');

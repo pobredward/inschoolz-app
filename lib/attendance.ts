@@ -28,12 +28,27 @@ export type { UserAttendance, AttendanceLog };
  * 이렇게 함으로써 사용자가 어떤 시간대에 있든 한국 시간 기준으로 출석체크가 처리됨
  */
 const getKoreanDateStringLocal = (): { todayStr: string, thisMonth: string } => {
-  const todayStr = getKoreanDateString();
-  const thisMonth = todayStr.substring(0, 7); // YYYY-MM 형태로 잘라냄
+  // 현재 UTC 시간 가져오기
+  const now = new Date();
+  
+  // 한국 시간으로 변환 (UTC+9)
+  const koreaTimezoneOffset = 9 * 60; // 9시간을 분 단위로
+  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const koreaMinutes = utcMinutes + koreaTimezoneOffset;
+  
+  // 한국 시간 계산
+  const koreaDate = new Date(now);
+  koreaDate.setUTCHours(Math.floor(koreaMinutes / 60));
+  koreaDate.setUTCMinutes(koreaMinutes % 60);
+  
+  // 날짜 부분만 추출
+  const year = koreaDate.getUTCFullYear();
+  const month = String(koreaDate.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(koreaDate.getUTCDate()).padStart(2, '0');
   
   return {
-    todayStr,
-    thisMonth
+    todayStr: `${year}-${month}-${day}`,
+    thisMonth: `${year}-${month}`
   };
 };
 
@@ -143,12 +158,15 @@ export const checkAttendance = async (
     
     // 출석체크 요청인 경우 처리
     if (doCheck && !checkedToday) {
-      // 어제까지의 출석 체크
-      const yesterday = new Date(todayStr); // 오늘 날짜를 어제 날짜로 사용
+      // 어제 날짜 계산 (한국 시간 기준)
+      const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+      const yesterdayStr = getKoreanDateString(yesterday);
       
-      // 연속 출석 계산
+      // 이전 연속 출석 일수 저장 (경험치 보상 계산용)
+      const prevStreak = streak;
+      
+      // 연속 출석 여부 확인
       if (attendances[yesterdayStr]) {
         streak += 1;
       } else {
@@ -173,7 +191,7 @@ export const checkAttendance = async (
       
       // 연속 출석 보너스 계산
       const settings = await getSystemSettings();
-      const streakBonus = calculateStreakBonus(streak, streak, settings); // 현재 streak와 이전 streak를 비교하여 계산
+      const streakBonus = calculateStreakBonus(streak, prevStreak, settings); // 현재 streak와 이전 streak를 비교하여 계산
       
       // 연속 출석 보너스가 있다면 추가 경험치 지급
       if (streakBonus > 0) {
