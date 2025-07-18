@@ -236,7 +236,7 @@ export default function CommunityScreen() {
       // Post를 CommunityPost 형태로 변환
       const communityPosts: CommunityPost[] = postsData.map(post => ({
         ...post, // 모든 Post 필드를 복사
-        boardName: boards.find(b => b.code === post.boardCode)?.name || '게시판',
+        boardName: post.boardName || boards.find(b => b.code === post.boardCode)?.name || '게시판',
         previewContent: truncateText(parseContentText(post.content), 100)
       }));
 
@@ -666,29 +666,35 @@ const styles = StyleSheet.create({
   postTypeBadge: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#1f2937',
-    backgroundColor: '#e0e7ff',
+    color: '#15803d',
+    backgroundColor: '#f0fdf4',
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
   },
   postBoardBadge: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#1f2937',
-    backgroundColor: '#d1fae5',
+    color: '#1d4ed8',
+    backgroundColor: '#dbeafe',
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#93c5fd',
   },
   imageBadge: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#1f2937',
-    backgroundColor: '#fed7aa',
+    color: '#c2410c',
+    backgroundColor: '#fff7ed',
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#fed7aa',
   },
   imageBadgeText: {
     fontSize: 10,

@@ -257,6 +257,7 @@ export default function WritePostPage() {
       const postData = {
         type: type,
         boardCode: code,
+        boardName: board.name, // boardName 추가
         title: title.trim(),
         content: content.trim(), // Rich Text Editor에서 HTML 형태로 제공됨
         // category가 있을 때만 포함시키기

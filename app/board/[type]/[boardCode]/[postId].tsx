@@ -1065,6 +1065,16 @@ export default function PostDetailScreen() {
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{board.name}</Text>
                 </View>
+                {post.attachments && post.attachments.length > 0 && (
+                  <View style={styles.imageBadgeContainer}>
+                    <Text style={styles.imageBadgeText}>📷 사진 {post.attachments.filter(att => att.type === 'image').length}</Text>
+                  </View>
+                )}
+                {post.poll && (
+                  <View style={styles.pollBadgeContainer}>
+                    <Text style={styles.pollBadgeText}>📊 투표</Text>
+                  </View>
+                )}
               </View>
 
               {/* 제목 */}
@@ -1376,10 +1386,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#93c5fd',
   },
   badgeText: {
     fontSize: 12,
-    color: '#2563eb',
+    color: '#1d4ed8',
+    fontWeight: '600',
   },
   postTitle: {
     fontSize: 20,
@@ -1426,19 +1439,22 @@ const styles = StyleSheet.create({
   boardTypeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     marginBottom: 12,
   },
   boardTypeBadge: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#f0fdf4',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
     marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
   },
   boardTypeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#15803d',
   },
   authorName: {
     fontSize: 14,
@@ -1759,5 +1775,33 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
     lineHeight: 16,
+  },
+  imageBadgeContainer: {
+    backgroundColor: '#fff7ed',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: '#fed7aa',
+  },
+  imageBadgeText: {
+    fontSize: 12,
+    color: '#c2410c',
+    fontWeight: '600',
+  },
+  pollBadgeContainer: {
+    backgroundColor: '#faf5ff',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: '#d8b4fe',
+  },
+  pollBadgeText: {
+    fontSize: 12,
+    color: '#7c3aed',
+    fontWeight: '600',
   },
 }); 
