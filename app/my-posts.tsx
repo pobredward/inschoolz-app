@@ -19,14 +19,15 @@ import { getUserPosts } from '../lib/users';
 import { SafeScreenContainer } from '../components/SafeScreenContainer';
 import { Ionicons } from '@expo/vector-icons';
 import { formatRelativeTime } from '../utils/timeUtils';
-import { FirebaseTimestamp } from '../types';
+import { Post } from '../types';
+import PostListItem from '../components/PostListItem';
 
 // users.ts에서 반환하는 Post 타입
 interface UserPost {
   id: string;
   title: string;
   content: string;
-  createdAt: FirebaseTimestamp;
+  createdAt: any;
   boardCode: string;
   type: string;
   schoolId?: string;
@@ -166,52 +167,64 @@ export default function MyPostsScreen() {
     );
   };
 
+  const getBoardTypeLabel = (type: string) => {
+    switch (type) {
+      case 'national': return '전국';
+      case 'regional': return '지역';
+      case 'school': return '학교';
+      default: return type;
+    }
+  };
+
+  const getBoardName = (post: UserPost) => {
+    // boardName이 있으면 직접 사용
+    if (post.boardName) {
+      return post.boardName;
+    }
+    
+    // fallback for existing posts without boardName
+    switch (post.boardCode) {
+      case 'free': return '자유게시판';
+      case 'qa': return '질문/답변';
+      case 'study': return '스터디';
+      case 'club': return '동아리';
+      case 'notice': return '공지사항';
+      case 'graduate': return '졸업생';
+      case 'academy': return '학원정보';
+      case 'restaurant': return '맛집추천';
+      case 'local': return '동네소식';
+      case 'together': return '함께해요';
+      case 'job': return '구인구직';
+      case 'exam': return '입시정보';
+      case 'career': return '진로상담';
+      case 'university': return '대학생활';
+      case 'hobby': return '취미생활';
+      default: return post.boardCode || '게시판';
+    }
+  };
+
   const renderPost = ({ item }: { item: UserPost }) => (
-    <TouchableOpacity style={styles.postCard} onPress={() => handlePostPress(item)}>
-      <View style={styles.postHeader}>
-        <View style={styles.boardBadgeContainer}>
-          <View style={styles.typeBadge}>
-            <Text style={styles.typeBadgeText}>{getTypeLabel(item.type as BoardType, item)}</Text>
-          </View>
-          <View style={styles.boardBadge}>
-            <Text style={styles.boardBadgeText}>{item.boardName || '게시판'}</Text>
-          </View>
-        </View>
-        {item.attachments && item.attachments.length > 0 && (
-          <View style={styles.imageBadge}>
-            <Text style={styles.imageBadgeText}>📷</Text>
-          </View>
-        )}
-      </View>
-
-      <Text style={styles.postTitle} numberOfLines={2}>
-        {item.title}
-      </Text>
-
-      {item.previewContent && (
-        <Text style={styles.postPreview} numberOfLines={2}>
-          {item.previewContent}
-        </Text>
-      )}
-
-      <View style={styles.postMeta}>
-        <Text style={styles.postDate}>{formatDate(item.createdAt)}</Text>
-        <View style={styles.postStats}>
-          <View style={styles.statItem}>
-            <Ionicons name="chatbubble-outline" size={12} color="#6B7280" />
-            <Text style={styles.statText}>{item.stats.commentCount}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Ionicons name="heart-outline" size={12} color="#6B7280" />
-            <Text style={styles.statText}>{item.stats.likeCount}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Ionicons name="eye-outline" size={12} color="#6B7280" />
-            <Text style={styles.statText}>{item.stats.viewCount}</Text>
-          </View>
-        </View>
-      </View>
-    </TouchableOpacity>
+    <PostListItem
+      post={{
+        ...item,
+        type: item.type as 'national' | 'regional' | 'school',
+        authorId: 'me',
+        authorInfo: { displayName: '나', isAnonymous: false },
+        boardName: getBoardName(item),
+        attachments: item.attachments || [],
+        tags: [],
+        status: { isPinned: false, isDeleted: false, isHidden: false, isBlocked: false },
+        stats: {
+          ...item.stats,
+          scrapCount: 0,
+        },
+      }}
+      onPress={handlePostPress}
+      showBadges={true}
+      typeBadgeText={getBoardTypeLabel(item.type)}
+      boardBadgeText={getBoardName(item)}
+      variant="profile"
+    />
   );
 
   const renderEmptyState = () => (

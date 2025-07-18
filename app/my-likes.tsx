@@ -4,21 +4,26 @@ import { router } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
 import { getUserLikedPosts } from '../lib/users';
 import { formatRelativeTime } from '../utils/timeUtils';
-import { FirebaseTimestamp } from '../types';
+import { Post } from '../types';
 import { SafeScreenContainer } from '../components/SafeScreenContainer';
 import { Ionicons } from '@expo/vector-icons';
+import PostListItem from '../components/PostListItem';
 
 // users.ts에서 반환하는 Post 타입
 interface UserPost {
   id: string;
   title: string;
   content: string;
-  createdAt: FirebaseTimestamp;
+  createdAt: any;
+  boardCode?: string;
+  type?: string;
   stats: {
     viewCount: number;
     likeCount: number;
     commentCount: number;
   };
+  boardName?: string;
+  previewContent?: string;
 }
 
 export default function MyLikesScreen() {
@@ -60,34 +65,65 @@ export default function MyLikesScreen() {
     Alert.alert('게시글 보기', '게시글 상세 페이지는 준비중입니다.');
   };
 
+  const getBoardTypeLabel = (type?: string) => {
+    switch (type) {
+      case 'national': return '전국';
+      case 'regional': return '지역';
+      case 'school': return '학교';
+      default: return '커뮤니티';
+    }
+  };
+
+  const getBoardName = (post: UserPost) => {
+    // boardName이 있으면 직접 사용
+    if (post.boardName) {
+      return post.boardName;
+    }
+    
+    // fallback for existing posts without boardName
+    switch (post.boardCode) {
+      case 'free': return '자유게시판';
+      case 'qa': return '질문/답변';
+      case 'study': return '스터디';
+      case 'club': return '동아리';
+      case 'notice': return '공지사항';
+      case 'graduate': return '졸업생';
+      case 'academy': return '학원정보';
+      case 'restaurant': return '맛집추천';
+      case 'local': return '동네소식';
+      case 'together': return '함께해요';
+      case 'job': return '구인구직';
+      case 'exam': return '입시정보';
+      case 'career': return '진로상담';
+      case 'university': return '대학생활';
+      case 'hobby': return '취미생활';
+      default: return '게시판';
+    }
+  };
+
   const renderPost = ({ item }: { item: UserPost }) => (
-    <TouchableOpacity style={styles.postCard} onPress={() => handlePostPress(item)}>
-      <View style={styles.postHeader}>
-        <View style={styles.likeIndicator}>
-          <Ionicons name="heart" size={14} color="#ef4444" />
-          <Text style={styles.likeText}>좋아요</Text>
-        </View>
-        <Text style={styles.postDate}>{formatDate(item.createdAt)}</Text>
-      </View>
-      <Text style={styles.postTitle} numberOfLines={2}>{item.title}</Text>
-      <Text style={styles.postContent} numberOfLines={3}>
-        {item.content.replace(/<[^>]*>/g, '')}
-      </Text>
-      <View style={styles.postStats}>
-        <View style={styles.statItem}>
-          <Ionicons name="eye-outline" size={14} color="#6b7280" />
-          <Text style={styles.statText}>{item.stats.viewCount}</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Ionicons name="heart-outline" size={14} color="#6b7280" />
-          <Text style={styles.statText}>{item.stats.likeCount}</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Ionicons name="chatbubble-outline" size={14} color="#6b7280" />
-          <Text style={styles.statText}>{item.stats.commentCount}</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
+    <PostListItem
+      post={{
+        ...item,
+        type: (item.type as 'national' | 'regional' | 'school') || 'school',
+        boardCode: item.boardCode || 'free',
+        authorId: 'anonymous',
+        authorInfo: { displayName: '익명', isAnonymous: true },
+        boardName: getBoardName(item),
+        attachments: [],
+        tags: [],
+        status: { isPinned: false, isDeleted: false, isHidden: false, isBlocked: false },
+        stats: {
+          ...item.stats,
+          scrapCount: 0,
+        },
+      }}
+      onPress={handlePostPress}
+      showBadges={true}
+      typeBadgeText={getBoardTypeLabel(item.type)}
+      boardBadgeText={getBoardName(item)}
+      variant="profile"
+    />
   );
 
   const renderEmptyState = () => (

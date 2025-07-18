@@ -105,6 +105,7 @@ const PostListItem: React.FC<PostListItemProps> = ({
           <Text style={styles.postStatItem}>👁 {post.stats?.viewCount || 0}</Text>
           <Text style={styles.postStatItem}>👍 {post.stats?.likeCount || 0}</Text>
           <Text style={styles.postStatItem}>💬 {post.stats?.commentCount || 0}</Text>
+          <Text style={styles.postStatItem}>🔖 {post.stats?.scrapCount || 0}</Text>
         </View>
       </View>
     </TouchableOpacity>

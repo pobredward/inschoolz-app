@@ -207,6 +207,7 @@ export interface Post {
     isAnonymous: boolean;
   };
   boardCode: string;
+  boardName: string;
   type: 'national' | 'regional' | 'school';
   category?: {
     id: string;
@@ -230,6 +231,7 @@ export interface Post {
     viewCount: number;
     likeCount: number;
     commentCount: number;
+    scrapCount: number;
   };
   status: {
     isPinned: boolean;

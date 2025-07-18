@@ -172,9 +172,10 @@ export default function PostDetailScreen() {
     reason?: string;
   } | null>(null);
   
-  // 좋아요/북마크 상태
+  // 좋아요/스크랩 상태
   const [isLiked, setIsLiked] = useState(false);
-  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [isScrapped, setIsScrapped] = useState(false);
+  const [scrapCount, setScrapCount] = useState(0);
 
   // 게시판 타입을 한글로 변환하는 함수
   const getBoardTypeLabel = (type: string) => {
@@ -199,13 +200,13 @@ export default function PostDetailScreen() {
       const likeSnapshot = await getDocs(likeQuery);
       setIsLiked(!likeSnapshot.empty);
 
-      // 북마크 상태 확인
+      // 스크랩 상태 확인 (users 컬렉션 기반)
       const userRef = doc(db, 'users', userId);
       const userDoc = await getDoc(userRef);
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        const bookmarks = userData.bookmarks || [];
-        setIsBookmarked(bookmarks.includes(postId));
+        const scraps = userData.scraps || [];
+        setIsScrapped(scraps.includes(postId));
       }
     } catch (error) {
       console.error('사용자 액션 상태 확인 실패:', error);
@@ -258,40 +259,23 @@ export default function PostDetailScreen() {
     }
   };
 
-  // 북마크 토글
-  const handleBookmark = async () => {
+  // 스크랩 토글 (새로운 API 함수 사용)
+  const handleScrap = async () => {
     if (!user || !post) {
       Alert.alert('알림', '로그인이 필요합니다.');
       return;
     }
 
     try {
-      const userRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userRef);
+      const { togglePostScrap } = await import('../../../../lib/boards');
+      const result = await togglePostScrap(post.id, user.uid);
       
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        const bookmarks = userData.bookmarks || [];
-        const isCurrentlyBookmarked = bookmarks.includes(post.id);
-        
-        let updatedBookmarks;
-        if (isCurrentlyBookmarked) {
-          updatedBookmarks = bookmarks.filter((id: string) => id !== post.id);
-        } else {
-          updatedBookmarks = [...bookmarks, post.id];
-        }
-        
-        await updateDoc(userRef, {
-          bookmarks: updatedBookmarks,
-          updatedAt: serverTimestamp()
-        });
-        
-        setIsBookmarked(!isCurrentlyBookmarked);
-        Alert.alert('알림', isCurrentlyBookmarked ? '북마크를 해제했습니다.' : '북마크에 추가했습니다.');
-      }
+      setIsScrapped(result.scrapped);
+      setScrapCount(result.scrapCount);
+      Alert.alert('알림', result.scrapped ? '스크랩에 추가했습니다.' : '스크랩을 해제했습니다.');
     } catch (error) {
-      console.error('북마크 처리 실패:', error);
-      Alert.alert('오류', '북마크 처리에 실패했습니다.');
+      console.error('스크랩 처리 실패:', error);
+      Alert.alert('오류', '스크랩 처리에 실패했습니다.');
     }
   };
 
@@ -379,8 +363,9 @@ export default function PostDetailScreen() {
       setPost(postData);
       setBoard(boardData);
       setLikeCount(postData.stats.likeCount);
+      setScrapCount(postData.stats.scrapCount || 0);
       
-      // 좋아요/북마크 상태 확인
+      // 좋아요/스크랩 상태 확인
       if (user) {
         await checkUserActions(postId, user.uid);
       }
@@ -1157,12 +1142,15 @@ export default function PostDetailScreen() {
                 
                 {/* 오른쪽: 스크랩, 공유 */}
                 <View style={styles.actionButtonsRight}>
-                  <TouchableOpacity style={styles.actionButton} onPress={handleBookmark}>
+                  <TouchableOpacity style={styles.actionButton} onPress={handleScrap}>
                     <Ionicons 
-                      name={isBookmarked ? "bookmark" : "bookmark-outline"} 
+                      name={isScrapped ? "bookmark" : "bookmark-outline"} 
                       size={16} 
-                      color={isBookmarked ? "#3b82f6" : "#6b7280"} 
+                      color={isScrapped ? "#3b82f6" : "#6b7280"} 
                     />
+                    <Text style={[styles.actionButtonText, isScrapped && { color: "#3b82f6" }]}>
+                      {scrapCount}
+                    </Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
                     <Ionicons name="share-outline" size={16} color="#6b7280" />

@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { checkAttendance, UserAttendance } from '../../lib/attendance';
 import { getUserActivitySummary } from '../../lib/users';
-import { getBookmarkedPostsCount } from '../../lib/boards';
+import { getScrappedPostsCount } from '../../lib/boards';
 import { getKoreanDateString } from '../../utils/timeUtils';
 import { Ionicons } from '@expo/vector-icons';
 import { doc, getDoc } from 'firebase/firestore';
@@ -33,7 +33,7 @@ export default function ProfileScreen() {
     nextLevelXP: 10
   });
   const [loading, setLoading] = useState(false);
-  const [bookmarkCount, setBookmarkCount] = useState(0);
+  const [scrapCount, setScrapCount] = useState(0);
 
   const loadData = async () => {
     if (!user?.uid) {
@@ -58,9 +58,9 @@ export default function ProfileScreen() {
       const stats = await getUserActivitySummary(user.uid);
       setUserStats(stats);
 
-      // 북마크 개수 로드
-      const bookmarkCountResult = await getBookmarkedPostsCount(user.uid);
-      setBookmarkCount(bookmarkCountResult);
+      // 스크랩 개수 로드
+      const scrapCountResult = await getScrappedPostsCount(user.uid);
+      setScrapCount(scrapCountResult);
     } catch (error) {
       console.error('데이터 로드 오류:', error);
     } finally {
@@ -369,7 +369,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.statCard}
-              onPress={() => router.push('/my-bookmarks')}
+              onPress={() => router.push('/my-scraps' as any)}
             >
               <Text style={styles.statIcon}>🔖</Text>
               <Text style={styles.statLabel}>스크랩</Text>
