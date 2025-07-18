@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
   SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getBoardsByType, getPostsByBoardType } from '../../../../lib/boards';
 import { Board, BoardType, Post } from '../../../../types';
@@ -169,6 +169,16 @@ export default function BoardScreen() {
   useEffect(() => {
     loadBoardAndPosts();
   }, [type, boardCode, user]);
+
+  // 화면이 포커스될 때마다 게시글 목록 새로고침
+  useFocusEffect(
+    useCallback(() => {
+      // 초기 로드가 아닌 경우에만 새로고침 (뒤로가기 등으로 돌아온 경우)
+      if (posts.length > 0) {
+        loadBoardAndPosts();
+      }
+    }, [posts.length])
+  );
 
   const handlePostPress = (post: Post & { boardName?: string; previewContent?: string }) => {
     router.push(`/board/${type}/${boardCode}/${post.id}`);

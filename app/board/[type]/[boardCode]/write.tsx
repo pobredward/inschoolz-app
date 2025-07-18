@@ -196,9 +196,9 @@ export default function WritePostPage() {
   // 경험치 모달 닫기 핸들러
   const handleExperienceModalClose = () => {
     setShowExperienceModal(false);
-    // 모달 닫기 후 게시글 상세 페이지로 이동
+    // 모달 닫기 후 뒤로가기
     if (pendingPostId) {
-      router.push(`/board/${type}/${code}/${pendingPostId}`);
+      router.back();
       setPendingPostId(null);
     }
     setExperienceData(null);
@@ -333,11 +333,11 @@ export default function WritePostPage() {
           setPendingPostId(postId);
           setShowExperienceModal(true);
         } else {
-          // 경험치 부여 실패 시 즉시 이동
+          // 경험치 부여 실패 시 즉시 뒤로가기
           Alert.alert('성공', '게시글이 작성되었습니다.', [
             {
               text: '확인',
-              onPress: () => router.push(`/board/${type}/${code}/${postId}`)
+              onPress: () => router.back()
             }
           ]);
         }
@@ -347,7 +347,7 @@ export default function WritePostPage() {
         Alert.alert('성공', '게시글이 작성되었습니다.', [
           {
             text: '확인',
-            onPress: () => router.push(`/board/${type}/${code}/${postId}`)
+            onPress: () => router.back()
           }
         ]);
       }

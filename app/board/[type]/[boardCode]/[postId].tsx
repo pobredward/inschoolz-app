@@ -539,7 +539,7 @@ export default function PostDetailScreen() {
               });
               
               Alert.alert('성공', '게시글이 삭제되었습니다.', [
-                { text: '확인', onPress: () => router.push('/community') }
+                { text: '확인', onPress: () => router.back() }
               ]);
             } catch (error) {
               console.error('게시글 삭제 실패:', error);

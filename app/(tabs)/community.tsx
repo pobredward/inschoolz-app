@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -13,7 +13,7 @@ import {
   FlatList,
   Dimensions,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import PostListItem from '../../components/PostListItem';
 import { Timestamp } from 'firebase/firestore';
@@ -133,6 +133,16 @@ export default function CommunityScreen() {
   useEffect(() => {
     loadPosts();
   }, [selectedTab, selectedBoard, sortBy, boards]);
+
+  // 화면이 포커스될 때마다 게시글 목록 새로고침
+  useFocusEffect(
+    useCallback(() => {
+      // 초기 로드가 아닌 경우에만 새로고침 (뒤로가기 등으로 돌아온 경우)
+      if (posts.length > 0) {
+        loadPosts();
+      }
+    }, [posts.length])
+  );
 
   const loadBoards = async () => {
     try {
