@@ -186,9 +186,19 @@ export default function ProfileScreen() {
     const days = ['일', '월', '화', '수', '목', '금', '토'];
     const weekDays = [];
     
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
+    // 오늘 날짜 기준으로 이번 주 월요일부터 일요일까지 계산
+    const today = new Date();
+    const currentDay = today.getDay(); // 0(일) ~ 6(토)
+    
+    // 이번 주 월요일 찾기 (월요일을 주의 시작으로)
+    const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay; // 일요일이면 -6, 그 외는 1-currentDay
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset);
+    
+    // 월요일부터 일요일까지 7일 생성
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
       
       // 한국 시간대 기준으로 날짜 문자열 생성
       const dateStr = getKoreanDateString(date);
@@ -196,11 +206,14 @@ export default function ProfileScreen() {
       // 실제 출석 기록에서 해당 날짜 확인
       const isChecked = attendanceData.monthlyLog?.[dateStr] === true;
       
+      // 오늘 날짜인지 확인
+      const isToday = date.toDateString() === today.toDateString();
+      
       weekDays.push({
         day: days[date.getDay()],
         date: date.getDate(),
         isChecked,
-        isToday: i === 0
+        isToday
       });
     }
     
@@ -313,7 +326,7 @@ export default function ProfileScreen() {
           
           {/* 주간 출석 달력 */}
           <View style={styles.weeklyCalendar}>
-            <Text style={styles.calendarTitle}>이번 주 출석 현황</Text>
+            <Text style={styles.calendarTitle}>이번 주 출석 현황 (월~일)</Text>
             <View style={styles.calendarGrid}>
               {weeklyCalendar.map((day, index) => (
                 <View key={index} style={styles.calendarDay}>
@@ -326,12 +339,12 @@ export default function ProfileScreen() {
                   <View style={[
                     styles.dayCircle,
                     day.isChecked && styles.checkedDay,
-                    day.isToday && styles.todayCircle
+                    day.isToday && !day.isChecked && styles.todayCircle
                   ]}>
                     <Text style={[
                       styles.dayNumber,
                       day.isChecked && styles.checkedDayNumber,
-                      day.isToday && styles.todayNumber
+                      day.isToday && !day.isChecked && styles.todayNumber
                     ]}>
                       {day.date}
                     </Text>
@@ -646,7 +659,7 @@ const styles = StyleSheet.create({
   dayNumber: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#10B981',
+    color: '#6b7280',
   },
   checkedDayNumber: {
     color: 'white',
