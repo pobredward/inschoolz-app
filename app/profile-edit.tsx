@@ -355,10 +355,14 @@ export default function ProfileEditScreen() {
             <TextInput
               style={styles.input}
               value={formData.phoneNumber}
-              onChangeText={(text) => handleChange('phoneNumber', text)}
-              placeholder="휴대폰 번호를 입력하세요"
+              onChangeText={(text) => {
+                const numericValue = text.replace(/[^0-9]/g, ''); // 숫자만 허용
+                handleChange('phoneNumber', numericValue);
+              }}
+              placeholder="01012345678"
               placeholderTextColor="#9CA3AF"
               keyboardType="phone-pad"
+              maxLength={11}
             />
           </View>
 
@@ -369,7 +373,10 @@ export default function ProfileEditScreen() {
               <TextInput
                 style={[styles.input, styles.birthInput]}
                 value={formData.birthYear}
-                onChangeText={(text) => handleChange('birthYear', text)}
+                onChangeText={(text) => {
+                  const numericValue = text.replace(/[^0-9]/g, ''); // 숫자만 허용
+                  handleChange('birthYear', numericValue);
+                }}
                 placeholder="YYYY"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="numeric"
@@ -378,7 +385,10 @@ export default function ProfileEditScreen() {
               <TextInput
                 style={[styles.input, styles.birthInput]}
                 value={formData.birthMonth}
-                onChangeText={(text) => handleChange('birthMonth', text)}
+                onChangeText={(text) => {
+                  const numericValue = text.replace(/[^0-9]/g, ''); // 숫자만 허용
+                  handleChange('birthMonth', numericValue);
+                }}
                 placeholder="MM"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="numeric"
@@ -387,7 +397,10 @@ export default function ProfileEditScreen() {
               <TextInput
                 style={[styles.input, styles.birthInput]}
                 value={formData.birthDay}
-                onChangeText={(text) => handleChange('birthDay', text)}
+                onChangeText={(text) => {
+                  const numericValue = text.replace(/[^0-9]/g, ''); // 숫자만 허용
+                  handleChange('birthDay', numericValue);
+                }}
                 placeholder="DD"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="numeric"

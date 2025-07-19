@@ -139,7 +139,10 @@ export default function Step4Profile({
                 style={[styles.halfInput, styles.input]}
                 placeholder="년도"
                 value={formData.birthYear || ''}
-                onChangeText={(v) => updateForm({ birthYear: v })}
+                onChangeText={(v) => {
+                  const numericValue = v.replace(/[^0-9]/g, ''); // 숫자만 허용
+                  updateForm({ birthYear: numericValue });
+                }}
                 keyboardType="numeric"
                 placeholderTextColor="#9ca3af"
                 maxLength={4}
@@ -148,7 +151,10 @@ export default function Step4Profile({
                 style={[styles.halfInput, styles.input]}
                 placeholder="월"
                 value={formData.birthMonth || ''}
-                onChangeText={(v) => updateForm({ birthMonth: v })}
+                onChangeText={(v) => {
+                  const numericValue = v.replace(/[^0-9]/g, ''); // 숫자만 허용
+                  updateForm({ birthMonth: numericValue });
+                }}
                 keyboardType="numeric"
                 placeholderTextColor="#9ca3af"
                 maxLength={2}
@@ -157,7 +163,10 @@ export default function Step4Profile({
                 style={[styles.halfInput, styles.input]}
                 placeholder="일"
                 value={formData.birthDay || ''}
-                onChangeText={(v) => updateForm({ birthDay: v })}
+                onChangeText={(v) => {
+                  const numericValue = v.replace(/[^0-9]/g, ''); // 숫자만 허용
+                  updateForm({ birthDay: numericValue });
+                }}
                 keyboardType="numeric"
                 placeholderTextColor="#9ca3af"
                 maxLength={2}
@@ -171,9 +180,13 @@ export default function Step4Profile({
               style={styles.input}
               placeholder="01012345678"
               value={formData.phoneNumber || ''}
-              onChangeText={(v) => updateForm({ phoneNumber: v })}
+              onChangeText={(v) => {
+                const numericValue = v.replace(/[^0-9]/g, ''); // 숫자만 허용
+                updateForm({ phoneNumber: numericValue });
+              }}
               keyboardType="phone-pad"
               placeholderTextColor="#9ca3af"
+              maxLength={11}
             />
           </View>
           
