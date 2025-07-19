@@ -18,6 +18,7 @@ import { useAuthStore } from '../store/authStore';
 import { updateUserProfile, updateProfileImage } from '../lib/users';
 import { getAllRegions, getDistrictsByRegion } from '../lib/regions';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 export default function ProfileEditScreen() {
   const { user, setUser } = useAuthStore();
@@ -131,7 +132,7 @@ export default function ProfileEditScreen() {
     setShowCityModal(false);
   };
 
-  // 프로필 이미지 선택
+  // 프로필 이미지 선택 및 크롭
   const handleSelectImage = async () => {
     // 권한 요청
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -140,20 +141,46 @@ export default function ProfileEditScreen() {
       return;
     }
 
-    // 이미지 선택
+    // 이미지 선택 (크롭 기능 비활성화)
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
+      allowsEditing: false, // expo-image-manipulator로 크롭할 것이므로 비활성화
+      quality: 1.0, // 최고 품질로 선택
     });
 
     if (!result.canceled && result.assets[0] && user?.uid) {
-      const imageUri = result.assets[0].uri;
+      const selectedImageUri = result.assets[0].uri;
       
-      setUploadingImage(true);
       try {
-        const uploadResult = await updateProfileImage(user.uid, imageUri);
+        setUploadingImage(true);
+        
+        // 이미지를 정사각형으로 크롭
+        const croppedImage = await ImageManipulator.manipulateAsync(
+          selectedImageUri,
+          [
+            {
+              crop: {
+                originX: 0,
+                originY: 0,
+                width: Math.min(result.assets[0].width, result.assets[0].height),
+                height: Math.min(result.assets[0].width, result.assets[0].height),
+              },
+            },
+            {
+              resize: {
+                width: 400, // 400x400 크기로 리사이즈
+                height: 400,
+              },
+            },
+          ],
+          {
+            compress: 0.8, // 압축률 80%
+            format: ImageManipulator.SaveFormat.JPEG,
+          }
+        );
+
+        // 크롭된 이미지 업로드
+        const uploadResult = await updateProfileImage(user.uid, croppedImage.uri);
         if (uploadResult.success && uploadResult.url) {
           setFormData(prev => ({ ...prev, profileImageUrl: uploadResult.url! }));
           Alert.alert('성공', '프로필 이미지가 업데이트되었습니다.');
@@ -161,8 +188,8 @@ export default function ProfileEditScreen() {
           Alert.alert('오류', uploadResult.error || '이미지 업로드에 실패했습니다.');
         }
       } catch (error) {
-        console.error('이미지 업로드 오류:', error);
-        Alert.alert('오류', '이미지 업로드 중 오류가 발생했습니다.');
+        console.error('이미지 크롭/업로드 오류:', error);
+        Alert.alert('오류', '이미지 처리 중 오류가 발생했습니다.');
       } finally {
         setUploadingImage(false);
       }
@@ -272,6 +299,7 @@ export default function ProfileEditScreen() {
             </View>
           </TouchableOpacity>
           <Text style={styles.imageText}>프로필 사진 변경</Text>
+          <Text style={styles.imageSubtext}>정사각형으로 자동 크롭됩니다</Text>
         </View>
 
         {/* 기본 정보 */}
@@ -323,48 +351,49 @@ export default function ProfileEditScreen() {
           </View>
 
           <View style={styles.inputGroup}>
+            <Text style={styles.label}>휴대폰 번호</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.phoneNumber}
+              onChangeText={(text) => handleChange('phoneNumber', text)}
+              placeholder="휴대폰 번호를 입력하세요"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="phone-pad"
+            />
+          </View>
+
+          {/* 생년월일 */}
+          <View style={styles.inputGroup}>
             <Text style={styles.label}>생년월일</Text>
-            <View style={styles.dateContainer}>
+            <View style={styles.birthContainer}>
               <TextInput
-                style={[styles.input, styles.dateInput]}
+                style={[styles.input, styles.birthInput]}
                 value={formData.birthYear}
                 onChangeText={(text) => handleChange('birthYear', text)}
-                placeholder="년도"
+                placeholder="YYYY"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="numeric"
                 maxLength={4}
               />
               <TextInput
-                style={[styles.input, styles.dateInput]}
+                style={[styles.input, styles.birthInput]}
                 value={formData.birthMonth}
                 onChangeText={(text) => handleChange('birthMonth', text)}
-                placeholder="월"
+                placeholder="MM"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="numeric"
                 maxLength={2}
               />
               <TextInput
-                style={[styles.input, styles.dateInput]}
+                style={[styles.input, styles.birthInput]}
                 value={formData.birthDay}
                 onChangeText={(text) => handleChange('birthDay', text)}
-                placeholder="일"
+                placeholder="DD"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="numeric"
                 maxLength={2}
               />
             </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>전화번호</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.phoneNumber}
-              onChangeText={(text) => handleChange('phoneNumber', text)}
-              placeholder="전화번호를 입력하세요"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="phone-pad"
-            />
           </View>
         </View>
 
@@ -374,29 +403,29 @@ export default function ProfileEditScreen() {
           
           <View style={styles.inputGroup}>
             <Text style={styles.label}>시/도</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.selectButton}
               onPress={() => setShowProvinceModal(true)}
               disabled={regionsLoading}
             >
-              <Text style={[styles.selectButtonText, !formData.sido && styles.placeholder]}>
+              <Text style={[styles.selectButtonText, formData.sido && styles.selectButtonTextActive]}>
                 {formData.sido || '시/도 선택'}
               </Text>
-              <Ionicons name="chevron-down" size={16} color="#9CA3AF" />
+              <Ionicons name="chevron-down" size={20} color="#6B7280" />
             </TouchableOpacity>
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>시/군/구</Text>
-            <TouchableOpacity 
-              style={[styles.selectButton, !formData.sido && styles.disabled]}
+            <TouchableOpacity
+              style={[styles.selectButton, !formData.sido && styles.selectButtonDisabled]}
               onPress={() => setShowCityModal(true)}
               disabled={regionsLoading || !formData.sido}
             >
-              <Text style={[styles.selectButtonText, !formData.sigungu && styles.placeholder]}>
+              <Text style={[styles.selectButtonText, formData.sigungu && styles.selectButtonTextActive]}>
                 {formData.sigungu || '시/군/구 선택'}
               </Text>
-              <Ionicons name="chevron-down" size={16} color="#9CA3AF" />
+              <Ionicons name="chevron-down" size={20} color="#6B7280" />
             </TouchableOpacity>
           </View>
 
@@ -417,32 +446,29 @@ export default function ProfileEditScreen() {
       <Modal
         visible={showProvinceModal}
         animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowProvinceModal(false)}
+        presentationStyle="pageSheet"
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>시/도 선택</Text>
-              <TouchableOpacity onPress={() => setShowProvinceModal(false)}>
-                <Ionicons name="close" size={24} color="#374151" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalContent}>
-              {provinces.map((province) => (
-                <TouchableOpacity
-                  key={province}
-                  style={styles.modalItem}
-                  onPress={() => handleProvinceSelect(province)}
-                >
-                  <Text style={styles.modalItemText}>{province}</Text>
-                  {formData.sido === province && (
-                    <Ionicons name="checkmark" size={20} color="#10B981" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>시/도 선택</Text>
+            <TouchableOpacity onPress={() => setShowProvinceModal(false)}>
+              <Ionicons name="close" size={24} color="#000" />
+            </TouchableOpacity>
           </View>
+          <ScrollView style={styles.modalContent}>
+            {provinces.map((province) => (
+              <TouchableOpacity
+                key={province}
+                style={styles.modalItem}
+                onPress={() => handleProvinceSelect(province)}
+              >
+                <Text style={styles.modalItemText}>{province}</Text>
+                {formData.sido === province && (
+                  <Ionicons name="checkmark" size={20} color="#10B981" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
       </Modal>
 
@@ -450,32 +476,29 @@ export default function ProfileEditScreen() {
       <Modal
         visible={showCityModal}
         animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowCityModal(false)}
+        presentationStyle="pageSheet"
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>시/군/구 선택</Text>
-              <TouchableOpacity onPress={() => setShowCityModal(false)}>
-                <Ionicons name="close" size={24} color="#374151" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalContent}>
-              {cities.map((city) => (
-                <TouchableOpacity
-                  key={city}
-                  style={styles.modalItem}
-                  onPress={() => handleCitySelect(city)}
-                >
-                  <Text style={styles.modalItemText}>{city}</Text>
-                  {formData.sigungu === city && (
-                    <Ionicons name="checkmark" size={20} color="#10B981" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>시/군/구 선택</Text>
+            <TouchableOpacity onPress={() => setShowCityModal(false)}>
+              <Ionicons name="close" size={24} color="#000" />
+            </TouchableOpacity>
           </View>
+          <ScrollView style={styles.modalContent}>
+            {cities.map((city) => (
+              <TouchableOpacity
+                key={city}
+                style={styles.modalItem}
+                onPress={() => handleCitySelect(city)}
+              >
+                <Text style={styles.modalItemText}>{city}</Text>
+                {formData.sigungu === city && (
+                  <Ionicons name="checkmark" size={20} color="#10B981" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -561,6 +584,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
   },
+  imageSubtext: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
   section: {
     backgroundColor: '#fff',
     padding: 16,
@@ -573,13 +601,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   label: {
     fontSize: 14,
     fontWeight: '500',
     color: '#374151',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   input: {
     borderWidth: 1,
@@ -588,8 +616,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
     color: '#111827',
+    backgroundColor: '#fff',
   },
   genderContainer: {
     flexDirection: 'row',
@@ -599,30 +627,31 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#d1d5db',
+    borderRadius: 8,
     alignItems: 'center',
     backgroundColor: '#fff',
   },
   genderButtonActive: {
-    backgroundColor: '#10B981',
     borderColor: '#10B981',
+    backgroundColor: '#ecfdf5',
   },
   genderButtonText: {
     fontSize: 16,
     color: '#6B7280',
   },
   genderButtonTextActive: {
-    color: '#fff',
-    fontWeight: '600',
+    color: '#10B981',
+    fontWeight: '500',
   },
-  dateContainer: {
+  birthContainer: {
     flexDirection: 'row',
     gap: 8,
   },
-  dateInput: {
+  birthInput: {
     flex: 1,
+    textAlign: 'center',
   },
   selectButton: {
     flexDirection: 'row',
@@ -635,37 +664,29 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: '#fff',
   },
+  selectButtonDisabled: {
+    backgroundColor: '#f9fafb',
+    borderColor: '#e5e7eb',
+  },
   selectButtonText: {
     fontSize: 16,
-    color: '#374151',
-    flex: 1,
-  },
-  placeholder: {
     color: '#9CA3AF',
   },
-  disabled: {
-    opacity: 0.7,
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  selectButtonTextActive: {
+    color: '#111827',
   },
   modalContainer: {
-    width: '80%',
+    flex: 1,
     backgroundColor: '#fff',
-    borderRadius: 10,
-    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
   },
   modalTitle: {
     fontSize: 18,
@@ -673,19 +694,19 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   modalContent: {
-    maxHeight: 300,
+    flex: 1,
   },
   modalItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
   },
   modalItemText: {
     fontSize: 16,
-    color: '#374151',
+    color: '#111827',
   },
 });

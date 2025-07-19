@@ -47,7 +47,8 @@
     "react-native-webview": "13.13.5",
     "zod": "^3.25.67",
     "zustand": "^5.0.6",
-    "expo-clipboard": "~7.1.5"
+    "expo-clipboard": "~7.1.5",
+    "expo-image-manipulator": "~13.1.7"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
