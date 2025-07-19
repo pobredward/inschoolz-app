@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
 import { ReferralSearch } from '../../components/ReferralSearch';
+import { formatPhoneNumberForInput, extractPhoneNumbers, padBirthValue, filterNumericOnly } from '../../utils/formatters';
 // 기본 logger 함수
 const logger = {
   debug: (message: string, ...args: any[]) => {
@@ -150,10 +151,13 @@ export default function Step4Profile({
               <TextInput
                 style={[styles.halfInput, styles.input]}
                 placeholder="월"
-                value={formData.birthMonth || ''}
+                value={formData.birthMonth ? padBirthValue(formData.birthMonth) : ''}
                 onChangeText={(v) => {
-                  const numericValue = v.replace(/[^0-9]/g, ''); // 숫자만 허용
-                  updateForm({ birthMonth: numericValue });
+                  const numericValue = filterNumericOnly(v); // 숫자만 허용
+                  const monthValue = parseInt(numericValue) || 0;
+                  if (monthValue <= 12) { // 월은 1-12만 허용
+                    updateForm({ birthMonth: numericValue });
+                  }
                 }}
                 keyboardType="numeric"
                 placeholderTextColor="#9ca3af"
@@ -162,10 +166,13 @@ export default function Step4Profile({
               <TextInput
                 style={[styles.halfInput, styles.input]}
                 placeholder="일"
-                value={formData.birthDay || ''}
+                value={formData.birthDay ? padBirthValue(formData.birthDay) : ''}
                 onChangeText={(v) => {
-                  const numericValue = v.replace(/[^0-9]/g, ''); // 숫자만 허용
-                  updateForm({ birthDay: numericValue });
+                  const numericValue = filterNumericOnly(v); // 숫자만 허용
+                  const dayValue = parseInt(numericValue) || 0;
+                  if (dayValue <= 31) { // 일은 1-31만 허용
+                    updateForm({ birthDay: numericValue });
+                  }
                 }}
                 keyboardType="numeric"
                 placeholderTextColor="#9ca3af"
@@ -178,15 +185,15 @@ export default function Step4Profile({
             <Text style={styles.label}>휴대폰번호</Text>
             <TextInput
               style={styles.input}
-              placeholder="01012345678"
-              value={formData.phoneNumber || ''}
+              placeholder="010-1234-5678"
+              value={formatPhoneNumberForInput(formData.phoneNumber || '')}
               onChangeText={(v) => {
-                const numericValue = v.replace(/[^0-9]/g, ''); // 숫자만 허용
+                const numericValue = extractPhoneNumbers(v); // 숫자만 추출
                 updateForm({ phoneNumber: numericValue });
               }}
               keyboardType="phone-pad"
               placeholderTextColor="#9ca3af"
-              maxLength={11}
+              maxLength={13}
             />
           </View>
           

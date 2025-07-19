@@ -7,6 +7,7 @@ import { getUserActivitySummary } from '../../lib/users';
 import { getScrappedPostsCount } from '../../lib/boards';
 import { getKoreanDateString } from '../../utils/timeUtils';
 import { Ionicons } from '@expo/vector-icons';
+import { formatPhoneNumber } from '../../utils/formatters';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { SafeScreenContainer } from '../../components/SafeScreenContainer';
@@ -276,6 +277,12 @@ export default function ProfileScreen() {
                   ? `${userData.profile.birthYear}년 ${userData.profile.birthMonth}월 ${userData.profile.birthDay}일`
                   : '미설정'
                 }
+              </Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>연락처:</Text>
+              <Text style={styles.infoValue}>
+                {formatPhoneNumber(userData?.profile?.phoneNumber || '')}
               </Text>
             </View>
             <View style={styles.infoRow}>

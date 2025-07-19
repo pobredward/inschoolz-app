@@ -19,6 +19,7 @@ import { updateUserProfile, updateProfileImage } from '../lib/users';
 import { getAllRegions, getDistrictsByRegion } from '../lib/regions';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { formatPhoneNumberForInput, extractPhoneNumbers, padBirthValue, filterNumericOnly } from '../utils/formatters';
 
 export default function ProfileEditScreen() {
   const { user, setUser } = useAuthStore();
@@ -354,15 +355,15 @@ export default function ProfileEditScreen() {
             <Text style={styles.label}>휴대폰 번호</Text>
             <TextInput
               style={styles.input}
-              value={formData.phoneNumber}
+              value={formatPhoneNumberForInput(formData.phoneNumber)}
               onChangeText={(text) => {
-                const numericValue = text.replace(/[^0-9]/g, ''); // 숫자만 허용
+                const numericValue = extractPhoneNumbers(text); // 숫자만 추출
                 handleChange('phoneNumber', numericValue);
               }}
-              placeholder="01012345678"
+              placeholder="010-1234-5678"
               placeholderTextColor="#9CA3AF"
               keyboardType="phone-pad"
-              maxLength={11}
+              maxLength={13}
             />
           </View>
 
@@ -384,10 +385,13 @@ export default function ProfileEditScreen() {
               />
               <TextInput
                 style={[styles.input, styles.birthInput]}
-                value={formData.birthMonth}
+                value={formData.birthMonth ? padBirthValue(formData.birthMonth) : ''}
                 onChangeText={(text) => {
-                  const numericValue = text.replace(/[^0-9]/g, ''); // 숫자만 허용
-                  handleChange('birthMonth', numericValue);
+                  const numericValue = filterNumericOnly(text); // 숫자만 허용
+                  const monthValue = parseInt(numericValue) || 0;
+                  if (monthValue <= 12) { // 월은 1-12만 허용
+                    handleChange('birthMonth', numericValue);
+                  }
                 }}
                 placeholder="MM"
                 placeholderTextColor="#9CA3AF"
@@ -396,10 +400,13 @@ export default function ProfileEditScreen() {
               />
               <TextInput
                 style={[styles.input, styles.birthInput]}
-                value={formData.birthDay}
+                value={formData.birthDay ? padBirthValue(formData.birthDay) : ''}
                 onChangeText={(text) => {
-                  const numericValue = text.replace(/[^0-9]/g, ''); // 숫자만 허용
-                  handleChange('birthDay', numericValue);
+                  const numericValue = filterNumericOnly(text); // 숫자만 허용
+                  const dayValue = parseInt(numericValue) || 0;
+                  if (dayValue <= 31) { // 일은 1-31만 허용
+                    handleChange('birthDay', numericValue);
+                  }
                 }}
                 placeholder="DD"
                 placeholderTextColor="#9CA3AF"
