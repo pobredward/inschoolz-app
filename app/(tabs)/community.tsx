@@ -780,7 +780,7 @@ const styles = StyleSheet.create({
   },
   writeButton: {
     position: 'absolute',
-    bottom: 80,
+    bottom: 100,
     right: 16,
     width: 56,
     height: 56,
