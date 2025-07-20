@@ -24,35 +24,6 @@ export type { UserAttendance, AttendanceLog };
 // const STREAK_30_XP = 200; // 제거됨 - 시스템 설정에서 가져옴
 
 /**
- * 한국 시간대 기준(UTC+9)으로 날짜 문자열 생성
- * 이렇게 함으로써 사용자가 어떤 시간대에 있든 한국 시간 기준으로 출석체크가 처리됨
- */
-const getKoreanDateStringLocal = (): { todayStr: string, thisMonth: string } => {
-  // 현재 UTC 시간 가져오기
-  const now = new Date();
-  
-  // 한국 시간으로 변환 (UTC+9)
-  const koreaTimezoneOffset = 9 * 60; // 9시간을 분 단위로
-  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
-  const koreaMinutes = utcMinutes + koreaTimezoneOffset;
-  
-  // 한국 시간 계산
-  const koreaDate = new Date(now);
-  koreaDate.setUTCHours(Math.floor(koreaMinutes / 60));
-  koreaDate.setUTCMinutes(koreaMinutes % 60);
-  
-  // 날짜 부분만 추출
-  const year = koreaDate.getUTCFullYear();
-  const month = String(koreaDate.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(koreaDate.getUTCDate()).padStart(2, '0');
-  
-  return {
-    todayStr: `${year}-${month}-${day}`,
-    thisMonth: `${year}-${month}`
-  };
-};
-
-/**
  * 연속 출석 일수에 따른 추가 경험치 계산
  * @param streak 연속 출석 일수
  * @param prevStreak 이전 연속 출석 일수
@@ -95,8 +66,8 @@ export const checkAttendance = async (
       throw new Error('유효하지 않은 사용자 ID입니다.');
     }
     
-    // 한국 시간 기준 날짜 문자열 가져오기
-    const { todayStr } = getKoreanDateStringLocal();
+    // 한국 시간 기준 날짜 문자열 가져오기 (통일된 함수 사용)
+    const todayStr = getKoreanDateString();
     
     // 사용자 출석체크 데이터 조회
     const attendanceRef = doc(db, 'attendance', userId);

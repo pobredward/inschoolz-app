@@ -2,6 +2,7 @@ import { doc, getDoc, updateDoc, increment, Timestamp, serverTimestamp } from 'f
 import { db } from './firebase';
 import { User } from '../types';
 import { updateUserExperience, getSystemSettings } from './experience';
+import { getKoreanDateString } from '../utils/timeUtils';
 
 export type GameType = 'reactionGame' | 'tileGame' | 'flappyBird';
 
@@ -151,7 +152,7 @@ export const getUserGameStats = async (userId: string): Promise<GameStatsRespons
     }
     
     const userData = userDoc.data() as User;
-    const today = new Date().toISOString().split('T')[0];
+    const today = getKoreanDateString(); // 한국 시간 기준 날짜 사용
     
     // 날짜 체크 - 새로운 날이거나 데이터가 없으면 기본값 반환
     const activityLimits = userData.activityLimits;
