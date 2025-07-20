@@ -300,7 +300,11 @@ export default function RankingScreen() {
         {canShowRanking() ? (
           rankingState.users.length > 0 ? (
             rankingState.users.map((user, index) => (
-              <View key={user.id} style={styles.rankingItem}>
+              <TouchableOpacity 
+                key={user.id} 
+                style={styles.rankingItem}
+                onPress={() => router.push(`/users/${user.id}`)}
+              >
                 <View style={styles.rankContainer}>
                   <Text style={[styles.rankIcon, { color: getRankColor(index + 1) }]}>
                     {getRankIcon(index + 1)}
@@ -321,7 +325,7 @@ export default function RankingScreen() {
                 <View style={styles.expContainer}>
                   <Text style={styles.expText}>{user.stats.totalExperience.toLocaleString()} XP</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))
           ) : (
             <View style={styles.emptyContainer}>

@@ -255,8 +255,8 @@ export default function NotificationsScreen() {
            router.push(route as any);
          }
        } else if (data?.targetUserId && notification.type === 'referral') {
-         // 추천인 알림은 해당 사용자 프로필로 이동 (향후 구현)
-         Alert.alert('알림', '사용자 프로필 페이지로 이동 (향후 구현)');
+         // 추천인 알림은 해당 사용자 프로필로 이동
+         router.push(`/users/${data.targetUserId}` as any);
        } else if (notification.type === 'system') {
          // 시스템 알림은 특별한 이동 없음
          Alert.alert('시스템 알림', notification.message);

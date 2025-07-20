@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, RefreshControl, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, RefreshControl, Alert, ActivityIndicator, Image } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { checkAttendance, UserAttendance } from '../../lib/attendance';
-import { getUserActivitySummary } from '../../lib/users';
+import { getUserActivitySummary, getFollowersCount, getFollowingCount } from '../../lib/users';
 import { getScrappedPostsCount } from '../../lib/boards';
 import { getKoreanDateString } from '../../utils/timeUtils';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,7 @@ import { formatPhoneNumber } from '../../utils/formatters';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { SafeScreenContainer } from '../../components/SafeScreenContainer';
+import FollowersModal from '../../components/FollowersModal';
 
 export default function ProfileScreen() {
   const { user, clearAuth, isLoading: authLoading } = useAuthStore();
@@ -35,6 +36,10 @@ export default function ProfileScreen() {
   });
   const [loading, setLoading] = useState(false);
   const [scrapCount, setScrapCount] = useState(0);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [isFollowersModalVisible, setIsFollowersModalVisible] = useState(false);
+  const [followersModalType, setFollowersModalType] = useState<'followers' | 'following'>('followers');
 
   const loadData = async () => {
     if (!user?.uid) {
@@ -45,25 +50,58 @@ export default function ProfileScreen() {
     try {
       setLoading(true);
       
-      // 사용자 데이터 직접 로드
+      // 사용자 데이터 직접 로드 (안전한 접근)
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (userDoc.exists()) {
-        setUserData(userDoc.data());
+        const data = userDoc.data();
+        setUserData(data);
+      } else {
+        console.warn('사용자 문서가 존재하지 않습니다:', user.uid);
       }
 
-      // 출석 데이터 로드
-      const attendance = await checkAttendance(user.uid);
-      setAttendanceData(attendance);
+      // 출석 데이터 로드 (오류 처리 강화)
+      try {
+        const attendance = await checkAttendance(user.uid);
+        setAttendanceData(attendance);
+      } catch (attendanceError) {
+        console.error('출석 데이터 로드 오류:', attendanceError);
+        // 출석 데이터 로드 실패는 전체 로딩을 방해하지 않음
+      }
 
-      // 사용자 활동 통계 로드
-      const stats = await getUserActivitySummary(user.uid);
-      setUserStats(stats);
+      // 사용자 활동 통계 로드 (오류 처리 강화)
+      try {
+        const stats = await getUserActivitySummary(user.uid);
+        setUserStats(stats);
+      } catch (statsError) {
+        console.error('활동 통계 로드 오류:', statsError);
+        // 기본값 유지
+      }
 
-      // 스크랩 개수 로드
-      const scrapCountResult = await getScrappedPostsCount(user.uid);
-      setScrapCount(scrapCountResult);
+      // 스크랩 개수 로드 (오류 처리 강화)
+      try {
+        const scrapCountResult = await getScrappedPostsCount(user.uid);
+        setScrapCount(scrapCountResult);
+      } catch (scrapError) {
+        console.error('스크랩 개수 로드 오류:', scrapError);
+        // 기본값 0 유지
+      }
+
+      // 팔로워/팔로잉 수 로드 (오류 처리 강화)
+      try {
+        const [followersNum, followingNum] = await Promise.all([
+          getFollowersCount(user.uid),
+          getFollowingCount(user.uid)
+        ]);
+        setFollowersCount(followersNum);
+        setFollowingCount(followingNum);
+      } catch (followError) {
+        console.error('팔로워/팔로잉 수 로드 오류:', followError);
+        // 기본값 0 유지
+      }
     } catch (error) {
       console.error('데이터 로드 오류:', error);
+      // 사용자에게 오류 알림
+      Alert.alert('오류', '데이터를 불러오는 중 문제가 발생했습니다. 다시 시도해주세요.');
     } finally {
       setLoading(false);
     }
@@ -82,12 +120,20 @@ export default function ProfileScreen() {
     if (!user?.uid) return;
     
     setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
+    try {
+      await loadData();
+    } catch (error) {
+      console.error('새로고침 오류:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleAttendanceCheck = async () => {
-    if (!user?.uid) return;
+    if (!user?.uid) {
+      Alert.alert('오류', '로그인이 필요합니다.');
+      return;
+    }
 
     if (attendanceData.checkedToday) {
       Alert.alert('출석체크', '오늘은 이미 출석체크를 완료했습니다!');
@@ -100,11 +146,16 @@ export default function ProfileScreen() {
       
       setAttendanceData(result);
 
-      // 사용자 통계 다시 로드
-      const updatedStats = await getUserActivitySummary(user.uid);
-      setUserStats(updatedStats);
+      // 사용자 통계 다시 로드 (안전한 호출)
+      try {
+        const updatedStats = await getUserActivitySummary(user.uid);
+        setUserStats(updatedStats);
+      } catch (statsError) {
+        console.warn('통계 업데이트 실패:', statsError);
+        // 출석체크는 성공했으므로 통계 업데이트 실패는 무시
+      }
 
-      let message = `+${result.expGained} XP를 획득했습니다! 🎉`;
+      let message = `+${result.expGained || 10} XP를 획득했습니다! 🎉`;
       if (result.leveledUp) {
         message += `\n🎉 레벨업! Lv.${result.oldLevel} → Lv.${result.newLevel}`;
       }
@@ -182,40 +233,46 @@ export default function ProfileScreen() {
     );
   }
 
-  // 실제 출석 기록을 기반으로 주간 달력 생성
+  // 실제 출석 기록을 기반으로 주간 달력 생성 (안전한 처리)
   const generateWeeklyCalendar = () => {
     const days = ['일', '월', '화', '수', '목', '금', '토'];
     const weekDays = [];
     
-    // 오늘 날짜 기준으로 이번 주 월요일부터 일요일까지 계산
-    const today = new Date();
-    const currentDay = today.getDay(); // 0(일) ~ 6(토)
-    
-    // 이번 주 월요일 찾기 (월요일을 주의 시작으로)
-    const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay; // 일요일이면 -6, 그 외는 1-currentDay
-    const monday = new Date(today);
-    monday.setDate(today.getDate() + mondayOffset);
-    
-    // 월요일부터 일요일까지 7일 생성
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + i);
+    try {
+      // 오늘 날짜 기준으로 이번 주 월요일부터 일요일까지 계산
+      const today = new Date();
+      const currentDay = today.getDay(); // 0(일) ~ 6(토)
       
-      // 한국 시간대 기준으로 날짜 문자열 생성
-      const dateStr = getKoreanDateString(date);
+      // 이번 주 월요일 찾기 (월요일을 주의 시작으로)
+      const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay; // 일요일이면 -6, 그 외는 1-currentDay
+      const monday = new Date(today);
+      monday.setDate(today.getDate() + mondayOffset);
       
-      // 실제 출석 기록에서 해당 날짜 확인
-      const isChecked = attendanceData.monthlyLog?.[dateStr] === true;
-      
-      // 오늘 날짜인지 확인
-      const isToday = date.toDateString() === today.toDateString();
-      
-      weekDays.push({
-        day: days[date.getDay()],
-        date: date.getDate(),
-        isChecked,
-        isToday
-      });
+      // 월요일부터 일요일까지 7일 생성
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(monday);
+        date.setDate(monday.getDate() + i);
+        
+        // 한국 시간대 기준으로 날짜 문자열 생성
+        const dateStr = getKoreanDateString(date);
+        
+        // 실제 출석 기록에서 해당 날짜 확인 (안전한 접근)
+        const isChecked = attendanceData?.monthlyLog?.[dateStr] === true;
+        
+        // 오늘 날짜인지 확인
+        const isToday = date.toDateString() === today.toDateString();
+        
+        weekDays.push({
+          day: days[date.getDay()],
+          date: date.getDate(),
+          isChecked,
+          isToday
+        });
+      }
+    } catch (error) {
+      console.error('주간 달력 생성 오류:', error);
+      // 오류 발생 시 빈 배열 반환하거나 기본 달력 생성
+      return [];
     }
     
     return weekDays;
@@ -234,7 +291,17 @@ export default function ProfileScreen() {
         {/* 프로필 헤더 */}
         <View style={styles.profileHeader}>
           <View style={styles.profileImageContainer}>
-            <Ionicons name="person-circle" size={80} color="#10B981" />
+            {user.profile?.profileImageUrl ? (
+              <Image
+                source={{ uri: user.profile.profileImageUrl }}
+                style={styles.profileImage}
+                onError={() => {
+                  console.warn('프로필 이미지 로드 실패, 기본 아이콘 표시');
+                }}
+              />
+            ) : (
+              <Ionicons name="person-circle" size={80} color="#10B981" />
+            )}
           </View>
           <Text style={styles.userName}>{user.profile?.userName || '익명'}</Text>
           <Text style={styles.userEmail}>{user.email}</Text>
@@ -255,6 +322,30 @@ export default function ProfileScreen() {
                 {userStats.currentExp}/{userStats.nextLevelXP} XP
               </Text>
             </View>
+          </View>
+
+          {/* 팔로워/팔로잉 정보 */}
+          <View style={styles.followContainer}>
+            <TouchableOpacity 
+              style={styles.followButton}
+              onPress={() => {
+                setFollowersModalType('followers');
+                setIsFollowersModalVisible(true);
+              }}
+            >
+              <Text style={styles.followCount}>{followersCount}</Text>
+              <Text style={styles.followLabel}>팔로워</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.followButton}
+              onPress={() => {
+                setFollowersModalType('following');
+                setIsFollowersModalVisible(true);
+              }}
+            >
+              <Text style={styles.followCount}>{followingCount}</Text>
+              <Text style={styles.followLabel}>팔로잉</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -441,6 +532,15 @@ export default function ProfileScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* 팔로워/팔로잉 모달 */}
+      <FollowersModal
+        visible={isFollowersModalVisible}
+        onClose={() => setIsFollowersModalVisible(false)}
+        userId={user.uid}
+        type={followersModalType}
+        title={followersModalType === 'followers' ? '팔로워' : '팔로잉'}
+      />
     </SafeScreenContainer>
   );
 }
@@ -477,13 +577,17 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   profileImageContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#e0f2fe',
-    justifyContent: 'center',
+    marginBottom: 16,
     alignItems: 'center',
-    marginBottom: 10,
+    justifyContent: 'center',
+    width: 80,
+    height: 80,
+  },
+  profileImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F3F4F6',
   },
   userName: {
     fontSize: 24,
@@ -823,5 +927,27 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  followContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 60,
+  },
+  followButton: {
+    alignItems: 'center',
+    padding: 8,
+  },
+  followCount: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  followLabel: {
+    fontSize: 14,
+    color: '#6B7280',
   },
  }); 

@@ -397,6 +397,24 @@ export default function PostDetailScreen() {
         return;
       }
 
+      // authorInfo가 없거나 profileImageUrl이 없는 경우 사용자 정보 업데이트
+      if (!postData.authorInfo?.profileImageUrl && !postData.authorInfo?.isAnonymous && postData.authorId) {
+        try {
+          const { getUserById } = await import('../../../../lib/users');
+          const userDoc = await getUserById(postData.authorId);
+          if (userDoc && userDoc.profile) {
+            postData.authorInfo = {
+              ...postData.authorInfo,
+              displayName: postData.authorInfo?.displayName || userDoc.profile.userName || '사용자',
+              profileImageUrl: userDoc.profile.profileImageUrl || '',
+              isAnonymous: postData.authorInfo?.isAnonymous || false
+            };
+          }
+        } catch (userError) {
+          console.warn('사용자 정보 업데이트 실패:', userError);
+        }
+      }
+
       // 댓글 가져오기 (사용자 정보 포함)
       await loadComments(postId);
 
@@ -986,25 +1004,37 @@ export default function PostDetailScreen() {
     return (
       <View key={comment.id} style={[styles.commentContainer, isReply && styles.replyContainer]}>
         <View style={styles.commentWrapper}>
-          <View style={[
-            styles.commentAvatar,
-            comment.isAnonymous && comment.authorId === null && styles.anonymousAvatar
-          ]}>
-            {comment.isAnonymous && comment.authorId === null ? (
+          {comment.isAnonymous && comment.authorId === null ? (
+            <View style={[styles.commentAvatar, styles.anonymousAvatar]}>
               <Ionicons name="person-outline" size={16} color="#22c55e" />
-            ) : (
+            </View>
+          ) : (
+            <TouchableOpacity 
+              style={styles.commentAvatar}
+              onPress={() => comment.authorId && router.push(`/users/${comment.authorId}`)}
+            >
               <Text style={styles.avatarText}>
                 {authorName.charAt(0)}
               </Text>
-            )}
-          </View>
+            </TouchableOpacity>
+          )}
       
           <View style={styles.commentContent}>
             <View style={styles.commentHeader}>
               <View style={styles.commentAuthorRow}>
-                <Text style={styles.commentAuthor}>
-                  {authorName}
-                </Text>
+                {comment.isAnonymous && comment.authorId === null ? (
+                  <Text style={styles.commentAuthor}>
+                    {authorName}
+                  </Text>
+                ) : (
+                  <TouchableOpacity 
+                    onPress={() => comment.authorId && router.push(`/users/${comment.authorId}`)}
+                  >
+                    <Text style={[styles.commentAuthor, styles.clickableAuthor]}>
+                      {authorName}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
               <View style={styles.commentMetaRow}>
                 <Text style={styles.commentDate}>
@@ -1208,31 +1238,51 @@ export default function PostDetailScreen() {
               <Text style={styles.postTitle}>{post.title}</Text>
 
               {/* 작성자 정보 */}
-              <View style={styles.authorInfo}>
-                <View style={styles.authorAvatarContainer}>
-                  {post.authorInfo?.profileImageUrl ? (
-                    <Image 
-                      source={{ uri: post.authorInfo.profileImageUrl }} 
-                      style={styles.authorAvatar}
-                    />
-                  ) : (
+              {post.authorInfo?.isAnonymous ? (
+                <View style={styles.authorInfo}>
+                  <View style={styles.authorAvatarContainer}>
                     <View style={styles.authorAvatarPlaceholder}>
-                      <Text style={styles.authorAvatarText}>
-                        {post.authorInfo?.isAnonymous ? '익명' : (post.authorInfo?.displayName?.substring(0, 1) || 'U')}
-                      </Text>
+                      <Text style={styles.authorAvatarText}>익명</Text>
                     </View>
-                  )}
-                </View>
-                <View style={styles.authorTextInfo}>
-                  <Text style={styles.authorName}>
-                    {post.authorInfo?.displayName || '익명'}
-                  </Text>
-                  <View style={styles.authorMetaInfo}>
-                    <Text style={styles.postDate}>{formatDate(post.createdAt)}</Text>
-                    <Text style={styles.viewCount}>조회 {post.stats.viewCount}</Text>
+                  </View>
+                  <View style={styles.authorTextInfo}>
+                    <Text style={styles.authorName}>익명</Text>
+                    <View style={styles.authorMetaInfo}>
+                      <Text style={styles.postDate}>{formatDate(post.createdAt)}</Text>
+                      <Text style={styles.viewCount}>조회 {post.stats.viewCount}</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
+              ) : (
+                <TouchableOpacity 
+                  style={styles.authorInfo}
+                  onPress={() => router.push(`/users/${post.authorId}`)}
+                >
+                  <View style={styles.authorAvatarContainer}>
+                    {post.authorInfo?.profileImageUrl ? (
+                      <Image 
+                        source={{ uri: post.authorInfo.profileImageUrl }} 
+                        style={styles.authorAvatar}
+                      />
+                    ) : (
+                      <View style={styles.authorAvatarPlaceholder}>
+                        <Text style={styles.authorAvatarText}>
+                          {post.authorInfo?.displayName?.substring(0, 1) || 'U'}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.authorTextInfo}>
+                    <Text style={styles.authorName}>
+                      {post.authorInfo?.displayName || '사용자'}
+                    </Text>
+                    <View style={styles.authorMetaInfo}>
+                      <Text style={styles.postDate}>{formatDate(post.createdAt)}</Text>
+                      <Text style={styles.viewCount}>조회 {post.stats.viewCount}</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              )}
 
               {/* 내용 (HTML 렌더링으로 인라인 이미지 포함) */}
               <HtmlRenderer 
@@ -1935,5 +1985,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#7c3aed',
     fontWeight: '600',
+  },
+  clickableAuthor: {
+    color: '#3b82f6',
   },
 }); 

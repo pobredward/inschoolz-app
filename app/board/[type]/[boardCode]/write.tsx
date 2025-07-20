@@ -265,6 +265,7 @@ export default function WritePostPage() {
         authorId: user.uid,
         authorInfo: {
           displayName: getUserDisplayName(),
+          profileImageUrl: isAnonymous ? '' : (user.profile?.profileImageUrl || ''),
           isAnonymous: isAnonymous,
         },
         // 학교와 지역 정보 추가

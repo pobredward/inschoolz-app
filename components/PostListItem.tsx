@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { router } from 'expo-router';
 import { Post } from '../types';
 import { getPostPreviewImages, formatSmartTime } from '../utils/timeUtils';
 
@@ -97,9 +98,22 @@ const PostListItem: React.FC<PostListItemProps> = ({
       {/* 하단 통계 정보 */}
       <View style={styles.postStats}>
         <View style={styles.postStatsLeft}>
-          <Text style={styles.postStatItem}>
-            {post.authorInfo?.displayName || '익명'} | {formatSmartTime(post.createdAt)}
-          </Text>
+          {post.authorInfo?.isAnonymous ? (
+            <Text style={styles.postStatItem}>
+              익명 | {formatSmartTime(post.createdAt)}
+            </Text>
+          ) : (
+            <TouchableOpacity 
+              onPress={(e) => {
+                e.stopPropagation();
+                router.push(`/users/${post.authorId}`);
+              }}
+            >
+              <Text style={styles.postStatItem}>
+                <Text style={styles.clickableAuthor}>{post.authorInfo?.displayName || '사용자'}</Text> | {formatSmartTime(post.createdAt)}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
         <View style={styles.postStatsRight}>
           <Text style={styles.postStatItem}>👁 {post.stats?.viewCount || 0}</Text>
@@ -245,6 +259,10 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '500',
     color: '#7c3aed',
+  },
+  clickableAuthor: {
+    color: '#3b82f6',
+    fontWeight: '600',
   },
 });
 

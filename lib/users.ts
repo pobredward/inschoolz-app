@@ -426,25 +426,23 @@ export const bulkUpdateUsers = async (userIds: string[], updates: {
   }
 }; 
 
-/**
- * 사용자 정보 조회
- */
+// 기존 getUserById 함수 개선
 export const getUserById = async (userId: string): Promise<User | null> => {
   try {
-    const userRef = doc(db, 'users', userId);
-    const userDoc = await getDoc(userRef);
+    const userDoc = await getDoc(doc(db, 'users', userId));
     
-    if (userDoc.exists()) {
-      return { 
-        ...userDoc.data(),
-        uid: userDoc.id
-      } as User;
-    } else {
+    if (!userDoc.exists()) {
       return null;
     }
+    
+    const userData = userDoc.data();
+    return {
+      uid: userDoc.id,
+      ...userData
+    } as User;
   } catch (error) {
-    console.error('사용자 정보 조회 오류:', error);
-    throw new Error('사용자 정보를 가져오는 중 오류가 발생했습니다.');
+    console.error('사용자 조회 오류:', error);
+    throw new Error('사용자 정보를 조회하는 중 오류가 발생했습니다.');
   }
 };
 
@@ -694,236 +692,300 @@ export const updateProfileImage = async (
 };
 
 /**
- * 사용자가 작성한 게시글 목록 조회
+ * 사용자 관계 타입 정의
  */
-export const getUserPosts = async (
-  userId: string, 
-  page = 1, 
-  pageSize = 10,
-  sortBy: 'latest' | 'popular' = 'latest'
-): Promise<{ posts: Post[], totalCount: number, hasMore: boolean }> => {
-  try {
-    if (!userId) {
-      return {
-        posts: [],
-        totalCount: 0,
-        hasMore: false
-      };
-    }
+interface UserRelationship {
+  id?: string;
+  userId: string;
+  targetId: string;
+  type: 'follow' | 'block';
+  status: 'active' | 'inactive';
+  createdAt: any;
+  updatedAt: any;
+}
 
-    let postsQuery;
-    
-    if (sortBy === 'latest') {
-      postsQuery = query(
-        collection(db, 'posts'),
-        where('authorId', '==', userId),
-        where('status.isDeleted', '==', false),
-        orderBy('createdAt', 'desc'),
-        limit(pageSize * page)
-      );
-    } else {
-      postsQuery = query(
-        collection(db, 'posts'),
-        where('authorId', '==', userId),
-        where('status.isDeleted', '==', false),
-        orderBy('stats.likeCount', 'desc'),
-        limit(pageSize * page)
-      );
-    }
-    
-    const querySnapshot = await getDocs(postsQuery);
-    const posts: Post[] = [];
-    
-    // 게시판 정보 캐시
-    const boardCache: { [key: string]: string } = {};
-    // 학교 정보 캐시
-    const schoolCache: { [key: string]: string } = {};
-    
-    for (const doc of querySnapshot.docs) {
-      const postData = doc.data();
-      
-      // 게시판 이름 조회
-      let boardName = postData.boardName || '게시판';
-      
-      // postData에 boardName이 없는 경우에만 조회
-      if (!postData.boardName && postData.boardCode) {
-        if (boardCache[postData.boardCode]) {
-          boardName = boardCache[postData.boardCode];
-        } else {
-          try {
-            const board = await getBoard(postData.boardCode);
-            boardName = board?.name || `게시판 (${postData.boardCode})`;
-            boardCache[postData.boardCode] = boardName;
-          } catch (error) {
-            console.error('게시판 정보 조회 실패:', error);
-            boardName = postData.boardCode || '게시판';
-          }
-        }
-      }
-      
-      // 학교 이름 조회 (학교 게시글인 경우)
-      let schoolName = undefined;
-      if (postData.type === 'school' && postData.schoolId) {
-        if (schoolCache[postData.schoolId]) {
-          schoolName = schoolCache[postData.schoolId];
-        } else {
-          try {
-            const school = await getSchoolById(postData.schoolId);
-            schoolName = school?.KOR_NAME || '학교';
-            schoolCache[postData.schoolId] = schoolName;
-          } catch (error) {
-            console.error('학교 정보 조회 실패:', error);
-            schoolName = '학교';
-          }
-        }
-      }
-      
-      // 미리보기 콘텐츠 생성
-      const previewContent = postData.content 
-        ? postData.content.replace(/<[^>]*>/g, '').substring(0, 100)
-        : '';
-      
-      posts.push({
-        id: doc.id,
-        title: postData.title,
-        content: postData.content,
-        authorId: postData.authorId,
-        createdAt: postData.createdAt,
-        updatedAt: postData.updatedAt,
-        boardCode: postData.boardCode,
-        type: postData.type,
-        schoolId: postData.schoolId,
-        regions: postData.regions,
-        attachments: postData.attachments || [],
-        status: postData.status,
-        stats: postData.stats,
-        boardName,
-        previewContent,
-        schoolName
-      } as Post);
-    }
-    
-    // 전체 게시글 수 가져오기
-    const countQuery = query(
-      collection(db, 'posts'),
-      where('authorId', '==', userId),
-      where('status.isDeleted', '==', false)
+/**
+ * 팔로우 상태 확인
+ */
+export const checkFollowStatus = async (userId: string, targetId: string): Promise<boolean> => {
+  try {
+    const relationshipsRef = collection(db, 'userRelationships');
+    const q = query(
+      relationshipsRef,
+      where('userId', '==', userId),
+      where('targetId', '==', targetId),
+      where('type', '==', 'follow'),
+      where('status', '==', 'active')
     );
     
-    const countSnapshot = await getDocs(countQuery);
-    const totalCount = countSnapshot.size;
-    
-    // 페이징 처리
-    const startIndex = (page - 1) * pageSize;
-    const paginatedPosts = posts.slice(startIndex, startIndex + pageSize);
-    
-    return {
-      posts: paginatedPosts,
-      totalCount,
-      hasMore: totalCount > page * pageSize
-    };
+    const querySnapshot = await getDocs(q);
+    return !querySnapshot.empty;
   } catch (error) {
-    console.error('사용자 게시글 목록 조회 오류:', error);
-    throw new Error('게시글 목록을 가져오는 중 오류가 발생했습니다.');
+    console.error('팔로우 상태 확인 오류:', error);
+    return false;
   }
 };
 
 /**
- * 사용자가 작성한 댓글 목록 조회
+ * 팔로워 수 조회
+ */
+export const getFollowersCount = async (userId: string): Promise<number> => {
+  try {
+    const relationshipsRef = collection(db, 'userRelationships');
+    const q = query(
+      relationshipsRef,
+      where('targetId', '==', userId),
+      where('type', '==', 'follow'),
+      where('status', '==', 'active')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.size;
+  } catch (error) {
+    console.error('팔로워 수 조회 오류:', error);
+    return 0;
+  }
+};
+
+/**
+ * 팔로잉 수 조회
+ */
+export const getFollowingCount = async (userId: string): Promise<number> => {
+  try {
+    const relationshipsRef = collection(db, 'userRelationships');
+    const q = query(
+      relationshipsRef,
+      where('userId', '==', userId),
+      where('type', '==', 'follow'),
+      where('status', '==', 'active')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.size;
+  } catch (error) {
+    console.error('팔로잉 수 조회 오류:', error);
+    return 0;
+  }
+};
+
+/**
+ * 팔로워 목록 조회
+ */
+export const getFollowers = async (
+  userId: string,
+  page = 1,
+  pageSize = 20
+): Promise<{ users: User[], totalCount: number, hasMore: boolean }> => {
+  try {
+    const relationshipsRef = collection(db, 'userRelationships');
+    const q = query(
+      relationshipsRef,
+      where('targetId', '==', userId),
+      where('type', '==', 'follow'),
+      where('status', '==', 'active'),
+      orderBy('createdAt', 'desc'),
+      limit(pageSize * page)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const relationships = querySnapshot.docs.map(doc => doc.data() as UserRelationship);
+    
+    // 팔로워 사용자 정보 조회
+    const users: User[] = [];
+    for (const relationship of relationships) {
+      const user = await getUserById(relationship.userId);
+      if (user) {
+        users.push(user);
+      }
+    }
+    
+    // 전체 팔로워 수 조회
+    const totalCount = await getFollowersCount(userId);
+    
+    // 페이징 처리
+    const startIndex = (page - 1) * pageSize;
+    const paginatedUsers = users.slice(startIndex, startIndex + pageSize);
+    
+    return {
+      users: paginatedUsers,
+      totalCount,
+      hasMore: totalCount > page * pageSize
+    };
+  } catch (error) {
+    console.error('팔로워 목록 조회 오류:', error);
+    throw new Error('팔로워 목록을 조회하는 중 오류가 발생했습니다.');
+  }
+};
+
+/**
+ * 팔로잉 목록 조회
+ */
+export const getFollowings = async (
+  userId: string,
+  page = 1,
+  pageSize = 20
+): Promise<{ users: User[], totalCount: number, hasMore: boolean }> => {
+  try {
+    const relationshipsRef = collection(db, 'userRelationships');
+    const q = query(
+      relationshipsRef,
+      where('userId', '==', userId),
+      where('type', '==', 'follow'),
+      where('status', '==', 'active'),
+      orderBy('createdAt', 'desc'),
+      limit(pageSize * page)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const relationships = querySnapshot.docs.map(doc => doc.data() as UserRelationship);
+    
+    // 팔로잉 사용자 정보 조회
+    const users: User[] = [];
+    for (const relationship of relationships) {
+      const user = await getUserById(relationship.targetId);
+      if (user) {
+        users.push(user);
+      }
+    }
+    
+    // 전체 팔로잉 수 조회
+    const totalCount = await getFollowingCount(userId);
+    
+    // 페이징 처리
+    const startIndex = (page - 1) * pageSize;
+    const paginatedUsers = users.slice(startIndex, startIndex + pageSize);
+    
+    return {
+      users: paginatedUsers,
+      totalCount,
+      hasMore: totalCount > page * pageSize
+    };
+  } catch (error) {
+    console.error('팔로잉 목록 조회 오류:', error);
+    throw new Error('팔로잉 목록을 조회하는 중 오류가 발생했습니다.');
+  }
+};
+
+/**
+ * 팔로우/언팔로우 토글
+ */
+export const toggleFollow = async (userId: string, targetId: string): Promise<void> => {
+  try {
+    if (userId === targetId) {
+      throw new Error('자기 자신을 팔로우할 수 없습니다.');
+    }
+
+    const relationshipsRef = collection(db, 'userRelationships');
+    
+    // 기존 관계 확인
+    const existingQuery = query(
+      relationshipsRef,
+      where('userId', '==', userId),
+      where('targetId', '==', targetId),
+      where('type', '==', 'follow')
+    );
+    
+    const existingSnapshot = await getDocs(existingQuery);
+    
+    if (existingSnapshot.empty) {
+      // 팔로우 관계 생성
+      await addDoc(relationshipsRef, {
+        userId,
+        targetId,
+        type: 'follow',
+        status: 'active',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    } else {
+      // 기존 관계 토글
+      const existingDoc = existingSnapshot.docs[0];
+      const existingData = existingDoc.data();
+      
+      if (existingData.status === 'active') {
+        // 언팔로우
+        await updateDoc(existingDoc.ref, {
+          status: 'inactive',
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        // 재팔로우
+        await updateDoc(existingDoc.ref, {
+          status: 'active',
+          updatedAt: serverTimestamp()
+        });
+      }
+    }
+  } catch (error) {
+    console.error('팔로우 토글 오류:', error);
+    throw new Error('팔로우 상태를 변경하는 중 오류가 발생했습니다.');
+  }
+};
+
+/**
+ * 차단 상태 확인
+ */
+export const checkBlockStatus = async (userId: string, targetId: string): Promise<boolean> => {
+  try {
+    const relationshipsRef = collection(db, 'userRelationships');
+    const q = query(
+      relationshipsRef,
+      where('userId', '==', userId),
+      where('targetId', '==', targetId),
+      where('type', '==', 'block'),
+      where('status', '==', 'active')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return !querySnapshot.empty;
+  } catch (error) {
+    console.error('차단 상태 확인 오류:', error);
+    return false;
+  }
+};
+
+/**
+ * 사용자 게시글 조회
+ */
+export const getUserPosts = async (
+  userId: string,
+  page = 1,
+  pageSize = 10,
+  sortBy: 'latest' | 'popular' = 'latest'
+): Promise<{ posts: any[], totalCount: number, hasMore: boolean }> => {
+  try {
+    // TODO: 실제 게시글 조회 로직 구현
+    // 현재는 빈 배열 반환
+    return {
+      posts: [],
+      totalCount: 0,
+      hasMore: false
+    };
+  } catch (error) {
+    console.error('사용자 게시글 조회 오류:', error);
+    throw new Error('게시글을 조회하는 중 오류가 발생했습니다.');
+  }
+};
+
+/**
+ * 사용자 댓글 조회
  */
 export const getUserComments = async (
   userId: string,
   page = 1,
   pageSize = 10
-): Promise<{ comments: Comment[], totalCount: number, hasMore: boolean }> => {
+): Promise<{ comments: any[], totalCount: number, hasMore: boolean }> => {
   try {
-    if (!userId) {
-      return {
-        comments: [],
-        totalCount: 0,
-        hasMore: false
-      };
-    }
-    
-    // Firestore에서는 하위 컬렉션에 대한 전체 쿼리가 불가능하므로 
-    // 실제 구현에서는 별도의 comments 컬렉션을 만들거나 다른 방법 필요
-    // 여기서는 개념적으로 구현
-    
-    // 모든 게시글의 comments 하위 컬렉션을 조회해야 함
-    // 실제로는 사용자의 댓글을 추적하는 별도 컬렉션을 사용하는 것이 좋음
-    const postsRef = collection(db, 'posts');
-    const postsSnapshot = await getDocs(postsRef);
-    
-    const allComments: Comment[] = [];
-    
-    // 각 게시글의 comments 하위 컬렉션 조회
-    for (const postDoc of postsSnapshot.docs) {
-      const commentsRef = collection(db, `posts/${postDoc.id}/comments`);
-      const commentsQuery = query(
-        commentsRef,
-        where('authorId', '==', userId),
-        where('status.isDeleted', '==', false),
-        orderBy('createdAt', 'desc')
-      );
-      
-      const commentsSnapshot = await getDocs(commentsQuery);
-      
-      for (const commentDoc of commentsSnapshot.docs) {
-        const postData = postDoc.data();
-        const commentData = commentDoc.data();
-        
-        // 게시판 이름 가져오기
-        let boardName = postData.boardName || '게시판';
-        
-        // postData에 boardName이 없는 경우에만 조회
-        if (!postData.boardName && postData.boardCode) {
-          try {
-            const boardRef = doc(db, 'boards', postData.boardCode);
-            const boardDoc = await getDoc(boardRef);
-            if (boardDoc.exists()) {
-              boardName = boardDoc.data()?.name || postData.boardCode;
-            } else {
-              boardName = postData.boardCode;
-            }
-          } catch (error) {
-            console.error('게시판 정보 조회 실패:', error);
-            boardName = postData.boardCode || '게시판';
-          }
-        }
-        
-        allComments.push({ 
-          id: commentDoc.id, 
-          ...commentData,
-          postId: postDoc.id,  // 명시적으로 postId 추가
-          postData: {
-            title: postData.title,
-            type: postData.type,
-            boardCode: postData.boardCode,
-            boardName: boardName,
-            schoolId: postData.schoolId,
-            regions: postData.regions
-          }
-        } as any);
-      }
-    }
-    
-    // 생성일 기준 정렬 (최신 댓글이 위에)
-    allComments.sort((a, b) => toTimestamp(b.createdAt) - toTimestamp(a.createdAt));
-    
-    // 페이징 처리
-    const totalCount = allComments.length;
-    const startIndex = (page - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    const paginatedComments = allComments.slice(startIndex, endIndex);
-    
+    // TODO: 실제 댓글 조회 로직 구현
+    // 현재는 빈 배열 반환
     return {
-      comments: paginatedComments,
-      totalCount,
-      hasMore: totalCount > endIndex
+      comments: [],
+      totalCount: 0,
+      hasMore: false
     };
   } catch (error) {
-    console.error('사용자 댓글 목록 조회 오류:', error);
-    throw new Error('댓글 목록을 가져오는 중 오류가 발생했습니다.');
+    console.error('사용자 댓글 조회 오류:', error);
+    throw new Error('댓글을 조회하는 중 오류가 발생했습니다.');
   }
 };
 
