@@ -1475,3 +1475,70 @@ export const deleteAnonymousComment = async (
     throw error;
   }
 }; 
+
+/**
+ * 일반 댓글 삭제
+ */
+export const deleteComment = async (
+  postId: string,
+  commentId: string,
+  userId: string
+): Promise<void> => {
+  try {
+    const commentRef = doc(db, 'posts', postId, 'comments', commentId);
+    const commentDoc = await getDoc(commentRef);
+    
+    if (!commentDoc.exists()) {
+      throw new Error('존재하지 않는 댓글입니다.');
+    }
+    
+    const commentData = commentDoc.data() as any;
+    
+    // 댓글 작성자 확인 (익명 댓글은 삭제할 수 없음)
+    if (!commentData.authorId || commentData.authorId !== userId) {
+      throw new Error('댓글 삭제 권한이 없습니다.');
+    }
+    
+    // 대댓글이 있는지 확인
+    const repliesRef = collection(db, 'posts', postId, 'comments');
+    const repliesQuery = query(repliesRef, where('parentId', '==', commentId));
+    const repliesSnapshot = await getDocs(repliesQuery);
+    
+    const hasReplies = !repliesSnapshot.empty;
+    
+    // 트랜잭션으로 댓글 삭제 및 게시글 댓글 수 감소
+    await runTransaction(db, async (transaction) => {
+      const postRef = doc(db, 'posts', postId);
+      
+      if (hasReplies) {
+        // 대댓글이 있는 경우: 소프트 삭제 (내용만 변경)
+        transaction.update(commentRef, {
+          content: '삭제된 댓글입니다.',
+          'status.isDeleted': true,
+          deletedAt: serverTimestamp(),
+        });
+      } else {
+        // 대댓글이 없는 경우: 소프트 삭제 (완전 삭제는 하지 않음)
+        transaction.update(commentRef, {
+          'status.isDeleted': true,
+          deletedAt: serverTimestamp(),
+        });
+      }
+      
+      // 게시글의 댓글 수 감소
+      transaction.update(postRef, {
+        'stats.commentCount': increment(-1),
+      });
+      
+      // 사용자 댓글 수 감소
+      const userRef = doc(db, 'users', userId);
+      transaction.update(userRef, {
+        'stats.commentCount': increment(-1),
+        updatedAt: serverTimestamp(),
+      });
+    });
+  } catch (error) {
+    console.error('댓글 삭제 실패:', error);
+    throw error;
+  }
+};
