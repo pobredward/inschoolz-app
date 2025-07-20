@@ -50,6 +50,9 @@ export default function EditPostPage() {
     { text: '' }
   ]);
 
+  // 투표 수정 모드 - 기존 투표가 있으면 수정만 가능, 없으면 비활성화
+  const [hasExistingPoll, setHasExistingPoll] = useState(false);
+
   // 게시글 및 게시판 정보 로드
   useEffect(() => {
     const loadData = async () => {
@@ -92,6 +95,11 @@ export default function EditPostPage() {
             text: option.text,
             imageUrl: option.imageUrl
           })));
+          setHasExistingPoll(true);
+        } else {
+          setIsPollEnabled(false);
+          setPollOptions([{ text: '' }, { text: '' }]);
+          setHasExistingPoll(false);
         }
         
         // 기존 첨부파일 정보 설정 (이미지만 필터링)
@@ -151,30 +159,7 @@ export default function EditPostPage() {
         updatedAt: serverTimestamp()
       };
 
-      // 투표 데이터 처리
-      if (isPollEnabled && pollOptions.filter(option => option.text.trim()).length >= 2) {
-        updateData.poll = {
-          isActive: true,
-          question: '', // 질문 없이 빈 문자열
-          options: pollOptions.filter(option => option.text.trim()).map((option, index) => {
-            const pollOption: any = {
-              text: option.text.trim(),
-              voteCount: 0,
-              index
-            }
-            // imageUrl이 있을 때만 추가
-            if (option.imageUrl) {
-              pollOption.imageUrl = option.imageUrl
-            }
-            return pollOption
-          }),
-          voters: [],
-        };
-      } else {
-        // 투표를 비활성화하면 poll 필드 삭제
-        updateData.poll = deleteField();
-      }
-
+      // 투표 데이터는 수정하지 않음 - 기존 상태 그대로 유지
 
 
       // 게시글 업데이트
@@ -385,84 +370,55 @@ export default function EditPostPage() {
             )}
 
             {/* 투표 섹션 */}
-            {(board as any)?.allowPolls && (
-              <View style={styles.section}>
-                <View style={styles.switchContainer}>
-                  <Text style={styles.sectionTitle}>투표 만들기</Text>
-                  <Switch
-                    value={isPollEnabled}
-                    onValueChange={setIsPollEnabled}
-                    trackColor={{ false: '#767577', true: '#10B981' }}
-                    thumbColor={isPollEnabled ? '#fff' : '#f4f3f4'}
-                  />
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>투표</Text>
+              {!hasExistingPoll ? (
+                <View style={styles.disabledPollContainer}>
+                  <Text style={styles.disabledPollText}>
+                    게시글 수정 시에는 새로운 투표를 추가할 수 없습니다.
+                  </Text>
+                  <Text style={styles.disabledPollSubtext}>
+                    투표는 게시글 작성 시에만 추가 가능합니다.
+                  </Text>
                 </View>
+              ) : (
+                <>
+                  <View style={styles.pollWarningContainer}>
+                    <Text style={styles.pollWarningTitle}>⚠️ 투표 수정 제한</Text>
+                    <Text style={styles.pollWarningText}>
+                      게시글 수정 시에는 기존 투표를 변경할 수 없습니다.
+                      투표는 읽기 전용으로만 표시됩니다.
+                    </Text>
+                  </View>
 
-                {isPollEnabled && (
-                  <View style={styles.pollSection}>
-                    <Text style={styles.pollSectionTitle}>투표 선택지</Text>
-                    {pollOptions.map((option, index) => (
-                      <View key={index} style={[styles.pollOptionContainer, { minHeight: 100 }]}>
-                        <View style={styles.pollOptionContent}>
-                          <TextInput
-                            style={styles.pollOptionInput}
-                            placeholder={`선택지 ${index + 1}`}
-                            value={option.text}
-                            onChangeText={(text) => updatePollOption(index, text)}
-                            multiline
-                            maxLength={100}
+                  {/* 읽기 전용 투표 표시 */}
+                  <View style={styles.readOnlyPollContainer}>
+                    <Text style={styles.readOnlyPollTitle}>투표 질문</Text>
+                    <View style={styles.readOnlyPollContent}>
+                      <Text style={styles.readOnlyPollText}>
+                        {post.poll?.question || '투표 질문이 없습니다.'}
+                      </Text>
+                    </View>
+
+                    <Text style={styles.readOnlyPollTitle}>투표 옵션</Text>
+                    {post.poll?.options.map((option, index) => (
+                      <View key={index} style={styles.readOnlyPollOption}>
+                        <Text style={styles.readOnlyPollOptionNumber}>{index + 1}.</Text>
+                        <Text style={styles.readOnlyPollOptionText}>
+                          {option.text || `옵션 ${index + 1}`}
+                        </Text>
+                        {option.imageUrl && (
+                          <Image 
+                            source={{ uri: option.imageUrl }}
+                            style={styles.readOnlyPollOptionImage}
                           />
-                          
-                          {/* 투표 옵션 이미지 영역 */}
-                          <View style={styles.pollImageContainer}>
-                            {option.imageUrl ? (
-                              <View style={styles.pollImageWrapper}>
-                                <Image
-                                  source={{ uri: option.imageUrl }}
-                                  style={[styles.pollImage, { width: 80, height: 100 }]}
-                                  resizeMode="cover"
-                                />
-                                <TouchableOpacity
-                                  style={styles.pollImageRemoveButton}
-                                  onPress={() => removePollOptionImage(index)}
-                                >
-                                  <Ionicons name="close" size={16} color="#fff" />
-                                </TouchableOpacity>
-                              </View>
-                            ) : (
-                              <TouchableOpacity
-                                style={styles.pollImageAddButton}
-                                onPress={() => handlePollOptionImageUpload(index)}
-                              >
-                                <Ionicons name="camera" size={20} color="#10B981" />
-                                <Text style={styles.pollImageAddText}>이미지</Text>
-                              </TouchableOpacity>
-                            )}
-                          </View>
-                        </View>
-                        
-                        {/* 옵션 삭제 버튼 */}
-                        {pollOptions.length > 2 && (
-                          <TouchableOpacity
-                            style={styles.pollOptionRemoveButton}
-                            onPress={() => removePollOption(index)}
-                          >
-                            <Ionicons name="trash-outline" size={16} color="#ef4444" />
-                          </TouchableOpacity>
                         )}
                       </View>
                     ))}
-                    
-                    {/* 옵션 추가 버튼 */}
-                    {pollOptions.length < 5 && (
-                      <TouchableOpacity style={styles.addPollOptionButton} onPress={addPollOption}>
-                        <Ionicons name="add" size={20} color="#10B981" />
-                        <Text style={styles.addPollOptionText}>선택지 추가</Text>
-                      </TouchableOpacity>
-                    )}
                   </View>
-                )}
-              </View>
-            )}
+                </>
+              )}
+            </View>
 
             {/* 하단 여백 */}
             <View style={styles.bottomSpacer} />
@@ -685,5 +641,110 @@ const styles = StyleSheet.create({
     color: '#10B981',
     fontWeight: '600',
     marginLeft: 4,
+  },
+  // 투표 수정 모드 관련 스타일
+  disabledPollContainer: {
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 20,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  disabledPollText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  disabledPollSubtext: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
+  },
+  pollWarningContainer: {
+    backgroundColor: '#fffbeb',
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  pollWarningTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#d97706',
+    marginBottom: 4,
+  },
+  pollWarningText: {
+    fontSize: 12,
+    color: '#78350f',
+  },
+  switchLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginRight: 8,
+  },
+  pollContainer: {
+    // 투표 옵션 목록의 스타일
+  },
+  pollOptionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  // 투표 수정 모드 관련 스타일
+  readOnlyPollContainer: {
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 20,
+    marginTop: 16,
+  },
+  readOnlyPollTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  readOnlyPollContent: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 6,
+    padding: 12,
+    marginBottom: 12,
+  },
+  readOnlyPollText: {
+    fontSize: 14,
+    color: '#555',
+    lineHeight: 20,
+  },
+  readOnlyPollOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  readOnlyPollOptionNumber: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginRight: 8,
+  },
+  readOnlyPollOptionText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#555',
+    lineHeight: 20,
+  },
+  readOnlyPollOptionImage: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    marginLeft: 8,
   },
 }); 
