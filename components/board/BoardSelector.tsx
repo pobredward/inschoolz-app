@@ -4,14 +4,15 @@ import {
   Text,
   Modal,
   TouchableOpacity,
-  FlatList,
   ActivityIndicator,
   StyleSheet,
+  ScrollView,
+  Dimensions,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Board } from '@/types';
-import { getBoardsByType } from '@/lib/boards';
+import { useRouter } from 'expo-router';
+import { getBoardsByType } from '../../lib/boards';
+import { Board } from '../../types';
 
 interface BoardSelectorProps {
   isVisible: boolean;
@@ -23,6 +24,8 @@ interface BoardSelectorProps {
     sigungu: string;
   };
 }
+
+const { width: screenWidth } = Dimensions.get('window');
 
 export default function BoardSelector({ 
   isVisible, 
@@ -89,24 +92,6 @@ export default function BoardSelector({
     }
   };
 
-  const renderBoardItem = ({ item }: { item: Board }) => (
-    <TouchableOpacity 
-      style={styles.boardItem}
-      onPress={() => handleBoardSelect(item)}
-    >
-      <View style={styles.boardContent}>
-        <Text style={styles.boardIcon}>{item.icon}</Text>
-        <View style={styles.boardInfo}>
-          <Text style={styles.boardName}>{item.name}</Text>
-          {item.description && (
-            <Text style={styles.boardDescription}>{item.description}</Text>
-          )}
-        </View>
-        <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-      </View>
-    </TouchableOpacity>
-  );
-
   return (
     <Modal
       visible={isVisible}
@@ -135,14 +120,31 @@ export default function BoardSelector({
               <Text style={styles.emptyText}>사용 가능한 게시판이 없습니다.</Text>
             </View>
           ) : (
-            <FlatList
-              data={boards}
-              renderItem={renderBoardItem}
-              keyExtractor={(item) => item.id}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.listContainer}
-            />
+            <ScrollView 
+              style={styles.scrollView}
+              showsVerticalScrollIndicator={true}
+              contentContainerStyle={styles.badgeContainer}
+            >
+              <View style={styles.badgeWrapper}>
+                {boards.map((board) => (
+                  <TouchableOpacity
+                    key={board.id}
+                    style={styles.badge}
+                    onPress={() => handleBoardSelect(board)}
+                  >
+                    <Text style={styles.badgeText}>{board.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
           )}
+        </View>
+
+        {/* 푸터 */}
+        <View style={styles.footer}>
+          <TouchableOpacity onPress={onClose} style={styles.cancelButton}>
+            <Text style={styles.cancelButtonText}>취소</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
@@ -153,6 +155,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+    maxHeight: '70%',
   },
   header: {
     flexDirection: 'row',
@@ -165,7 +168,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#111827',
   },
   closeButton: {
@@ -175,54 +178,76 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
+  scrollView: {
+    flex: 1,
+  },
+  badgeContainer: {
+    paddingVertical: 20,
+  },
+  badgeWrapper: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  badge: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#374151',
+    textAlign: 'center',
+  },
+  footer: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    alignItems: 'flex-end',
+  },
+  cancelButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '500',
+  },
   loadingContainer: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
+    marginTop: 8,
+    fontSize: 14,
     color: '#6B7280',
   },
   emptyContainer: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyText: {
-    fontSize: 16,
-    color: '#6B7280',
-  },
-  listContainer: {
-    paddingVertical: 20,
-  },
-  boardItem: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  boardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-  },
-  boardIcon: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  boardInfo: {
-    flex: 1,
-  },
-  boardName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 2,
-  },
-  boardDescription: {
     fontSize: 14,
     color: '#6B7280',
   },

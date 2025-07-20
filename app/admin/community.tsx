@@ -56,7 +56,7 @@ interface BoardFormData {
 const defaultBoardForm: BoardFormData = {
   name: '',
   description: '',
-  icon: 'forum',
+        icon: 'chat',
   type: 'national',
   code: '',
   isActive: true,
