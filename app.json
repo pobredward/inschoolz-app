@@ -11,7 +11,15 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.onmindlab.inschoolz",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "buildNumber": "1",
+      "infoPlist": {
+        "UIBackgroundModes": ["remote-notification"],
+        "NSCameraUsageDescription": "This app uses the camera to let you take photos for your profile and posts.",
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to let you select images for your profile and posts.",
+        "NSMicrophoneUsageDescription": "This app may need microphone access for video features.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.onmindlab.inschoolz",
@@ -41,6 +49,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "66ad576c-df73-47e1-ab61-5295a3174493"
+      }
     }
   }
 }
