@@ -693,6 +693,11 @@ export default function PostDetailScreen() {
 
       const docRef = await addDoc(collection(db, 'posts', post.id, 'comments'), commentData);
       
+      // 게시글의 댓글 수 증가
+      await updateDoc(doc(db, 'posts', post.id), {
+        'stats.commentCount': increment(1)
+      });
+      
       // 댓글 목록 새로고침
       await loadComments(post.id);
       setNewComment('');
@@ -774,6 +779,11 @@ export default function PostDetailScreen() {
       };
 
       const docRef = await addDoc(collection(db, 'posts', post.id, 'comments'), replyData);
+      
+      // 게시글의 댓글 수 증가 (답글도 댓글 수에 포함)
+      await updateDoc(doc(db, 'posts', post.id), {
+        'stats.commentCount': increment(1)
+      });
       
       // 댓글 목록 새로고침
       await loadComments(post.id);
@@ -1010,12 +1020,9 @@ export default function PostDetailScreen() {
             </View>
           ) : (
             <TouchableOpacity 
-              style={styles.commentAvatar}
               onPress={() => comment.authorId && router.push(`/users/${comment.authorId}`)}
             >
-              <Text style={styles.avatarText}>
-                {authorName.charAt(0)}
-              </Text>
+              {renderProfileImage(comment.author?.profileImageUrl, authorName, comment.isAnonymous)}
             </TouchableOpacity>
           )}
       
@@ -1067,6 +1074,11 @@ export default function PostDetailScreen() {
                                   // 대댓글이 없으면 완전 삭제
                                   await deleteDoc(doc(db, 'posts', postId, 'comments', comment.id));
                                 }
+                                
+                                // 게시글의 댓글 수 감소
+                                await updateDoc(doc(db, 'posts', postId), {
+                                  'stats.commentCount': increment(-1)
+                                });
                                 
                                 Alert.alert('성공', '댓글이 삭제되었습니다.');
                                 // 댓글 목록 새로고침
