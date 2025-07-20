@@ -871,39 +871,132 @@ export const createPost = async (userId: string, params: CreatePostParams): Prom
 /**
  * 댓글 좋아요 토글
  */
-export const toggleCommentLike = async (postId: string, commentId: string, userId: string): Promise<boolean> => {
+export const toggleCommentLike = async (
+  postId: string,
+  commentId: string,
+  userId: string
+): Promise<{ liked: boolean; likeCount: number }> => {
   try {
-    // 좋아요 중복 체크
+    // 좋아요 상태 확인
     const likeRef = doc(db, 'posts', postId, 'comments', commentId, 'likes', userId);
     const likeDoc = await getDoc(likeRef);
-    const batch = writeBatch(db);
+    const commentRef = doc(db, 'posts', postId, 'comments', commentId);
+    const commentDoc = await getDoc(commentRef);
     
+    if (!commentDoc.exists()) {
+      throw new Error('댓글을 찾을 수 없습니다.');
+    }
+    
+    const commentData = commentDoc.data();
+    const currentLikeCount = commentData.stats?.likeCount || 0;
+    
+    const batch = writeBatch(db);
     let isLiked = false;
+    let newLikeCount = currentLikeCount;
     
     if (likeDoc.exists()) {
       // 좋아요 취소
       batch.delete(likeRef);
-      // 댓글 좋아요 수 감소
-      batch.update(doc(db, 'posts', postId, 'comments', commentId), {
-        'stats.likeCount': increment(-1)
+      newLikeCount = Math.max(0, currentLikeCount - 1);
+      batch.update(commentRef, {
+        'stats.likeCount': newLikeCount,
+        updatedAt: serverTimestamp()
       });
     } else {
       // 좋아요 추가
       batch.set(likeRef, {
+        userId,
+        commentId,
+        postId,
         createdAt: serverTimestamp()
       });
-      // 댓글 좋아요 수 증가
-      batch.update(doc(db, 'posts', postId, 'comments', commentId), {
-        'stats.likeCount': increment(1)
+      newLikeCount = currentLikeCount + 1;
+      batch.update(commentRef, {
+        'stats.likeCount': newLikeCount,
+        updatedAt: serverTimestamp()
       });
       isLiked = true;
     }
     
     await batch.commit();
-    return isLiked;
+    
+    // 좋아요 추가 시에만 경험치 지급
+    if (isLiked) {
+      try {
+        const { awardExperience } = await import('./experience');
+        const expResult = await awardExperience(userId, 'like');
+        if (expResult.success && expResult.leveledUp) {
+          console.log(`🎉 레벨업! ${expResult.oldLevel} → ${expResult.newLevel} (댓글 좋아요)`);
+        }
+      } catch (expError) {
+        console.error('댓글 좋아요 경험치 지급 오류:', expError);
+        // 경험치 지급 실패는 좋아요 자체를 실패로 처리하지 않음
+      }
+    }
+    
+    return {
+      liked: isLiked,
+      likeCount: newLikeCount
+    };
   } catch (error) {
     console.error('댓글 좋아요 토글 오류:', error);
-    throw new Error('좋아요 처리 중 오류가 발생했습니다.');
+    throw new Error('댓글 좋아요 처리 중 오류가 발생했습니다.');
+  }
+};
+
+/**
+ * 댓글 좋아요 상태 확인
+ */
+export const checkCommentLikeStatus = async (
+  postId: string,
+  commentId: string,
+  userId: string
+): Promise<boolean> => {
+  try {
+    if (!userId) return false;
+    
+    const likeRef = doc(db, 'posts', postId, 'comments', commentId, 'likes', userId);
+    const likeDoc = await getDoc(likeRef);
+    
+    return likeDoc.exists();
+  } catch (error) {
+    console.error('댓글 좋아요 상태 확인 오류:', error);
+    return false;
+  }
+};
+
+/**
+ * 여러 댓글의 좋아요 상태를 한번에 확인
+ */
+export const checkMultipleCommentLikeStatus = async (
+  postId: string,
+  commentIds: string[],
+  userId: string
+): Promise<Record<string, boolean>> => {
+  try {
+    if (!userId || commentIds.length === 0) {
+      return {};
+    }
+    
+    const likeStatuses: Record<string, boolean> = {};
+    
+    // 각 댓글의 좋아요 상태를 병렬로 확인
+    const promises = commentIds.map(async (commentId) => {
+      const likeRef = doc(db, 'posts', postId, 'comments', commentId, 'likes', userId);
+      const likeDoc = await getDoc(likeRef);
+      return { commentId, liked: likeDoc.exists() };
+    });
+    
+    const results = await Promise.all(promises);
+    
+    results.forEach(({ commentId, liked }) => {
+      likeStatuses[commentId] = liked;
+    });
+    
+    return likeStatuses;
+  } catch (error) {
+    console.error('여러 댓글 좋아요 상태 확인 오류:', error);
+    return {};
   }
 };
 

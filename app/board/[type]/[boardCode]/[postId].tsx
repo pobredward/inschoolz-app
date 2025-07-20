@@ -21,7 +21,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { BoardType, Post, Comment, Board } from '@/types';
-import { getBoardsByType, deleteAnonymousComment } from '@/lib/boards';
+import { getBoardsByType, deleteAnonymousComment, toggleCommentLike, checkMultipleCommentLikeStatus } from '@/lib/boards';
 import { useAuthStore } from '@/store/authStore';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, getDocs, addDoc, query, where, orderBy, Timestamp, updateDoc, deleteDoc, serverTimestamp, increment } from 'firebase/firestore';
@@ -148,6 +148,9 @@ export default function PostDetailScreen() {
 
   // 익명 댓글 관련 상태
   const [showAnonymousForm, setShowAnonymousForm] = useState(false);
+  
+  // 댓글 좋아요 상태 관리
+  const [commentLikeStatuses, setCommentLikeStatuses] = useState<Record<string, boolean>>({});
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordModalData, setPasswordModalData] = useState<{
     commentId: string;
@@ -531,6 +534,28 @@ export default function PostDetailScreen() {
       commentsData.sort((a, b) => toTimestamp(a.createdAt) - toTimestamp(b.createdAt));
 
       setComments(commentsData);
+      
+      // 로그인한 사용자인 경우 댓글 좋아요 상태 확인
+      if (user?.uid && commentsData.length > 0) {
+        const allCommentIds: string[] = [];
+        
+        // 모든 댓글과 대댓글의 ID 수집
+        commentsData.forEach(comment => {
+          allCommentIds.push(comment.id);
+          if (comment.replies) {
+            comment.replies.forEach(reply => {
+              allCommentIds.push(reply.id);
+            });
+          }
+        });
+        
+        try {
+          const likeStatuses = await checkMultipleCommentLikeStatus(postId, allCommentIds, user.uid);
+          setCommentLikeStatuses(likeStatuses);
+        } catch (error) {
+          console.error('댓글 좋아요 상태 확인 실패:', error);
+        }
+      }
     } catch (error) {
       console.error('댓글 로드 실패:', error);
     }
@@ -867,6 +892,61 @@ export default function PostDetailScreen() {
     }
   };
 
+  // 댓글 좋아요 토글
+  const handleCommentLike = async (commentId: string) => {
+    if (!user?.uid) {
+      Alert.alert('알림', '로그인이 필요합니다.');
+      return;
+    }
+
+    try {
+      const result = await toggleCommentLike(postId, commentId, user.uid);
+      
+      // 좋아요 상태 즉시 업데이트
+      setCommentLikeStatuses(prev => ({
+        ...prev,
+        [commentId]: result.liked
+      }));
+      
+      // 댓글 좋아요 수 업데이트
+      setComments(prev => prev.map(comment => {
+        if (comment.id === commentId) {
+          return {
+            ...comment,
+            stats: {
+              ...comment.stats,
+              likeCount: result.likeCount
+            }
+          };
+        }
+        // 대댓글 확인
+        if (comment.replies) {
+          const updatedReplies = comment.replies.map(reply => {
+            if (reply.id === commentId) {
+              return {
+                ...reply,
+                stats: {
+                  ...reply.stats,
+                  likeCount: result.likeCount
+                }
+              };
+            }
+            return reply;
+          });
+          return {
+            ...comment,
+            replies: updatedReplies
+          };
+        }
+        return comment;
+      }));
+      
+    } catch (error) {
+      console.error('댓글 좋아요 처리 실패:', error);
+      Alert.alert('오류', '좋아요 처리에 실패했습니다.');
+    }
+  };
+
   const renderProfileImage = (profileImageUrl?: string, userName?: string, isAnonymous?: boolean) => {
     if (isAnonymous) {
       return (
@@ -980,9 +1060,19 @@ export default function PostDetailScreen() {
         
             {!isDeleted && (
               <View style={styles.commentActions}>
-                <TouchableOpacity style={styles.commentAction}>
-                  <Ionicons name="heart-outline" size={14} color="#64748b" />
-                  <Text style={styles.commentActionText}>
+                <TouchableOpacity 
+                  style={styles.commentAction}
+                  onPress={() => handleCommentLike(comment.id)}
+                >
+                  <Ionicons 
+                    name={commentLikeStatuses[comment.id] ? "heart" : "heart-outline"} 
+                    size={14} 
+                    color={commentLikeStatuses[comment.id] ? "#ef4444" : "#64748b"} 
+                  />
+                  <Text style={[
+                    styles.commentActionText,
+                    commentLikeStatuses[comment.id] && { color: "#ef4444" }
+                  ]}>
                     {comment.stats.likeCount}
                   </Text>
                 </TouchableOpacity>
