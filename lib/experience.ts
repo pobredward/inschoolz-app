@@ -53,14 +53,26 @@ export const CUMULATIVE_REQUIREMENTS = {
 };
 
 /**
+ * 시스템 설정 캐시 무효화
+ */
+export const invalidateSystemSettingsCache = () => {
+  console.log('invalidateSystemSettingsCache - 캐시 무효화');
+  cachedSystemSettings = null;
+};
+
+/**
  * 시스템 설정 가져오기
  */
 let cachedSystemSettings: SystemSettings | null = null;
 
 export const getSystemSettings = async (): Promise<SystemSettings> => {
+  // 캐시가 있으면 반환하되, 디버깅을 위해 로그 출력
   if (cachedSystemSettings) {
+    console.log('getSystemSettings - 캐시된 설정 사용:', cachedSystemSettings);
     return cachedSystemSettings;
   }
+  
+  console.log('getSystemSettings - Firebase에서 새로운 설정 로드 시도');
   
   try {
     // Firebase의 실제 experienceSettings 문서 읽기
@@ -68,6 +80,7 @@ export const getSystemSettings = async (): Promise<SystemSettings> => {
     
     if (experienceSettingsDoc.exists()) {
       const firebaseSettings = experienceSettingsDoc.data();
+      console.log('getSystemSettings - Firebase settings loaded:', firebaseSettings);
       
       // Firebase 구조를 코드 구조로 변환
       cachedSystemSettings = {
@@ -89,16 +102,16 @@ export const getSystemSettings = async (): Promise<SystemSettings> => {
           reactionGame: {
             rewardThreshold: 500, // 기본값 유지 (thresholds 배열로 대체됨)
             rewardAmount: 15,
-            thresholds: [
-              { minScore: 100, xpReward: 15 },
-              { minScore: 200, xpReward: 10 },
-              { minScore: 300, xpReward: 5 }
+            thresholds: firebaseSettings.games?.reactionGame?.thresholds || [
+              { minScore: 200, xpReward: 15 },
+              { minScore: 300, xpReward: 10 },
+              { minScore: 400, xpReward: 5 }
             ]
           },
           tileGame: {
             rewardThreshold: 800, // 기본값 유지 (thresholds 배열로 대체됨)
             rewardAmount: 20,
-            thresholds: [
+            thresholds: firebaseSettings.games?.tileGame?.thresholds || [
               { minScore: 50, xpReward: 5 },
               { minScore: 100, xpReward: 10 },
               { minScore: 150, xpReward: 15 }
@@ -130,10 +143,13 @@ export const getSystemSettings = async (): Promise<SystemSettings> => {
         }
       };
       
+      console.log('getSystemSettings - Cached settings created:', cachedSystemSettings);
       return cachedSystemSettings;
+    } else {
+      console.log('getSystemSettings - Firebase settings document not found, using defaults');
     }
   } catch (error) {
-    console.error('시스템 설정 로드 실패:', error);
+    console.error('getSystemSettings - Error loading Firebase settings:', error);
   }
   
   // 기본값 반환
@@ -932,14 +948,6 @@ export const getAdminStats = async (): Promise<{
     console.error('관리자 통계 조회 오류:', error);
     throw new Error('통계 데이터를 가져오는 중 오류가 발생했습니다.');
   }
-}; 
-
-/**
- * 시스템 설정 캐시 무효화
- * 관리자가 설정을 변경했을 때 호출
- */
-export const invalidateSystemSettingsCache = (): void => {
-  cachedSystemSettings = null;
 }; 
 
 /**

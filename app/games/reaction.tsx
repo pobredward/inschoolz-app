@@ -86,6 +86,10 @@ export default function ReactionGameScreen() {
   // 경험치 설정 로드 (Firebase 직접 호출)
   const loadExperienceSettings = async () => {
     try {
+      // 캐시 무효화하여 최신 Firebase 설정 가져오기
+      const { invalidateSystemSettingsCache } = await import('@/lib/experience');
+      invalidateSystemSettingsCache();
+      
       const settings = await getExperienceSettings();
       
       if (settings.games?.reactionGame?.thresholds) {
@@ -96,6 +100,7 @@ export default function ReactionGameScreen() {
         })).sort((a: any, b: any) => a.minReactionTime - b.minReactionTime); // 빠른 시간 순으로 정렬
         
         setExperienceThresholds(timeBasedThresholds);
+        console.log('Experience thresholds loaded:', timeBasedThresholds);
       }
     } catch (error) {
       console.error('경험치 설정 로드 실패:', error);
@@ -204,12 +209,17 @@ export default function ReactionGameScreen() {
       return;
     }
 
+    console.log(`finishGame - 반응시간: ${reactionTime}ms`);
+    console.log('finishGame - 현재 경험치 임계값:', experienceThresholds);
+
     try {
       // 반응시간을 점수로 변환 (반응시간이 빠를수록 높은 점수)
       // 1000ms 기준으로 점수 계산
       const score = Math.max(1, Math.round(1000 - reactionTime + 100));
+      console.log(`finishGame - 계산된 점수: ${score}`);
       
       const result = await updateGameScore(user.uid, 'reactionGame', score, reactionTime);
+      console.log('finishGame - updateGameScore 결과:', result);
       
       if (result.success) {
         // 경험치 얼럿 표시
@@ -223,6 +233,13 @@ export default function ReactionGameScreen() {
           Alert.alert(
             '⭐ 경험치 획득!',
             `반응속도 게임 완료!\\n${(reactionTime / 1000).toFixed(3)}초 기록\\n경험치 +${result.xpEarned} XP 획득!`,
+            [{ text: '확인' }]
+          );
+        } else {
+          console.log('finishGame - 경험치를 얻지 못함:', result.xpEarned);
+          Alert.alert(
+            '게임 완료',
+            `반응속도: ${(reactionTime / 1000).toFixed(3)}초\\n경험치를 얻지 못했습니다.`,
             [{ text: '확인' }]
           );
         }

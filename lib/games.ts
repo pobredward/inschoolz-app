@@ -33,17 +33,28 @@ const calculateGameXP = async (gameType: GameType, reactionTime: number): Promis
   try {
     const settings = await getSystemSettings();
     
+    // 디버깅을 위한 로그 추가
+    console.log('calculateGameXP - gameType:', gameType, 'reactionTime:', reactionTime);
+    console.log('calculateGameXP - settings.gameSettings:', settings.gameSettings);
+    
     // 게임 타입에 따라 적절한 설정 선택
     if (gameType === 'reactionGame' && settings.gameSettings.reactionGame.thresholds) {
+      const thresholds = settings.gameSettings.reactionGame.thresholds;
+      console.log('calculateGameXP - reactionGame thresholds:', thresholds);
+      
       // 반응속도 게임은 시간이 짧을수록 좋으므로 오름차순 정렬 (가장 빠른 시간부터)
-      const sortedThresholds = [...settings.gameSettings.reactionGame.thresholds].sort((a, b) => a.minScore - b.minScore);
+      const sortedThresholds = [...thresholds].sort((a, b) => a.minScore - b.minScore);
+      console.log('calculateGameXP - sorted thresholds:', sortedThresholds);
       
       // 반응시간이 임계값 이하인 첫 번째 임계값의 경험치 반환
       for (const threshold of sortedThresholds) {
+        console.log(`calculateGameXP - checking: ${reactionTime} <= ${threshold.minScore} ? ${reactionTime <= threshold.minScore}`);
         if (reactionTime <= threshold.minScore) {
+          console.log(`calculateGameXP - 경험치 ${threshold.xpReward} 지급! (${reactionTime}ms <= ${threshold.minScore}ms)`);
           return threshold.xpReward;
         }
       }
+      console.log('calculateGameXP - 어떤 임계값도 만족하지 않음');
     } else if (gameType === 'tileGame' && settings.gameSettings.tileGame.thresholds) {
       // 타일 게임은 점수가 높을수록 좋으므로 내림차순 정렬
       const sortedThresholds = [...settings.gameSettings.tileGame.thresholds].sort((a, b) => b.minScore - a.minScore);
@@ -59,6 +70,7 @@ const calculateGameXP = async (gameType: GameType, reactionTime: number): Promis
       return settings.gameSettings.flappyBird.rewardAmount;
     }
     
+    console.log('calculateGameXP - 0 XP 반환');
     return 0; // 어떤 threshold도 만족하지 않으면 0 XP
   } catch (error) {
     console.error('경험치 계산 중 오류:', error);
@@ -69,6 +81,10 @@ const calculateGameXP = async (gameType: GameType, reactionTime: number): Promis
 // 게임 점수 업데이트 및 경험치 지급
 export const updateGameScore = async (userId: string, gameType: GameType, score: number, reactionTime?: number): Promise<GameResult> => {
   try {
+    // 캐시 무효화하여 최신 Firebase 설정 가져오기
+    const { invalidateSystemSettingsCache } = await import('./experience');
+    invalidateSystemSettingsCache();
+    
     const userRef = doc(db, 'users', userId);
     const userDoc = await getDoc(userRef);
     
@@ -78,7 +94,7 @@ export const updateGameScore = async (userId: string, gameType: GameType, score:
         message: '사용자를 찾을 수 없습니다.'
       };
     }
-    
+
     const userData = userDoc.data() as User;
     
     // 현재 최저 반응시간 확인 (반응속도 게임의 경우) 또는 최고 점수 확인 (타일 게임의 경우)
