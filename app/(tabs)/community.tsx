@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import PostListItem from '../../components/PostListItem';
 import { Timestamp } from 'firebase/firestore';
 // 유틸리티 함수 import
-import { formatRelativeTime } from '../../utils/timeUtils';
+import { formatRelativeTime, getPostPreviewImages } from '../../utils/timeUtils';
 
 const parseContentText = (content: string) => {
   if (!content) return '';
@@ -32,37 +32,7 @@ const truncateText = (text: string, maxLength: number = 100) => {
   return cleanText.substring(0, maxLength) + '...';
 };
 
-// 게시글에서 이미지 URL 추출하는 함수
-const extractPostImageUrls = (post: { content: string; attachments?: Array<{ type: string; url: string }> }, maxImages: number = 10): string[] => {
-  const imageUrls: string[] = [];
-  
-  // 1. attachments에서 이미지 타입만 추출
-  if (post.attachments && Array.isArray(post.attachments)) {
-    const attachmentImages = post.attachments
-      .filter(attachment => attachment.type === 'image')
-      .map(attachment => attachment.url);
-    imageUrls.push(...attachmentImages);
-  }
-  
-  // 2. content에서 이미지 URL 추출 (HTML img 태그)
-  if (post.content) {
-    const imgTagMatches = post.content.matchAll(/<img[^>]+src="([^"]+)"/gi);
-    for (const match of imgTagMatches) {
-      if (!imageUrls.includes(match[1])) {
-        imageUrls.push(match[1]);
-      }
-    }
-  }
-  
-  // 중복 제거 및 최대 개수 제한
-  const uniqueImages = [...new Set(imageUrls)];
-  return uniqueImages.slice(0, maxImages);
-};
-
-// 게시글 리스트용 이미지 미리보기 URL 추출 (최대 2개)
-const getPostPreviewImages = (post: { content: string; attachments?: Array<{ type: string; url: string }> }): string[] => {
-  return extractPostImageUrls(post, 2);
-};
+// timeUtils에서 가져온 함수를 사용하므로 여기서는 중복 정의 제거
 import { getBoardsByType, getPostsByBoardType, getAllPostsByType, getAllPostsBySchool, getAllPostsByRegion } from '@/lib/boards';
 import { getUserById } from '@/lib/users';
 import { useAuthStore } from '../../store/authStore';

@@ -242,6 +242,35 @@ export function isSameDay(timestamp1: unknown, timestamp2: unknown): boolean {
 }
 
 /**
+ * URL에서 파일명을 추출하여 중복 여부를 판단하는 함수
+ * Firebase Storage URL의 특성을 고려하여 중복을 제거
+ * @param url 이미지 URL
+ * @returns 파일 식별자
+ */
+function getImageIdentifier(url: string): string {
+  try {
+    // Firebase Storage URL인 경우 특별 처리
+    if (url.includes('firebasestorage.googleapis.com')) {
+      // pathname에서 /o/ 이후의 경로 추출 (URL 디코딩)
+      const oIndex = url.indexOf('/o/');
+      if (oIndex !== -1) {
+        const encodedPath = url.substring(oIndex + 3);
+        const decodedPath = decodeURIComponent(encodedPath.split('?')[0]);
+        return decodedPath;
+      }
+    }
+    
+    // 일반 URL의 경우 경로 부분 사용
+    const urlParts = url.split('?')[0].split('#')[0]; // 쿼리 파라미터와 프래그먼트 제거
+    const pathPart = urlParts.split('/').slice(3).join('/'); // 호스트 이후의 경로만 추출
+    return pathPart || url;
+  } catch {
+    // URL 파싱 실패 시 쿼리 파라미터만 제거한 URL 사용
+    return url.split('?')[0].split('#')[0];
+  }
+}
+
+/**
  * 게시글에서 이미지 URL들을 추출하는 함수 (content와 attachments 모두 고려)
  * @param post 게시글 객체
  * @param maxImages 최대 이미지 개수 (기본값: 10)
@@ -255,26 +284,38 @@ export function extractPostImageUrls(
   maxImages: number = 10
 ): string[] {
   const imageUrls: string[] = [];
+  const seenIdentifiers = new Set<string>();
   
   // 1. attachments에서 이미지 타입만 추출
   if (post.attachments && Array.isArray(post.attachments)) {
     const attachmentImages = post.attachments
       .filter(attachment => attachment.type === 'image')
       .map(attachment => attachment.url);
-    imageUrls.push(...attachmentImages);
+    
+    for (const imageUrl of attachmentImages) {
+      const identifier = getImageIdentifier(imageUrl);
+      if (!seenIdentifiers.has(identifier)) {
+        imageUrls.push(imageUrl);
+        seenIdentifiers.add(identifier);
+      }
+    }
   }
   
   // 2. content에서 이미지 URL 추출 (HTML img 태그, 마크다운 이미지 등)
   if (post.content) {
     const contentImages = extractImageUrlsFromContent(post.content);
-    // attachments에 이미 있는 이미지는 제외 (중복 방지)
-    const newContentImages = contentImages.filter(url => !imageUrls.includes(url));
-    imageUrls.push(...newContentImages);
+    
+    for (const imageUrl of contentImages) {
+      const identifier = getImageIdentifier(imageUrl);
+      if (!seenIdentifiers.has(identifier)) {
+        imageUrls.push(imageUrl);
+        seenIdentifiers.add(identifier);
+      }
+    }
   }
   
-  // 중복 제거 및 최대 개수 제한
-  const uniqueImages = [...new Set(imageUrls)];
-  return uniqueImages.slice(0, maxImages);
+  // 최대 개수 제한
+  return imageUrls.slice(0, maxImages);
 }
 
 /**
