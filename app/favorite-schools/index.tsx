@@ -73,7 +73,6 @@ export default function FavoriteSchoolsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<School[]>([]);
   const [searching, setSearching] = useState(false);
-  const [isSearchModalVisible, setIsSearchModalVisible] = useState(false);
 
   const loadFavoriteSchools = async () => {
     if (!user?.uid) return;
@@ -108,6 +107,12 @@ export default function FavoriteSchoolsScreen() {
     setRefreshing(false);
   };
 
+  const handleCloseModal = () => {
+    setShowAddModal(false);
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
     
@@ -139,9 +144,7 @@ export default function FavoriteSchoolsScreen() {
     try {
       await toggleFavoriteSchool(user.uid, school.id);
       await loadFavoriteSchools();
-      setShowAddModal(false);
-      setSearchQuery('');
-      setSearchResults([]);
+      handleCloseModal();
       Alert.alert('성공', `${school.KOR_NAME}이(가) 즐겨찾기에 추가되었습니다.`);
     } catch (error) {
       console.error('학교 추가 오류:', error);
@@ -216,7 +219,7 @@ export default function FavoriteSchoolsScreen() {
         <CustomHeader 
           title="즐겨찾기 학교" 
           onBack={() => router.back()}
-          onAdd={() => setIsSearchModalVisible(true)}
+          onAdd={() => setShowAddModal(true)}
         />
         
         <ScrollView 
@@ -293,7 +296,7 @@ export default function FavoriteSchoolsScreen() {
       >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowAddModal(false)}>
+            <TouchableOpacity onPress={handleCloseModal}>
               <Text style={styles.modalCancelText}>취소</Text>
             </TouchableOpacity>
             <Text style={styles.modalTitle}>학교 추가</Text>
