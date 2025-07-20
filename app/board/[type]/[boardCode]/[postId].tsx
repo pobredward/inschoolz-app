@@ -1051,7 +1051,31 @@ export default function PostDetailScreen() {
                           // 회원 댓글인 경우 (자신의 댓글)
                           ...(user?.uid === comment.authorId ? [
                             { text: '수정', onPress: () => {} },
-                            { text: '삭제', onPress: () => {}, style: 'destructive' as const },
+                            { text: '삭제', onPress: async () => {
+                              try {
+                                // 대댓글이 있는지 확인
+                                const hasReplies = comments.some(c => c.parentId === comment.id);
+                                
+                                if (hasReplies) {
+                                  // 대댓글이 있으면 소프트 삭제
+                                  await updateDoc(doc(db, 'posts', postId, 'comments', comment.id), {
+                                    'status.isDeleted': true,
+                                    content: '삭제된 댓글입니다.',
+                                    updatedAt: serverTimestamp()
+                                  });
+                                } else {
+                                  // 대댓글이 없으면 완전 삭제
+                                  await deleteDoc(doc(db, 'posts', postId, 'comments', comment.id));
+                                }
+                                
+                                Alert.alert('성공', '댓글이 삭제되었습니다.');
+                                // 댓글 목록 새로고침
+                                await loadComments(postId);
+                              } catch (error) {
+                                console.error('댓글 삭제 실패:', error);
+                                Alert.alert('오류', '댓글 삭제에 실패했습니다.');
+                              }
+                            }, style: 'destructive' as const },
                           ] : 
                           // 익명 댓글인 경우
                           comment.isAnonymous && comment.authorId === null ? [
@@ -1327,8 +1351,15 @@ export default function PostDetailScreen() {
                   </View>
                 </View>
                 
-                {/* 오른쪽: 스크랩, 공유 */}
+                {/* 오른쪽: 좋아요, 스크랩, 공유 */}
                 <View style={styles.actionButtonsRight}>
+                  <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
+                    <Ionicons 
+                      name={isLiked ? "heart" : "heart-outline"} 
+                      size={16} 
+                      color={isLiked ? "#ef4444" : "#6b7280"} 
+                    />
+                  </TouchableOpacity>
                   <TouchableOpacity style={styles.actionButton} onPress={handleScrap}>
                     <Ionicons 
                       name={isScrapped ? "bookmark" : "bookmark-outline"} 
