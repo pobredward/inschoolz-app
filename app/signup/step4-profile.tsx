@@ -151,7 +151,7 @@ export default function Step4Profile({
               <TextInput
                 style={[styles.halfInput, styles.input]}
                 placeholder="월"
-                value={formData.birthMonth ? padBirthValue(formData.birthMonth) : ''}
+                value={formData.birthMonth || ''}
                 onChangeText={(v) => {
                   const numericValue = filterNumericOnly(v); // 숫자만 허용
                   const monthValue = parseInt(numericValue) || 0;
@@ -166,7 +166,7 @@ export default function Step4Profile({
               <TextInput
                 style={[styles.halfInput, styles.input]}
                 placeholder="일"
-                value={formData.birthDay ? padBirthValue(formData.birthDay) : ''}
+                value={formData.birthDay || ''}
                 onChangeText={(v) => {
                   const numericValue = filterNumericOnly(v); // 숫자만 허용
                   const dayValue = parseInt(numericValue) || 0;

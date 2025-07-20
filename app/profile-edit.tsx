@@ -385,7 +385,7 @@ export default function ProfileEditScreen() {
               />
               <TextInput
                 style={[styles.input, styles.birthInput]}
-                value={formData.birthMonth ? padBirthValue(formData.birthMonth) : ''}
+                value={formData.birthMonth || ''}
                 onChangeText={(text) => {
                   const numericValue = filterNumericOnly(text); // 숫자만 허용
                   const monthValue = parseInt(numericValue) || 0;
@@ -400,7 +400,7 @@ export default function ProfileEditScreen() {
               />
               <TextInput
                 style={[styles.input, styles.birthInput]}
-                value={formData.birthDay ? padBirthValue(formData.birthDay) : ''}
+                value={formData.birthDay || ''}
                 onChangeText={(text) => {
                   const numericValue = filterNumericOnly(text); // 숫자만 허용
                   const dayValue = parseInt(numericValue) || 0;
