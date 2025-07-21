@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Platform, ScrollView, ViewStyle } from 'react-native';
+import { View, StyleSheet, Platform, ScrollView, ViewStyle, RefreshControlProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface SafeScreenContainerProps {
@@ -7,13 +7,15 @@ interface SafeScreenContainerProps {
   scrollable?: boolean;
   style?: ViewStyle;
   contentContainerStyle?: ViewStyle;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
 }
 
 export function SafeScreenContainer({ 
   children, 
   scrollable = false, 
   style,
-  contentContainerStyle 
+  contentContainerStyle,
+  refreshControl 
 }: SafeScreenContainerProps) {
   const insets = useSafeAreaInsets();
   
@@ -44,6 +46,7 @@ export function SafeScreenContainer({
           contentContainerStyle,
         ]}
         showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}
       >
         {children}
       </ScrollView>

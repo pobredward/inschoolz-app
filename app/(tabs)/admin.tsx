@@ -3,17 +3,16 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   Alert,
   RefreshControl,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAuthStore } from '@/store/authStore';
 import { router } from 'expo-router';
 import { getAdminStats } from '@/lib/experience';
+import { SafeScreenContainer } from '@/components/SafeScreenContainer';
 
 // 파스텔 그린 색상 팔레트
 const pastelGreenColors = {
@@ -175,28 +174,28 @@ export default function AdminScreen() {
   // 관리자가 아닌 경우 빈 화면 반환
   if (!user || user.role !== 'admin') {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeScreenContainer style={styles.container}>
         <View style={styles.centerContainer}>
           <MaterialIcons name="security" size={48} color={pastelGreenColors[300]} />
           <Text style={styles.accessDeniedText}>접근 권한이 없습니다</Text>
         </View>
-      </SafeAreaView>
+      </SafeScreenContainer>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[pastelGreenColors[500]]}
-            tintColor={pastelGreenColors[500]}
-          />
-        }
-      >
+    <SafeScreenContainer 
+      style={styles.container} 
+      scrollable={true}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={[pastelGreenColors[500]]}
+          tintColor={pastelGreenColors[500]}
+        />
+      }
+    >
         {/* 헤더 */}
         <View style={styles.header}>
           <View style={styles.headerContent}>
@@ -301,8 +300,7 @@ export default function AdminScreen() {
             ))}
           </View>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+    </SafeScreenContainer>
   );
 }
 
@@ -321,9 +319,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: pastelGreenColors[600],
     fontWeight: '500',
-  },
-  scrollView: {
-    flex: 1,
   },
   header: {
     padding: 20,

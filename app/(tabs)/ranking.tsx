@@ -10,12 +10,12 @@ import {
   ActivityIndicator,
   Alert
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/authStore';
 import { getRankings } from '../../lib/ranking';
 import { logger } from '../../utils/logger';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { SafeScreenContainer } from '../../components/SafeScreenContainer';
 
 // 랭킹 타입 정의
 type RankingType = 'national' | 'regional' | 'school';
@@ -202,17 +202,17 @@ export default function RankingScreen() {
   // 인증 로딩 중
   if (authLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeScreenContainer style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#10B981" />
           <Text style={styles.loadingText}>로딩 중...</Text>
         </View>
-      </SafeAreaView>
+      </SafeScreenContainer>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeScreenContainer style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>🏆 랭킹</Text>
         
@@ -303,7 +303,7 @@ export default function RankingScreen() {
               <TouchableOpacity 
                 key={user.id} 
                 style={styles.rankingItem}
-                onPress={() => router.push(`/users/${user.id}`)}
+                onPress={() => router.push(`/users/${user.id}` as any)}
               >
                 <View style={styles.rankContainer}>
                   <Text style={[styles.rankIcon, { color: getRankColor(index + 1) }]}>
@@ -356,7 +356,7 @@ export default function RankingScreen() {
           </TouchableOpacity>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </SafeScreenContainer>
   );
 }
 
