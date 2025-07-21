@@ -22,7 +22,21 @@ import PostListItem from '../../../../components/PostListItem';
 // 기본 텍스트 처리 함수
 const parseContentText = (content: string) => {
   if (!content) return '';
-  return content.replace(/<[^>]*>/g, '');
+  return content
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<p[^>]*>/gi, '')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<div[^>]*>/gi, '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .trim();
 };
 
 const truncateText = (text: string, maxLength: number = 100) => {

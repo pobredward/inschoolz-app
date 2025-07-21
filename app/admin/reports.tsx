@@ -473,7 +473,21 @@ export default function AdminReportsScreen() {
   };
 
   const stripHtmlTags = (html: string) => {
-    return html.replace(/<[^>]*>/g, '').trim();
+    return html
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<p[^>]*>/gi, '')
+      .replace(/<\/div>/gi, '\n')
+      .replace(/<div[^>]*>/gi, '')
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&apos;/g, "'")
+      .trim();
   };
 
   if (!user || user.role !== 'admin') {

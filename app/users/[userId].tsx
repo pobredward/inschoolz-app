@@ -346,7 +346,7 @@ export default function UserProfileScreen() {
                     {post.title || '제목 없음'}
                   </Text>
                   <Text style={styles.activityContent} numberOfLines={2}>
-                    {post.content?.replace(/<[^>]*>/g, '') || '내용 없음'}
+                    {post.content?.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<p[^>]*>/gi, '').replace(/<\/div>/gi, '\n').replace(/<div[^>]*>/gi, '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'").trim() || '내용 없음'}
                   </Text>
                   <Text style={styles.activityDate}>
                     {post.boardName || '게시판'} • 작성일

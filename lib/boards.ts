@@ -760,6 +760,27 @@ export const getPopularPostsForHome = async (count = 10): Promise<Post[]> => {
       }
     }
     
+    // HTML을 텍스트로 변환하면서 줄바꿈 보존하는 함수
+    const parseContentWithLineBreaks = (content: string): string => {
+      if (!content) return '';
+      
+      return content
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n')
+        .replace(/<p[^>]*>/gi, '')
+        .replace(/<\/div>/gi, '\n')
+        .replace(/<div[^>]*>/gi, '')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&apos;/g, "'")
+        .trim();
+    };
+
     // 조회수 기준으로 정렬하고 상위 게시글만 선택 (클라이언트 사이드)
     const sortedPosts = posts
       .sort((a, b) => (b.stats?.viewCount || 0) - (a.stats?.viewCount || 0))
@@ -767,7 +788,7 @@ export const getPopularPostsForHome = async (count = 10): Promise<Post[]> => {
       .map(post => ({
         ...post,
         boardName: boardsMap.get(post.boardCode)?.name || post.boardCode,
-        previewContent: post.content?.replace(/<[^>]*>/g, '').slice(0, 100) || ''
+        previewContent: parseContentWithLineBreaks(post.content).slice(0, 100) || ''
       }));
     
     return sortedPosts;

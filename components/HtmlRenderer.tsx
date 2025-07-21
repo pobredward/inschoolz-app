@@ -15,11 +15,14 @@ export default function HtmlRenderer({
   contentWidth = width - 32, 
   baseStyle = {} 
 }: HtmlRendererProps) {
-  // HTML 정리
+  // HTML 정리 - 줄바꿈을 브라우저에서 렌더링되도록 처리
   const cleanHtml = html
-    .replace(/<div>/g, '<p>')
-    .replace(/<\/div>/g, '</p>')
-    .replace(/<br\s*\/?>/g, '\n');
+    .replace(/\n/g, '<br>')
+    .replace(/<br\s*\/?>/gi, '<br>')
+    .replace(/<\/p>/gi, '<br>')
+    .replace(/<p[^>]*>/gi, '')
+    .replace(/<\/div>/gi, '<br>')
+    .replace(/<div[^>]*>/gi, '');
 
   const tagsStyles = {
     p: {
@@ -91,6 +94,10 @@ export default function HtmlRenderer({
       color: '#10B981',
       textDecorationLine: 'underline' as const,
     },
+    br: {
+      fontSize: 16,
+      lineHeight: 24,
+    },
   };
 
   const classesStyles = {
@@ -153,6 +160,12 @@ export default function HtmlRenderer({
       classesStyles={classesStyles}
       renderersProps={renderersProps}
       renderers={renderers}
+      systemFonts={[]}
+      defaultTextProps={{
+        selectable: true,
+      }}
+      enableExperimentalBRCollapsing={false}
+      enableExperimentalMarginCollapsing={false}
     />
   );
 } 

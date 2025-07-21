@@ -4,6 +4,27 @@ import { router } from 'expo-router';
 import { Post } from '../types';
 import { getPostPreviewImages, formatSmartTime } from '../utils/timeUtils';
 
+// HTML을 텍스트로 변환하면서 줄바꿈 보존
+const parseContentWithLineBreaks = (content: string): string => {
+  if (!content) return '';
+  
+  return content
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<p[^>]*>/gi, '')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<div[^>]*>/gi, '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .trim();
+};
+
 interface PostListItemProps {
   post: Post & { boardName?: string; previewContent?: string };
   onPress: (post: Post & { boardName?: string; previewContent?: string }) => void;
@@ -65,7 +86,7 @@ const PostListItem: React.FC<PostListItemProps> = ({
           
           {((post as any).previewContent || post.content) && (
             <Text style={styles.postPreview} numberOfLines={2}>
-              {(post as any).previewContent || post.content?.replace(/<[^>]*>/g, '').slice(0, 150) || ''}
+              {(post as any).previewContent || parseContentWithLineBreaks(post.content).slice(0, 150) || ''}
             </Text>
           )}
         </View>
