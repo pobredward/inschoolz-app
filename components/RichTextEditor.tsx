@@ -275,26 +275,12 @@ export default function RichTextEditor({
             actions.setBold,
             actions.setItalic,
             actions.setUnderline,
-            actions.heading1,
-            actions.heading2,
-            actions.insertBulletsList,
-            actions.insertOrderedList,
-            actions.alignLeft,
-            actions.alignCenter,
-            actions.alignRight,
             actions.insertImage,
             actions.insertLink,
             actions.undo,
             actions.redo,
           ]}
-          iconMap={{
-            [actions.heading1]: ({ tintColor }: { tintColor: string }) => (
-              <Text style={[{ color: tintColor, fontWeight: 'bold', fontSize: 16 }]}>H1</Text>
-            ),
-            [actions.heading2]: ({ tintColor }: { tintColor: string }) => (
-              <Text style={[{ color: tintColor, fontWeight: 'bold', fontSize: 14 }]}>H2</Text>
-            ),
-          }}
+          iconMap={{}}
           onPressAddImage={handleImageUpload}
           onInsertLink={handleInsertLink}
         />

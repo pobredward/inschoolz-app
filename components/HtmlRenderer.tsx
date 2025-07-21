@@ -68,14 +68,7 @@ export default function HtmlRenderer({
       color: '#374151',
       marginBottom: 4,
     },
-    blockquote: {
-      borderLeftWidth: 4,
-      borderLeftColor: '#10B981',
-      paddingLeft: 12,
-      marginVertical: 12,
-      backgroundColor: '#F0FDF4',
-      paddingVertical: 8,
-    },
+
     code: {
       backgroundColor: '#F3F4F6',
       paddingHorizontal: 4,
