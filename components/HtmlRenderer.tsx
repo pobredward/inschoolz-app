@@ -19,8 +19,7 @@ export default function HtmlRenderer({
   const cleanHtml = html
     .replace(/<div>/g, '<p>')
     .replace(/<\/div>/g, '</p>')
-    .replace(/<br\s*\/?>/g, '\n')
-    .replace(/\n\s*\n/g, '\n\n');
+    .replace(/<br\s*\/?>/g, '\n');
 
   const tagsStyles = {
     p: {
