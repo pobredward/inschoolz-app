@@ -1285,7 +1285,6 @@ export default function PostDetailScreen() {
                     <Text style={styles.authorName}>익명</Text>
                     <View style={styles.authorMetaInfo}>
                       <Text style={styles.postDate}>{formatDate(post.createdAt)}</Text>
-                      <Text style={styles.viewCount}>조회 {post.stats.viewCount}</Text>
                     </View>
                   </View>
                 </View>
@@ -1314,7 +1313,6 @@ export default function PostDetailScreen() {
                     </Text>
                     <View style={styles.authorMetaInfo}>
                       <Text style={styles.postDate}>{formatDate(post.createdAt)}</Text>
-                      <Text style={styles.viewCount}>조회 {post.stats.viewCount}</Text>
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -1341,22 +1339,12 @@ export default function PostDetailScreen() {
 
               {/* 액션 버튼 */}
               <View style={styles.actionButtons}>
-                {/* 왼쪽: 조회수, 좋아요, 댓글 */}
+                {/* 왼쪽: 조회수, 댓글 */}
                 <View style={styles.actionButtonsLeft}>
                   <View style={styles.actionButton}>
                     <Ionicons name="eye-outline" size={16} color="#6b7280" />
                     <Text style={styles.actionButtonText}>{post.stats.viewCount}</Text>
                   </View>
-                  <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
-                    <Ionicons 
-                      name={isLiked ? "heart" : "heart-outline"} 
-                      size={16} 
-                      color={isLiked ? "#ef4444" : "#6b7280"} 
-                    />
-                    <Text style={[styles.actionButtonText, isLiked && { color: "#ef4444" }]}>
-                      {likeCount}
-                    </Text>
-                  </TouchableOpacity>
                   <View style={styles.actionButton}>
                     <Ionicons name="chatbubble-outline" size={16} color="#6b7280" />
                     <Text style={styles.actionButtonText}>{comments.length}</Text>
@@ -1371,6 +1359,9 @@ export default function PostDetailScreen() {
                       size={16} 
                       color={isLiked ? "#ef4444" : "#6b7280"} 
                     />
+                    <Text style={[styles.actionButtonText, isLiked && { color: "#ef4444" }]}>
+                      {likeCount}
+                    </Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.actionButton} onPress={handleScrap}>
                     <Ionicons 
