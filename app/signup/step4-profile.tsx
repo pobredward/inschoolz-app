@@ -43,10 +43,10 @@ export default function Step4Profile({
   const handleSubmit = async () => {
     logger.debug('Step4Profile handleSubmit 시작');
 
-    // 필수 필드 검증
-    if (!formData.userName || !formData.realName || !formData.gender || !formData.birthYear || !formData.birthMonth || !formData.birthDay || !formData.phoneNumber) {
+    // 필수 필드 검증 (생년월일, 성별, 전화번호는 선택사항으로 변경)
+    if (!formData.userName || !formData.realName) {
       logger.warn('필수 필드 검증 실패');
-      setError('모든 필수 필드를 입력하세요.');
+      setError('사용자명과 실명은 필수 입력사항입니다.');
       return;
     }
 
@@ -182,7 +182,7 @@ export default function Step4Profile({
           </View>
           
           <View style={styles.formGroup}>
-            <Text style={styles.label}>휴대폰번호</Text>
+            <Text style={styles.label}>휴대폰번호 (선택사항)</Text>
             <TextInput
               style={styles.input}
               placeholder="010-1234-5678"

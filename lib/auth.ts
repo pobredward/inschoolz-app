@@ -122,15 +122,15 @@ export const registerWithEmail = async (
       status: 'active', // 기본 상태를 'active'로 설정
       isVerified: false,
       
-      // 프로필 정보
+      // 프로필 정보 (선택사항 필드들은 값이 있을 때만 저장)
       profile: {
         userName: userName,
         realName: extraProfile?.realName || '',
-        gender: extraProfile?.gender || '',
-        birthYear: extraProfile?.birthYear || 0,
-        birthMonth: extraProfile?.birthMonth || 0,
-        birthDay: extraProfile?.birthDay || 0,
-        phoneNumber: extraProfile?.phoneNumber || '',
+        ...(extraProfile?.gender && { gender: extraProfile.gender }),
+        ...(extraProfile?.birthYear && { birthYear: extraProfile.birthYear }),
+        ...(extraProfile?.birthMonth && { birthMonth: extraProfile.birthMonth }),
+        ...(extraProfile?.birthDay && { birthDay: extraProfile.birthDay }),
+        ...(extraProfile?.phoneNumber && { phoneNumber: extraProfile.phoneNumber }),
         profileImageUrl: firebaseUser.photoURL || '',
         createdAt: serverTimestamp(), // Timestamp를 밀리초로 변환
         isAdmin: false
