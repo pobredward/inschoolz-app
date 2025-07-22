@@ -16,6 +16,8 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
 import { updateUserProfile, updateProfileImage } from '../lib/users';
+import { auth } from '../lib/firebase';
+import { deleteAccount } from '../lib/auth';
 import { getAllRegions, getDistrictsByRegion } from '../lib/regions';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -261,6 +263,68 @@ export default function ProfileEditScreen() {
     }
   };
 
+  // 계정 삭제 함수
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      '⚠️ 계정 삭제',
+      '계정을 삭제하면 모든 데이터가 완전히 제거되며 복구할 수 없습니다.\n\n삭제되는 데이터:\n• 프로필 정보\n• 작성한 게시글과 댓글\n• 즐겨찾기 및 설정\n• 경험치 및 활동 기록\n\n정말로 계정을 삭제하시겠습니까?',
+      [
+        {
+          text: '취소',
+          style: 'cancel',
+        },
+        {
+          text: '계속',
+          style: 'destructive',
+          onPress: () => {
+            // 비밀번호 확인 다이얼로그
+            Alert.prompt(
+              '비밀번호 확인',
+              '계정 삭제를 위해 현재 비밀번호를 입력해주세요.',
+              [
+                {
+                  text: '취소',
+                  style: 'cancel',
+                },
+                {
+                  text: '삭제',
+                  style: 'destructive',
+                  onPress: async (password) => {
+                    if (!password || password.trim() === '') {
+                      Alert.alert('오류', '비밀번호를 입력해주세요.');
+                      return;
+                    }
+
+                    try {
+                      if (!auth.currentUser) {
+                        Alert.alert('오류', '로그인이 필요합니다.');
+                        return;
+                      }
+
+                      await deleteAccount(auth.currentUser, password);
+                      Alert.alert('완료', '계정이 완전히 삭제되었습니다.');
+                      
+                      // 계정 삭제 후 앱 재시작으로 안내
+                      router.replace('/auth');
+                    } catch (error) {
+                      console.error('계정 삭제 오류:', error);
+                      if (error instanceof Error && error.message.includes('auth/wrong-password')) {
+                        Alert.alert('오류', '비밀번호가 일치하지 않습니다.');
+                      } else {
+                        Alert.alert('오류', '계정 삭제 중 오류가 발생했습니다.');
+                      }
+                    }
+                  },
+                },
+              ],
+              'secure-text'
+            );
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       {/* 헤더 */}
@@ -459,6 +523,20 @@ export default function ProfileEditScreen() {
               placeholderTextColor="#9CA3AF"
             />
           </View>
+        </View>
+
+        {/* 계정 삭제 섹션 */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>계정 관리</Text>
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={handleDeleteAccount}
+          >
+            <Text style={styles.deleteButtonText}>🗑️ 계정 삭제</Text>
+            <Text style={styles.deleteButtonSubtext}>
+              모든 데이터가 완전히 삭제됩니다
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -728,5 +806,24 @@ const styles = StyleSheet.create({
   modalItemText: {
     fontSize: 16,
     color: '#111827',
+  },
+  deleteButton: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#DC2626',
+  },
+  deleteButtonSubtext: {
+    fontSize: 12,
+    color: '#991B1B',
+    marginTop: 2,
   },
 });
