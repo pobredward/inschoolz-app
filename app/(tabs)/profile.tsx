@@ -12,6 +12,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { SafeScreenContainer } from '../../components/SafeScreenContainer';
 import FollowersModal from '../../components/FollowersModal';
+import { deleteAccount } from '../../lib/auth';
+import { auth } from '../../lib/firebase';
 
 export default function ProfileScreen() {
   const { user, clearAuth, isLoading: authLoading } = useAuthStore();
@@ -196,6 +198,66 @@ export default function ProfileScreen() {
             }
           }
         },
+      ]
+    );
+  };
+
+  // 계정 삭제 처리
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      '⚠️ 계정 삭제',
+      '정말로 계정을 삭제하시겠습니까?\n\n삭제되는 정보:\n• 프로필 정보 (이름, 이메일, 전화번호 등)\n• 계정 설정 및 기록\n• 랭킹 및 경험치 정보\n\n유지되는 정보:\n• 작성한 게시글과 댓글 (작성자명은 "삭제된 계정"으로 변경)',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '삭제',
+          style: 'destructive',
+          onPress: () => {
+            // 비밀번호 입력 프롬프트
+            Alert.prompt(
+              '비밀번호 확인',
+              '계정 삭제를 위해 현재 비밀번호를 입력하세요.',
+              [
+                { text: '취소', style: 'cancel' },
+                {
+                  text: '삭제',
+                  style: 'destructive',
+                  onPress: async (password) => {
+                    if (!password?.trim()) {
+                      Alert.alert('오류', '비밀번호를 입력해주세요.');
+                      return;
+                    }
+
+                    try {
+                      if (!user) {
+                        Alert.alert('오류', '로그인 정보를 찾을 수 없습니다.');
+                        return;
+                      }
+
+                      // Firebase User 객체와 비밀번호로 계정 삭제
+                      const firebaseUser = auth.currentUser;
+                      if (!firebaseUser) {
+                        Alert.alert('오류', '인증 정보를 찾을 수 없습니다.');
+                        return;
+                      }
+
+                      await deleteAccount(firebaseUser, password);
+                      Alert.alert('완료', '계정이 성공적으로 삭제되었습니다.');
+                      
+                      // 상태 초기화 및 로그인 화면으로 이동
+                      clearAuth();
+                      router.replace('/auth');
+                    } catch (error: any) {
+                      console.error('계정 삭제 오류:', error);
+                      Alert.alert('오류', error.message || '계정 삭제 중 오류가 발생했습니다.');
+                    }
+                  }
+                }
+              ],
+              'secure-text'
+            );
+          }
+        }
       ]
     );
   };
@@ -529,6 +591,31 @@ export default function ProfileScreen() {
               <Text style={[styles.settingText, styles.signOutText]}>로그아웃</Text>
               <Text style={styles.settingArrow}>›</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+
+                 {/* 계정 관리 섹션 추가 */}
+         <View style={styles.settingsSection}>
+           <Text style={styles.sectionTitle}>🚨 계정 관리</Text>
+           
+           <View style={[styles.settingsCard, { borderColor: '#FCA5A5', backgroundColor: '#FEF2F2' }]}>
+            <View style={styles.accountDeleteSection}>
+              <Text style={[styles.infoLabel, { color: '#DC2626', fontWeight: 'bold' }]}>
+                계정 삭제
+              </Text>
+              <Text style={[styles.accountDeleteDescription, { color: '#7F1D1D' }]}>
+                계정을 삭제하면 모든 개인정보가 영구적으로 삭제됩니다.{'\n'}
+                작성한 게시글과 댓글은 "삭제된 계정"으로 표시되지만 내용은 유지됩니다.
+              </Text>
+              
+              <TouchableOpacity
+                style={styles.deleteAccountButton}
+                onPress={handleDeleteAccount}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.deleteAccountButtonText}>계정 삭제</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -950,4 +1037,47 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
   },
+  accountDeleteSection: {
+    alignItems: 'center',
+    padding: 16,
+  },
+  
+  accountDeleteDescription: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginVertical: 12,
+    lineHeight: 20,
+  },
+  
+  deleteAccountButton: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  
+     deleteAccountButtonText: {
+     color: '#FFFFFF',
+     fontSize: 14,
+     fontWeight: '600',
+   },
+   
+   settingsSection: {
+     backgroundColor: '#FFFFFF',
+     borderRadius: 12,
+     padding: 16,
+     marginVertical: 8,
+     shadowColor: '#000',
+     shadowOffset: { width: 0, height: 2 },
+     shadowOpacity: 0.1,
+     shadowRadius: 4,
+     elevation: 3,
+   },
+   
+   settingsCard: {
+     borderWidth: 1,
+     borderRadius: 8,
+     padding: 16,
+   },
  }); 

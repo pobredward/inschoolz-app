@@ -92,7 +92,10 @@ export default function Step4Profile({
           <Text style={styles.sectionTitle}>개인정보</Text>
           
           <View style={styles.formGroup}>
-            <Text style={styles.label}>아이디</Text>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>아이디</Text>
+              <Text style={styles.required}>*</Text>
+            </View>
             <TextInput
               style={styles.input}
               placeholder="영문, 숫자 조합 5-20자"
@@ -103,7 +106,10 @@ export default function Step4Profile({
           </View>
           
           <View style={styles.formGroup}>
-            <Text style={styles.label}>실명</Text>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>실명</Text>
+              <Text style={styles.required}>*</Text>
+            </View>
             <TextInput
               style={styles.input}
               placeholder="실명을 입력하세요"
@@ -114,7 +120,7 @@ export default function Step4Profile({
           </View>
           
           <View style={styles.formGroup}>
-            <Text style={styles.label}>성별</Text>
+            <Text style={styles.label}>성별 (선택사항)</Text>
             <View style={styles.genderRow}>
               <TouchableOpacity
                 style={[styles.genderButton, formData.gender === 'male' && styles.selectedGender]}
@@ -134,7 +140,7 @@ export default function Step4Profile({
           </View>
           
           <View style={styles.formGroup}>
-            <Text style={styles.label}>생년월일</Text>
+            <Text style={styles.label}>생년월일 (선택사항)</Text>
             <View style={styles.rowContainer}>
               <TextInput
                 style={[styles.halfInput, styles.input]}
@@ -198,7 +204,7 @@ export default function Step4Profile({
           </View>
           
           <View style={styles.formGroup}>
-            <Text style={styles.label}>추천인 아이디 (선택)</Text>
+            <Text style={styles.label}>추천인 아이디 (선택사항)</Text>
             <ReferralSearch
               value={formData.referral || ''}
               onSelect={(user) => {
@@ -419,5 +425,16 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 8,
     textAlign: 'center',
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  required: {
+    color: '#dc2626',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 4,
   },
 }); 
