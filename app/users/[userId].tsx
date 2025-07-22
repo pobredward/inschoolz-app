@@ -162,6 +162,44 @@ export default function UserProfileScreen() {
     setShowFollowersModal(true);
   };
 
+  const handleBlockToggle = async () => {
+    if (!currentUser) {
+      Alert.alert('로그인 필요', '차단하려면 로그인이 필요합니다.');
+      return;
+    }
+
+    Alert.alert(
+      isBlocked ? '차단 해제' : '차단하기',
+      isBlocked 
+        ? `${profileUser?.profile?.userName}님을 차단 해제하시겠습니까?`
+        : `${profileUser?.profile?.userName}님을 차단하시겠습니까?`,
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: isBlocked ? '해제' : '차단',
+          style: isBlocked ? 'default' : 'destructive',
+          onPress: async () => {
+            try {
+              const { toggleBlock } = await import('../../lib/users');
+              const result = await toggleBlock(currentUser.uid, userId);
+              setIsBlocked(result.isBlocked);
+              
+              Alert.alert(
+                '완료',
+                result.isBlocked 
+                  ? `${profileUser?.profile?.userName}님을 차단했습니다.`
+                  : `${profileUser?.profile?.userName}님을 차단 해제했습니다.`
+              );
+            } catch (error) {
+              console.error('차단 토글 오류:', error);
+              Alert.alert('오류', '차단 상태 변경 중 오류가 발생했습니다.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <SafeScreenContainer>
@@ -225,16 +263,32 @@ export default function UserProfileScreen() {
             )}
           </View>
 
-          {/* 팔로우 버튼 */}
+          {/* 팔로우 및 차단 버튼 */}
           {!isOwnProfile && currentUser && (
-            <TouchableOpacity 
-              style={[styles.followButton, isFollowing && styles.followingButton]}
-              onPress={handleFollowToggle}
-            >
-              <Text style={[styles.followButtonText, isFollowing && styles.followingButtonText]}>
-                {isFollowing ? '팔로잉' : '팔로우'}
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.actionButtonsContainer}>
+              <TouchableOpacity 
+                style={[styles.followButton, isFollowing && styles.followingButton]}
+                onPress={handleFollowToggle}
+              >
+                <Text style={[styles.followButtonText, isFollowing && styles.followingButtonText]}>
+                  {isFollowing ? '팔로잉' : '팔로우'}
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.blockButton, isBlocked && styles.blockedButton]}
+                onPress={handleBlockToggle}
+              >
+                <Ionicons 
+                  name={isBlocked ? "shield-checkmark" : "shield"} 
+                  size={16} 
+                  color={isBlocked ? "#ffffff" : "#dc2626"} 
+                />
+                <Text style={[styles.blockButtonText, isBlocked && styles.blockedButtonText]}>
+                  {isBlocked ? '차단됨' : '차단'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
 
@@ -526,6 +580,36 @@ const styles = StyleSheet.create({
   },
   followingButtonText: {
     color: '#10B981',
+  },
+  actionButtonsContainer: {
+    width: '100%',
+    gap: 8,
+  },
+  blockButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#dc2626',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  blockedButton: {
+    backgroundColor: '#dc2626',
+    borderColor: '#dc2626',
+  },
+  blockButtonText: {
+    color: '#dc2626',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginLeft: 4,
+  },
+  blockedButtonText: {
+    color: '#ffffff',
   },
   followCard: {
     backgroundColor: '#FFFFFF',

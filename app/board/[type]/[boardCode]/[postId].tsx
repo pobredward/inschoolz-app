@@ -663,7 +663,40 @@ export default function PostDetailScreen() {
             setReportTargetContent(JSON.stringify({ title: post.title, content: post.content }));
             setReportPostId('');
             setShowReportModal(true);
-          }, style: 'destructive' as const }
+          }, style: 'destructive' as const },
+          { text: '차단하기', onPress: async () => {
+            if (!user || !post.authorId) {
+              Alert.alert('알림', '로그인이 필요합니다.');
+              return;
+            }
+
+            if (post.authorId === user.uid) {
+              Alert.alert('알림', '자기 자신을 차단할 수 없습니다.');
+              return;
+            }
+
+            Alert.alert(
+              '사용자 차단',
+              `${post.authorInfo?.displayName}님을 차단하시겠습니까?`,
+              [
+                { text: '취소', style: 'cancel' },
+                {
+                  text: '차단',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      const { toggleBlock } = await import('../../../../lib/users');
+                      const result = await toggleBlock(user.uid, post.authorId);
+                      Alert.alert('완료', result.isBlocked ? '사용자를 차단했습니다.' : '차단을 해제했습니다.');
+                    } catch (error) {
+                      console.error('차단 처리 실패:', error);
+                      Alert.alert('오류', '차단 처리에 실패했습니다.');
+                    }
+                  }
+                }
+              ]
+            );
+          }}
         ]),
         { text: '취소', style: 'cancel' as const }
       ]
@@ -1122,6 +1155,39 @@ export default function PostDetailScreen() {
                               setReportPostId(postId);
                               setShowReportModal(true);
                             }, style: 'destructive' as const },
+                            { text: '차단하기', onPress: async () => {
+                              if (!user || !comment.authorId) {
+                                Alert.alert('알림', '로그인이 필요합니다.');
+                                return;
+                              }
+
+                              if (comment.authorId === user.uid) {
+                                Alert.alert('알림', '자기 자신을 차단할 수 없습니다.');
+                                return;
+                              }
+
+                              Alert.alert(
+                                '사용자 차단',
+                                `${comment.author?.userName}님을 차단하시겠습니까?`,
+                                [
+                                  { text: '취소', style: 'cancel' },
+                                  {
+                                    text: '차단',
+                                    style: 'destructive',
+                                    onPress: async () => {
+                                      try {
+                                        const { toggleBlock } = await import('../../../../lib/users');
+                                        const result = await toggleBlock(user.uid, comment.authorId!);
+                                        Alert.alert('완료', result.isBlocked ? '사용자를 차단했습니다.' : '차단을 해제했습니다.');
+                                      } catch (error) {
+                                        console.error('차단 처리 실패:', error);
+                                        Alert.alert('오류', '차단 처리에 실패했습니다.');
+                                      }
+                                    }
+                                  }
+                                ]
+                              );
+                            }},
                           ]),
                           { text: '취소', style: 'cancel' as const },
                         ]

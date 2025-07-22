@@ -424,6 +424,178 @@ export const bulkUpdateUsers = async (userIds: string[], updates: {
     console.error('대량 사용자 업데이트 오류:', error);
     throw new Error('사용자들을 업데이트하는 중 오류가 발생했습니다.');
   }
+};
+
+// UserRelationship 타입 정의 (차단/팔로우 관계)
+interface UserRelationship {
+  id: string;
+  userId: string;
+  targetId: string;
+  type: 'follow' | 'block';
+  status: 'active' | 'inactive';
+  createdAt: FirebaseTimestamp;
+  updatedAt: FirebaseTimestamp;
+}
+
+/**
+ * 차단 상태 확인
+ */
+export const checkBlockStatus = async (
+  userId: string,
+  targetId: string
+): Promise<boolean> => {
+  try {
+    const relationshipsRef = collection(db, 'userRelationships');
+    const q = query(
+      relationshipsRef,
+      where('userId', '==', userId),
+      where('targetId', '==', targetId),
+      where('type', '==', 'block'),
+      where('status', '==', 'active')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return !querySnapshot.empty;
+  } catch (error) {
+    console.error('차단 상태 확인 오류:', error);
+    throw new Error('차단 상태를 확인하는 중 오류가 발생했습니다.');
+  }
+};
+
+/**
+ * 차단/차단해제 토글
+ */
+export const toggleBlock = async (
+  userId: string,
+  targetId: string
+): Promise<{ isBlocked: boolean }> => {
+  try {
+    // 자기 자신을 차단할 수 없음
+    if (userId === targetId) {
+      throw new Error('자기 자신을 차단할 수 없습니다.');
+    }
+    
+    // 대상 사용자 존재 여부 확인
+    const targetUser = await getUserById(targetId);
+    if (!targetUser) {
+      throw new Error('존재하지 않는 사용자입니다.');
+    }
+    
+    // 현재 차단 상태 확인
+    const relationshipsRef = collection(db, 'userRelationships');
+    const q = query(
+      relationshipsRef,
+      where('userId', '==', userId),
+      where('targetId', '==', targetId),
+      where('type', '==', 'block')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    
+    // 차단 관계가 존재하면 상태 변경
+    if (!querySnapshot.empty) {
+      const relationshipDoc = querySnapshot.docs[0];
+      const relationship = relationshipDoc.data() as UserRelationship;
+      
+      if (relationship.status === 'active') {
+        // 활성 상태면 비활성화 (차단 해제)
+        await updateDoc(doc(db, 'userRelationships', relationshipDoc.id), {
+          status: 'inactive',
+          updatedAt: serverTimestamp()
+        });
+        return { isBlocked: false };
+      } else {
+        // 비활성 상태면 활성화 (다시 차단)
+        await updateDoc(doc(db, 'userRelationships', relationshipDoc.id), {
+          status: 'active',
+          updatedAt: serverTimestamp()
+        });
+        return { isBlocked: true };
+      }
+    } else {
+      // 차단 관계가 없으면 새로 생성
+      const newRelationship: Omit<UserRelationship, 'id'> = {
+        userId,
+        targetId,
+        type: 'block',
+        status: 'active',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+      
+      const relationshipRef = await addDoc(relationshipsRef, newRelationship);
+      
+      // ID 업데이트
+      await updateDoc(relationshipRef, {
+        id: relationshipRef.id
+      });
+      
+      return { isBlocked: true };
+    }
+  } catch (error) {
+    console.error('차단 토글 오류:', error);
+    throw new Error('차단 상태를 변경하는 중 오류가 발생했습니다.');
+  }
+};
+
+/**
+ * 사용자가 차단한 사용자 목록 조회
+ */
+export const getBlockedUsers = async (
+  userId: string,
+  page = 1,
+  pageSize = 20
+): Promise<{ users: User[]; totalCount: number; hasMore: boolean }> => {
+  try {
+    const relationshipsRef = collection(db, 'userRelationships');
+    const q = query(
+      relationshipsRef,
+      where('userId', '==', userId),
+      where('type', '==', 'block'),
+      where('status', '==', 'active'),
+      orderBy('createdAt', 'desc'),
+      limit(pageSize * page)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const relationships = querySnapshot.docs.map(doc => doc.data() as UserRelationship);
+    
+    // 차단된 사용자 정보 조회
+    const users: User[] = [];
+    for (const relationship of relationships) {
+      const user = await getUserById(relationship.targetId);
+      if (user) {
+        users.push({
+          ...user,
+          // 차단 날짜 추가
+          blockedAt: relationship.createdAt
+        } as User & { blockedAt: any });
+      }
+    }
+    
+    // 전체 차단 사용자 수 조회
+    const countQuery = query(
+      relationshipsRef,
+      where('userId', '==', userId),
+      where('type', '==', 'block'),
+      where('status', '==', 'active')
+    );
+    const countSnapshot = await getDocs(countQuery);
+    const totalCount = countSnapshot.size;
+    
+    // 페이징 처리
+    const startIndex = (page - 1) * pageSize;
+    const paginatedUsers = users.slice(startIndex, startIndex + pageSize);
+    
+    return {
+      users: paginatedUsers,
+      totalCount,
+      hasMore: totalCount > page * pageSize
+    };
+  } catch (error) {
+    console.error('차단된 사용자 목록 조회 오류:', error);
+    throw new Error('차단된 사용자 목록을 조회하는 중 오류가 발생했습니다.');
+  }
 }; 
 
 // 기존 getUserById 함수 개선
@@ -919,28 +1091,6 @@ export const toggleFollow = async (userId: string, targetId: string): Promise<vo
   } catch (error) {
     console.error('팔로우 토글 오류:', error);
     throw new Error('팔로우 상태를 변경하는 중 오류가 발생했습니다.');
-  }
-};
-
-/**
- * 차단 상태 확인
- */
-export const checkBlockStatus = async (userId: string, targetId: string): Promise<boolean> => {
-  try {
-    const relationshipsRef = collection(db, 'userRelationships');
-    const q = query(
-      relationshipsRef,
-      where('userId', '==', userId),
-      where('targetId', '==', targetId),
-      where('type', '==', 'block'),
-      where('status', '==', 'active')
-    );
-    
-    const querySnapshot = await getDocs(q);
-    return !querySnapshot.empty;
-  } catch (error) {
-    console.error('차단 상태 확인 오류:', error);
-    return false;
   }
 };
 
