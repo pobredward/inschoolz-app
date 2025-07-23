@@ -11,6 +11,8 @@ import {
   StatusBar,
   SafeAreaView,
   ActivityIndicator,
+  Modal,
+  Dimensions,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +22,7 @@ import { BlockedUserContent } from '../../../../components/ui/BlockedUserContent
 import { Board, BoardType, Post } from '../../../../types';
 import { useAuthStore } from '../../../../store/authStore';
 import PostListItem from '../../../../components/PostListItem';
+import { toTimestamp } from '../../../../utils/timeUtils';
 
 // 기본 텍스트 처리 함수
 const parseContentText = (content: string) => {
@@ -81,6 +84,18 @@ function CustomHeader({ title, onBack }: { title: string; onBack: () => void }) 
   );
 }
 
+// 정렬 타입 및 옵션 추가
+type SortOption = 'latest' | 'popular' | 'views' | 'comments';
+
+const SORT_OPTIONS = [
+  { value: 'latest', label: '최신순' },
+  { value: 'popular', label: '인기순' },
+  { value: 'views', label: '조회순' },
+  { value: 'comments', label: '댓글순' }
+];
+
+const { width } = Dimensions.get('window');
+
 export default function BoardScreen() {
   const router = useRouter();
   const { type, boardCode } = useLocalSearchParams();
@@ -90,6 +105,8 @@ export default function BoardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
+  const [sortBy, setSortBy] = useState<SortOption>('latest'); // 정렬 상태 추가
+  const [showSortSelector, setShowSortSelector] = useState(false); // 정렬 모달 상태 추가
 
   // 차단된 사용자 목록 로드
   const loadBlockedUsers = useCallback(async () => {
@@ -155,11 +172,27 @@ export default function BoardScreen() {
       }
       
       // 게시글에 미리보기 내용 추가
-      const postsWithPreview = postsData.map(post => ({
+      let postsWithPreview = postsData.map(post => ({
         ...post,
         previewContent: post.content ? parseContentText(post.content).slice(0, 150) : '',
         boardName: foundBoard.name
       }));
+
+      // 정렬 적용
+      postsWithPreview = postsWithPreview.sort((a, b) => {
+        switch (sortBy) {
+          case 'latest':
+            return toTimestamp(b.createdAt) - toTimestamp(a.createdAt);
+          case 'popular':
+            return (b.stats?.likeCount || 0) - (a.stats?.likeCount || 0);
+          case 'views':
+            return (b.stats?.viewCount || 0) - (a.stats?.viewCount || 0);
+          case 'comments':
+            return (b.stats?.commentCount || 0) - (a.stats?.commentCount || 0);
+          default:
+            return toTimestamp(b.createdAt) - toTimestamp(a.createdAt);
+        }
+      });
       
       setPosts(postsWithPreview);
       
@@ -229,6 +262,13 @@ export default function BoardScreen() {
     }, [posts.length, user?.uid, loadBlockedUsers])
   );
 
+  // sortBy가 변경될 때마다 다시 로드
+  useEffect(() => {
+    if (board) {
+      loadBoardAndPosts();
+    }
+  }, [sortBy]);
+
   const handlePostPress = (post: Post & { boardName?: string; previewContent?: string }) => {
     router.push(`/board/${type}/${boardCode}/${post.id}`);
   };
@@ -247,6 +287,73 @@ export default function BoardScreen() {
   };
 
   const boardInfo = getBoardInfo(boardCode as string);
+
+  // 정렬 변경 핸들러
+  const handleSortChange = (newSortBy: SortOption) => {
+    setSortBy(newSortBy);
+    setShowSortSelector(false);
+  };
+
+  // 정렬 선택 모달 렌더링
+  const renderSortModal = () => (
+    <Modal
+      visible={showSortSelector}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setShowSortSelector(false)}
+    >
+      <TouchableOpacity 
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={() => setShowSortSelector(false)}
+      >
+        <View style={styles.sortModal}>
+          <View style={styles.sortModalHeader}>
+            <Text style={styles.sortModalTitle}>정렬 방식</Text>
+            <TouchableOpacity onPress={() => setShowSortSelector(false)}>
+              <Ionicons name="close" size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          {SORT_OPTIONS.map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={[
+                styles.sortOption,
+                sortBy === option.value && styles.activeSortOption
+              ]}
+              onPress={() => handleSortChange(option.value as SortOption)}
+            >
+              <Text style={[
+                styles.sortOptionText,
+                sortBy === option.value && styles.activeSortOptionText
+              ]}>
+                {option.label}
+              </Text>
+              {sortBy === option.value && (
+                <Ionicons name="checkmark" size={20} color="#10B981" />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+
+  // 정렬 헤더 렌더링
+  const renderSortHeader = () => (
+    <View style={styles.sortContainer}>
+      <Text style={styles.postCount}>총 {posts.length}개</Text>
+      <TouchableOpacity 
+        style={styles.sortButton}
+        onPress={() => setShowSortSelector(true)}
+      >
+        <Text style={styles.sortText}>
+          {SORT_OPTIONS.find(option => option.value === sortBy)?.label}
+        </Text>
+        <Ionicons name="chevron-down" size={16} color="#6B7280" />
+      </TouchableOpacity>
+    </View>
+  );
 
   if (loading) {
     return (
@@ -274,6 +381,9 @@ export default function BoardScreen() {
           title={`${boardInfo.name} - ${getTypeDisplayName(type as string)}`} 
           onBack={() => router.back()} 
         />
+        
+        {renderSortHeader()}
+        
         <ScrollView 
           style={styles.scrollView}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -344,6 +454,9 @@ export default function BoardScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+      
+      {/* 정렬 선택 모달 */}
+      {renderSortModal()}
     </View>
   );
 }
@@ -481,5 +594,75 @@ const styles = StyleSheet.create({
   emptySubText: {
     fontSize: 14,
     color: '#9ca3af',
+  },
+  
+  // 정렬 관련 스타일 추가
+  sortContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  postCount: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sortText: {
+    fontSize: 14,
+    color: '#374151',
+    marginRight: 4,
+  },
+  
+  // 모달 스타일
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sortModal: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    width: width * 0.8,
+    maxWidth: 300,
+  },
+  sortModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  sortModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  sortOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  activeSortOption: {
+    backgroundColor: '#F0FDF4',
+  },
+  sortOptionText: {
+    fontSize: 16,
+    color: '#374151',
+  },
+  activeSortOptionText: {
+    color: '#10B981',
+    fontWeight: '500',
   },
 }); 

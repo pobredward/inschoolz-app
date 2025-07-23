@@ -12,13 +12,14 @@ import {
   ActivityIndicator,
   FlatList,
   Dimensions,
+  Modal,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import PostListItem from '../../components/PostListItem';
 import { Timestamp } from 'firebase/firestore';
 // 유틸리티 함수 import
-import { formatRelativeTime, getPostPreviewImages } from '../../utils/timeUtils';
+import { formatRelativeTime, getPostPreviewImages, toTimestamp } from '../../utils/timeUtils';
 
 const parseContentText = (content: string) => {
   if (!content) return '';
@@ -83,6 +84,7 @@ export default function CommunityScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showBoardSelector, setShowBoardSelector] = useState(false);
+  const [showSortSelector, setShowSortSelector] = useState(false); // 정렬 선택 모달 상태 추가
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
 
   // 차단된 사용자 목록 로드
@@ -251,11 +253,27 @@ export default function CommunityScreen() {
       }
 
       // Post를 CommunityPost 형태로 변환
-      const communityPosts: CommunityPost[] = postsData.map(post => ({
+      let communityPosts: CommunityPost[] = postsData.map(post => ({
         ...post, // 모든 Post 필드를 복사
         boardName: post.boardName || boards.find(b => b.code === post.boardCode)?.name || '게시판',
         previewContent: truncateText(parseContentText(post.content), 100)
       }));
+
+      // 정렬 적용
+      communityPosts = communityPosts.sort((a, b) => {
+        switch (sortBy) {
+          case 'latest':
+            return toTimestamp(b.createdAt) - toTimestamp(a.createdAt);
+          case 'popular':
+            return (b.stats?.likeCount || 0) - (a.stats?.likeCount || 0);
+          case 'views':
+            return (b.stats?.viewCount || 0) - (a.stats?.viewCount || 0);
+          case 'comments':
+            return (b.stats?.commentCount || 0) - (a.stats?.commentCount || 0);
+          default:
+            return toTimestamp(b.createdAt) - toTimestamp(a.createdAt);
+        }
+      });
 
       setPosts(communityPosts);
     } catch (error) {
@@ -436,16 +454,71 @@ export default function CommunityScreen() {
     </View>
   );
 
+  // 정렬 선택 핸들러 추가
+  const handleSortChange = (newSortBy: SortOption) => {
+    setSortBy(newSortBy);
+    setShowSortSelector(false);
+    // 정렬 변경 후 게시글 다시 로드 (이미 loadPosts의 useEffect에서 sortBy 변경 시 자동으로 실행됨)
+  };
+
   const renderSortHeader = () => (
     <View style={styles.sortContainer}>
       <Text style={styles.postCount}>총 {posts.length}개</Text>
-      <TouchableOpacity style={styles.sortButton}>
+      <TouchableOpacity 
+        style={styles.sortButton}
+        onPress={() => setShowSortSelector(true)}
+      >
         <Text style={styles.sortText}>
           {SORT_OPTIONS.find(option => option.value === sortBy)?.label}
         </Text>
         <Ionicons name="chevron-down" size={16} color="#6B7280" />
       </TouchableOpacity>
     </View>
+  );
+
+  // 정렬 선택 모달 렌더링 함수 추가
+  const renderSortModal = () => (
+    <Modal
+      visible={showSortSelector}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setShowSortSelector(false)}
+    >
+      <TouchableOpacity 
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={() => setShowSortSelector(false)}
+      >
+        <View style={styles.sortModal}>
+          <View style={styles.sortModalHeader}>
+            <Text style={styles.sortModalTitle}>정렬 방식</Text>
+            <TouchableOpacity onPress={() => setShowSortSelector(false)}>
+              <Ionicons name="close" size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          {SORT_OPTIONS.map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={[
+                styles.sortOption,
+                sortBy === option.value && styles.activeSortOption
+              ]}
+                             onPress={() => handleSortChange(option.value as SortOption)}
+            >
+              <Text style={[
+                styles.sortOptionText,
+                sortBy === option.value && styles.activeSortOptionText
+              ]}>
+                {option.label}
+              </Text>
+              {sortBy === option.value && (
+                <Ionicons name="checkmark" size={20} color="#10B981" />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </TouchableOpacity>
+    </Modal>
   );
 
   const renderPostCard = ({ item: post }: { item: CommunityPost }) => {
@@ -578,6 +651,9 @@ export default function CommunityScreen() {
         onClose={() => setShowBoardSelector(false)}
         type={selectedTab}
       />
+
+      {/* 정렬 선택 모달 */}
+      {renderSortModal()}
     </SafeScreenContainer>
   );
 }
@@ -889,5 +965,49 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // 정렬 모달 스타일 추가
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sortModal: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    width: width * 0.8,
+    maxWidth: 300,
+  },
+  sortModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  sortModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  sortOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  activeSortOption: {
+    backgroundColor: '#F0FDF4',
+  },
+  sortOptionText: {
+    fontSize: 16,
+    color: '#374151',
+  },
+  activeSortOptionText: {
+    color: '#10B981',
+    fontWeight: '500',
   },
 }); 
