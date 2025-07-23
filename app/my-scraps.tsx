@@ -6,48 +6,77 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
-  Platform,
+  ActivityIndicator,
   StatusBar,
   SafeAreaView,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
 import { getScrappedPosts } from '../lib/boards';
-import { SafeScreenContainer } from '../components/SafeScreenContainer';
+import { getBlockedUserIds } from '../lib/users';
+import { BlockedUserContent } from '../components/ui/BlockedUserContent';
 import { Ionicons } from '@expo/vector-icons';
 import { formatRelativeTime } from '../utils/timeUtils';
-import PostListItem from '../components/PostListItem';
 import { Post } from '../types';
+import PostListItem from '../components/PostListItem';
 
 export default function MyScrapsScreen() {
   const { user } = useAuthStore();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
 
-  const loadScrappedPosts = async () => {
+  // 차단된 사용자 목록 로드
+  const loadBlockedUsers = async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const blockedIds = await getBlockedUserIds(user.uid);
+      setBlockedUserIds(new Set(blockedIds));
+    } catch (error) {
+      console.error('차단된 사용자 목록 로드 실패:', error);
+    }
+  };
+
+  // 차단 해제 시 상태 업데이트
+  const handleUnblock = (userId: string) => {
+    setBlockedUserIds(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(userId);
+      return newSet;
+    });
+  };
+
+  const loadPosts = async () => {
     if (!user?.uid) return;
 
     try {
-                      const scrappedPosts = await getScrappedPosts(user.uid);
-        setPosts(scrappedPosts);
-          } catch (error) {
-        console.error('스크랩 글 로드 오류:', error);
-        Alert.alert('오류', '스크랩한 글을 불러오는데 실패했습니다.');
-      } finally {
+      const scrappedPosts = await getScrappedPosts(user.uid);
+      setPosts(scrappedPosts);
+    } catch (error) {
+      console.error('스크랩한 글 로드 오류:', error);
+      Alert.alert('오류', '스크랩한 글을 불러오는데 실패했습니다.');
+    } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadScrappedPosts();
+    loadPosts();
   }, [user]);
+
+  // 사용자 정보 변경 시 차단된 사용자 목록 로드
+  useEffect(() => {
+    if (user?.uid) {
+      loadBlockedUsers();
+    }
+  }, [user?.uid]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadScrappedPosts();
+    await loadPosts();
     setRefreshing(false);
   };
 
@@ -77,19 +106,40 @@ export default function MyScrapsScreen() {
     return post.boardName || '게시판';
   };
 
-  const renderPost = ({ item }: { item: Post }) => (
-    <PostListItem
-      post={{
-        ...item,
-        boardName: getBoardName(item),
-      }}
-      onPress={handlePostPress}
-      showBadges={true}
-      typeBadgeText={getBoardTypeLabel(item.type)}
-      boardBadgeText={getBoardName(item)}
-      variant="profile"
-    />
-  );
+  const renderPost = ({ item }: { item: Post }) => {
+    // 차단된 사용자인지 확인
+    const isBlocked = item.authorId && blockedUserIds.has(item.authorId);
+    
+    const postListItem = (
+      <PostListItem
+        post={{
+          ...item,
+          boardName: getBoardName(item),
+        }}
+        onPress={handlePostPress}
+        showBadges={true}
+        typeBadgeText={getBoardTypeLabel(item.type)}
+        boardBadgeText={getBoardName(item)}
+        variant="profile"
+      />
+    );
+
+    if (isBlocked && item.authorId) {
+      return (
+        <BlockedUserContent
+          key={item.id}
+          blockedUserId={item.authorId}
+          blockedUserName={item.authorInfo?.displayName || '사용자'}
+          contentType="post"
+          onUnblock={() => handleUnblock(item.authorId!)}
+        >
+          {postListItem}
+        </BlockedUserContent>
+      );
+    }
+
+    return postListItem;
+  };
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>

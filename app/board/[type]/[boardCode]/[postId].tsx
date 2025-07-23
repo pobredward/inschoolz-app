@@ -177,6 +177,15 @@ export default function PostDetailScreen() {
     }
   }, [user?.uid]);
 
+  // 차단 해제 시 상태 업데이트
+  const handleUnblock = useCallback((userId: string) => {
+    setBlockedUserIds(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(userId);
+      return newSet;
+    });
+  }, []);
+
   // 익명 댓글 관련 상태
   const [showAnonymousForm, setShowAnonymousForm] = useState(false);
   
@@ -1081,16 +1090,24 @@ export default function PostDetailScreen() {
     if (isBlocked && comment.authorId) {
       return (
         <View key={comment.id} style={[styles.commentContainer, isReply && styles.replyContainer]}>
-          <View style={styles.blockedCommentContent}>
-            <Text style={styles.blockedCommentText}>차단한 사용자의 댓글입니다</Text>
-            <Text style={styles.blockedUserName}>@{comment.author?.userName || '사용자'}</Text>
-          </View>
+          <BlockedUserContent
+            blockedUserId={comment.authorId}
+            blockedUserName={comment.author?.userName || '사용자'}
+            contentType="comment"
+            onUnblock={() => handleUnblock(comment.authorId!)}
+          >
+            <View style={styles.blockedCommentContent}>
+              <Text style={styles.blockedCommentText}>차단한 사용자의 댓글입니다</Text>
+              <Text style={styles.blockedUserName}>@{comment.author?.userName || '사용자'}</Text>
+            </View>
+          </BlockedUserContent>
         </View>
       );
     }
 
     return (
       <View key={comment.id} style={[styles.commentContainer, isReply && styles.replyContainer]}>
+        {/* 댓글 헤더: 프로필 이미지 + 작성자 + 시간 + 메뉴 */}
         <View style={styles.commentHeader}>
           <View style={styles.commentHeaderLeft}>
             {renderProfileImage(
@@ -1098,97 +1115,65 @@ export default function PostDetailScreen() {
               comment.author?.userName,
               comment.isAnonymous
             )}
-            <View>
-              <Text style={styles.commentAuthor}>{authorName}</Text>
-              <Text style={styles.commentDate}>
-                {formatTimeAgo(comment.createdAt)}
-              </Text>
-            </View>
+            <Text style={styles.commentAuthor}>{authorName}</Text>
+            <Text style={styles.commentDate}>
+              {formatRelativeTime(comment.createdAt)}
+            </Text>
           </View>
           
-          <View style={styles.commentHeaderRight}>
-            {/* 좋아요 버튼 */}
+          {/* 더보기 메뉴 */}
+          {(user && (comment.authorId === user.uid || comment.isAnonymous)) && (
             <TouchableOpacity
-              style={styles.likeButton}
-              onPress={() => handleCommentLike(comment.id)}
+              style={styles.moreButton}
+              onPress={() => {
+                // TODO: 댓글 옵션 메뉴 구현
+              }}
             >
-              <Ionicons 
-                name={commentLikeStatuses[comment.id] ? "heart" : "heart-outline"} 
-                size={14} 
-                color={commentLikeStatuses[comment.id] ? "#ef4444" : "#6b7280"} 
-              />
-              <Text style={[styles.likeCount, commentLikeStatuses[comment.id] && styles.likedCount]}>
-                {comment.stats.likeCount}
-              </Text>
+              <Ionicons name="ellipsis-horizontal" size={16} color="#94a3b8" />
             </TouchableOpacity>
-
-            {/* 답글 버튼 */}
-            {level < maxLevel && (
-              <TouchableOpacity
-                style={styles.replyButton}
-                onPress={() => {
-                  setReplyingTo({
-                    id: comment.id,
-                    author: authorName
-                  });
-                }}
-              >
-                <Ionicons name="chatbubble-outline" size={14} color="#6b7280" />
-                <Text style={styles.replyButtonText}>답글</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* 더보기 메뉴 */}
-            {(user && (comment.authorId === user.uid || comment.isAnonymous)) && (
-              <TouchableOpacity
-                style={styles.moreButton}
-                onPress={() => {
-                  Alert.alert(
-                    '댓글 옵션',
-                    '어떤 작업을 하시겠습니까?',
-                    [
-                      // ... existing menu options ...
-                      ...(user && comment.authorId && comment.authorId !== user.uid ? [{
-                        text: '차단하기', onPress: async () => {
-                          Alert.alert(
-                            '사용자 차단',
-                            `${comment.author?.userName}님을 차단하시겠습니까?`,
-                            [
-                              { text: '취소', style: 'cancel' },
-                              {
-                                text: '차단',
-                                style: 'destructive',
-                                onPress: async () => {
-                                  try {
-                                    const { toggleBlock } = await import('../../../../lib/users');
-                                    const result = await toggleBlock(user.uid, comment.authorId!);
-                                    Alert.alert('완료', result.isBlocked ? '사용자를 차단했습니다.' : '차단을 해제했습니다.');
-                                    // 차단된 사용자 목록 새로고침
-                                    loadBlockedUsers();
-                                  } catch (error) {
-                                    console.error('차단 처리 실패:', error);
-                                    Alert.alert('오류', '차단 처리에 실패했습니다.');
-                                  }
-                                }
-                              }
-                            ]
-                          );
-                        }}
-                      }] : []),
-                      { text: '취소', style: 'cancel' as const },
-                    ]
-                  );
-                }}
-              >
-                <Ionicons name="ellipsis-horizontal" size={16} color="#94a3b8" />
-              </TouchableOpacity>
-            )}
-          </View>
+          )}
         </View>
         
-        <Text style={[styles.commentText, isDeleted && styles.deletedCommentText]}>
-          {parseContentText(comment.content)}
-        </Text>
+        {/* 댓글 내용 - 프로필 이미지 여백에 맞춰 들여쓰기 */}
+        <View style={styles.commentContent}>
+          <Text style={[styles.commentText, isDeleted && styles.deletedCommentText]}>
+            {isDeleted ? '삭제된 댓글입니다.' : parseContentText(comment.content)}
+          </Text>
+          
+          {/* 액션 버튼들 - 좋아요, 답글 */}
+          {!isDeleted && (
+            <View style={styles.commentActions}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => handleCommentLike(comment.id)}
+              >
+                <Ionicons 
+                  name={commentLikeStatuses[comment.id] ? "heart" : "heart-outline"} 
+                  size={14} 
+                  color={commentLikeStatuses[comment.id] ? "#ef4444" : "#6b7280"} 
+                />
+                <Text style={[styles.actionButtonText, commentLikeStatuses[comment.id] && styles.likedText]}>
+                  {comment.stats.likeCount}
+                </Text>
+              </TouchableOpacity>
+
+              {level < maxLevel && (
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => {
+                    setReplyingTo({
+                      id: comment.id,
+                      author: authorName
+                    });
+                  }}
+                >
+                  <Ionicons name="chatbubble-outline" size={14} color="#6b7280" />
+                  <Text style={styles.actionButtonText}>답글</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        </View>
 
         {/* 답글 목록 */}
         {comment.replies && comment.replies.length > 0 && (
@@ -1203,6 +1188,13 @@ export default function PostDetailScreen() {
   useEffect(() => {
     loadPostDetail();
   }, [postId]);
+
+  // 사용자 정보 변경 시 차단된 사용자 목록 로드
+  useEffect(() => {
+    if (user?.uid) {
+      loadBlockedUsers();
+    }
+  }, [user?.uid, loadBlockedUsers]);
 
   if (isLoading) {
     return (
@@ -1741,11 +1733,13 @@ const styles = StyleSheet.create({
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   actionButtonText: {
     fontSize: 12,
     color: '#6b7280',
+    marginLeft: 4,
   },
   commentSection: {
     backgroundColor: '#fff',
@@ -1806,51 +1800,41 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#64748b',
   },
-  commentContent: {
-    flex: 1,
-  },
   commentHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  commentAuthorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
+    marginBottom: 4,
   },
   commentAuthor: {
     fontSize: 14,
     fontWeight: '600',
     color: '#1e293b',
-  },
-  commentMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    marginLeft: 8,
   },
   commentDate: {
     fontSize: 12,
     color: '#64748b',
-  },
-  commentMenuButton: {
-    padding: 4,
+    marginLeft: 4,
   },
   commentText: {
     fontSize: 14,
     color: '#334155',
     lineHeight: 20,
     marginBottom: 8,
-    textAlign: 'left',
   },
   deletedCommentText: {
     color: '#94a3b8',
     fontStyle: 'italic',
   },
+  commentContent: {
+    marginLeft: 32, // 프로필 이미지 크기(24) + 여백(8) = 32
+    marginTop: 4,
+  },
   commentActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 8,
     gap: 16,
   },
   commentAction: {
@@ -2045,5 +2029,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#15803d',
     fontWeight: '600',
+  },
+  commentHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  commentHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  likeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  likeCount: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginLeft: 4,
+  },
+  likedCount: {
+    fontSize: 12,
+    color: '#ef4444',
+    marginLeft: 4,
+  },
+  moreButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  repliesContainer: {
+    marginLeft: 20,
+    marginTop: 8,
+  },
+  likedText: {
+    fontSize: 12,
+    color: '#ef4444',
+    marginLeft: 4,
   },
 }); 

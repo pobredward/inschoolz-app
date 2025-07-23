@@ -15,7 +15,8 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
-import { getUserPosts } from '../lib/users';
+import { getUserPosts, getBlockedUserIds } from '../lib/users';
+import { BlockedUserContent } from '../components/ui/BlockedUserContent';
 import { SafeScreenContainer } from '../components/SafeScreenContainer';
 import { Ionicons } from '@expo/vector-icons';
 import { formatRelativeTime } from '../utils/timeUtils';
@@ -55,6 +56,28 @@ export default function MyPostsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedType, setSelectedType] = useState<BoardType>('all');
+  const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
+
+  // 차단된 사용자 목록 로드
+  const loadBlockedUsers = async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const blockedIds = await getBlockedUserIds(user.uid);
+      setBlockedUserIds(new Set(blockedIds));
+    } catch (error) {
+      console.error('차단된 사용자 목록 로드 실패:', error);
+    }
+  };
+
+  // 차단 해제 시 상태 업데이트
+  const handleUnblock = (userId: string) => {
+    setBlockedUserIds(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(userId);
+      return newSet;
+    });
+  };
 
   const loadPosts = async () => {
     if (!user?.uid) return;
@@ -82,6 +105,13 @@ export default function MyPostsScreen() {
   useEffect(() => {
     loadPosts();
   }, [user]);
+
+  // 사용자 정보 변경 시 차단된 사용자 목록 로드
+  useEffect(() => {
+    if (user?.uid) {
+      loadBlockedUsers();
+    }
+  }, [user?.uid]);
 
   useEffect(() => {
     filterPosts(posts, selectedType);

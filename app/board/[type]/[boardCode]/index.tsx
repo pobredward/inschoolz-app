@@ -15,6 +15,8 @@ import {
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getBoardsByType, getPostsByBoardType } from '../../../../lib/boards';
+import { getBlockedUserIds } from '../../../../lib/users';
+import { BlockedUserContent } from '../../../../components/ui/BlockedUserContent';
 import { Board, BoardType, Post } from '../../../../types';
 import { useAuthStore } from '../../../../store/authStore';
 import PostListItem from '../../../../components/PostListItem';
@@ -87,6 +89,28 @@ export default function BoardScreen() {
   const [board, setBoard] = useState<Board | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
+
+  // 차단된 사용자 목록 로드
+  const loadBlockedUsers = useCallback(async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const blockedIds = await getBlockedUserIds(user.uid);
+      setBlockedUserIds(new Set(blockedIds));
+    } catch (error) {
+      console.error('차단된 사용자 목록 로드 실패:', error);
+    }
+  }, [user?.uid]);
+
+  // 차단 해제 시 상태 업데이트
+  const handleUnblock = useCallback((userId: string) => {
+    setBlockedUserIds(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(userId);
+      return newSet;
+    });
+  }, []);
 
   const loadBoardAndPosts = async () => {
     try {
@@ -184,6 +208,13 @@ export default function BoardScreen() {
     loadBoardAndPosts();
   }, [type, boardCode, user]);
 
+  // 사용자 정보 변경 시 차단된 사용자 목록 로드
+  useEffect(() => {
+    if (user?.uid) {
+      loadBlockedUsers();
+    }
+  }, [user?.uid, loadBlockedUsers]);
+
   // 화면이 포커스될 때마다 게시글 목록 새로고침 (게시글 상세에서 돌아온 경우)
   useFocusEffect(
     useCallback(() => {
@@ -278,16 +309,41 @@ export default function BoardScreen() {
                 <Text style={styles.emptySubText}>첫 번째 글을 작성해보세요!</Text>
               </View>
             ) : (
-              posts.map((post) => (
-                <PostListItem
-                  key={post.id}
-                  post={post}
-                  onPress={handlePostPress}
-                  showBadges={true}
-                  typeBadgeText={getTypeDisplayName(type as string)}
-                  boardBadgeText={boardInfo.name}
-                />
-              ))
+              posts.map((post) => {
+                // 차단된 사용자인지 확인
+                const isBlocked = post.authorId && blockedUserIds.has(post.authorId);
+                
+                if (isBlocked && post.authorId) {
+                  return (
+                    <BlockedUserContent
+                      key={post.id}
+                      blockedUserId={post.authorId}
+                      blockedUserName={post.authorInfo?.displayName || '사용자'}
+                      contentType="post"
+                      onUnblock={() => handleUnblock(post.authorId!)}
+                    >
+                      <PostListItem
+                        post={post}
+                        onPress={handlePostPress}
+                        showBadges={true}
+                        typeBadgeText={getTypeDisplayName(type as string)}
+                        boardBadgeText={boardInfo.name}
+                      />
+                    </BlockedUserContent>
+                  );
+                }
+
+                return (
+                  <PostListItem
+                    key={post.id}
+                    post={post}
+                    onPress={handlePostPress}
+                    showBadges={true}
+                    typeBadgeText={getTypeDisplayName(type as string)}
+                    boardBadgeText={boardInfo.name}
+                  />
+                );
+              })
             )}
           </View>
         </ScrollView>

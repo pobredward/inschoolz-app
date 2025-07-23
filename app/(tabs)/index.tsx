@@ -33,7 +33,7 @@ export default function HomeScreen() {
   const [userData, setUserData] = useState<any>(null);
   const [attendance, setAttendance] = useState<UserAttendance | null>(null);
   const [isCheckingAttendance, setIsCheckingAttendance] = useState(false);
-  const [mainSchool, setMainSchool] = useState<School | null>(null);
+  const [mainSchool, setMainSchool] = useState<any>(null); // School type 제거
   const [gameStats, setGameStats] = useState<{
     bestReactionTimes: { [key: string]: number | null };
     todayPlays: { [key: string]: number };
@@ -44,6 +44,7 @@ export default function HomeScreen() {
   const [popularPosts, setPopularPosts] = useState<Post[]>([]);
   const [rankingPreview, setRankingPreview] = useState<RankingPreview | null>(null);
   const [loading, setLoading] = useState(false);
+
 
   // 경험치 진행률 계산
   const expProgress = React.useMemo(() => {
@@ -67,33 +68,17 @@ export default function HomeScreen() {
         // 경험치 데이터 동기화
         await syncUserExperienceData(user.uid);
         
-        const [
-          attendanceInfo, 
-          mainSchoolInfo, 
-          gameStatsResponse,
-          rankings
-        ] = await Promise.all([
-          checkAttendance(user.uid),
-          getMainSchool(user.uid),
-          getUserGameStats(user.uid),
-          getRankingPreview(
-            user.uid,
-            user.school?.id,
-            user.regions?.sido,
-            user.regions?.sigungu
-          )
-        ]);
-        
+        // 출석 정보만 로드 (나머지는 추후 구현)
+        const attendanceInfo = await checkAttendance(user.uid);
         setAttendance(attendanceInfo);
-        setMainSchool(mainSchoolInfo);
-        setRankingPreview(rankings);
         
-        if (gameStatsResponse.success && gameStatsResponse.data) {
-          setGameStats({
-            bestReactionTimes: gameStatsResponse.data.bestReactionTimes,
-            todayPlays: gameStatsResponse.data.todayPlays
-          });
-        }
+        // TODO: 추후 다른 데이터들도 로드 구현
+        // const mainSchoolInfo = await getMainSchool(user.uid);
+        // const gameStatsResponse = await getUserGameStats(user.uid);
+        // const rankings = await getRankingPreview(user.uid, user.school?.id, user.regions?.sido, user.regions?.sigungu);
+        // setMainSchool(mainSchoolInfo);
+        // setRankingPreview(rankings);
+        // setGameStats(gameStatsResponse.data);
       }
       
       // 인기 게시글은 로그인 여부와 관계없이 로드

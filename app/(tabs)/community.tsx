@@ -39,16 +39,16 @@ const parseContentText = (content: string) => {
     .trim();
 };
 
+// 유틸리티 함수 추가
 const truncateText = (text: string, maxLength: number = 100) => {
   if (!text) return '';
-  const cleanText = parseContentText(text);
-  if (cleanText.length <= maxLength) return cleanText;
-  return cleanText.substring(0, maxLength) + '...';
+  return text.length > maxLength ? text.slice(0, maxLength) + '...' : text;
 };
 
 // timeUtils에서 가져온 함수를 사용하므로 여기서는 중복 정의 제거
 import { getBoardsByType, getPostsByBoardType, getAllPostsByType, getAllPostsBySchool, getAllPostsByRegion } from '@/lib/boards';
-import { getUserById } from '@/lib/users';
+import { getUserById, getBlockedUserIds } from '@/lib/users';
+import { BlockedUserContent } from '../../components/ui/BlockedUserContent';
 import { useAuthStore } from '../../store/authStore';
 import { Board, BoardType, Post } from '../../types';
 import BoardSelector from '@/components/board/BoardSelector';
@@ -83,6 +83,19 @@ export default function CommunityScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showBoardSelector, setShowBoardSelector] = useState(false);
+  const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
+
+  // 차단된 사용자 목록 로드
+  const loadBlockedUsers = useCallback(async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const blockedIds = await getBlockedUserIds(user.uid);
+      setBlockedUserIds(new Set(blockedIds));
+    } catch (error) {
+      console.error('차단된 사용자 목록 로드 실패:', error);
+    }
+  }, [user?.uid]);
 
   // URL 파라미터에서 탭 정보를 받아서 초기 탭 설정
   useEffect(() => {
@@ -118,6 +131,13 @@ export default function CommunityScreen() {
     loadPosts();
   }, [selectedTab, selectedBoard, sortBy, boards]);
 
+  // 사용자 정보 변경 시 차단된 사용자 목록 로드
+  useEffect(() => {
+    if (user?.uid) {
+      loadBlockedUsers();
+    }
+  }, [user?.uid, loadBlockedUsers]);
+
   // 화면이 포커스될 때마다 게시글 목록 새로고침
   useFocusEffect(
     useCallback(() => {
@@ -127,6 +147,15 @@ export default function CommunityScreen() {
       }
     }, [posts.length])
   );
+
+  // 차단 해제 시 상태 업데이트
+  const handleUnblock = useCallback((userId: string) => {
+    setBlockedUserIds(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(userId);
+      return newSet;
+    });
+  }, []);
 
   const loadBoards = async () => {
     try {
@@ -424,6 +453,28 @@ export default function CommunityScreen() {
         default: return '전국';
       }
     };
+
+    // 차단된 사용자인지 확인
+    const isBlocked = post.authorId && blockedUserIds.has(post.authorId);
+    
+    if (isBlocked && post.authorId) {
+      return (
+        <BlockedUserContent
+          blockedUserId={post.authorId}
+          blockedUserName={post.authorInfo?.displayName || '사용자'}
+          contentType="post"
+          onUnblock={() => handleUnblock(post.authorId!)}
+        >
+          <PostListItem
+            post={post}
+            onPress={(p) => handlePostPress(p as CommunityPost)}
+            typeBadgeText={getTabName()}
+            boardBadgeText={post.boardName}
+            variant="community"
+          />
+        </BlockedUserContent>
+      );
+    }
 
     return (
       <PostListItem
