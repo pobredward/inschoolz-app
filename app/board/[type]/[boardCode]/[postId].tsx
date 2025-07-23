@@ -14,8 +14,10 @@ import {
   Image,
   Dimensions,
   StatusBar,
-  Modal
+  Modal,
+  Linking
 } from 'react-native';
+import Hyperlink from 'react-native-hyperlink';
 
 const { width } = Dimensions.get('window');
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -1437,9 +1439,20 @@ export default function PostDetailScreen() {
               </View>
             </View>
           ) : (
-            <Text style={[styles.commentText, isDeleted && styles.deletedCommentText]}>
-              {isDeleted ? '삭제된 댓글입니다.' : parseContentText(comment.content)}
-            </Text>
+            <Hyperlink
+              linkDefault={true}
+              linkStyle={styles.linkText}
+              onPress={(url, text) => {
+                Linking.openURL(url).catch((err) => {
+                  console.error('링크 열기 실패:', err);
+                  Alert.alert('오류', '링크를 열 수 없습니다.');
+                });
+              }}
+            >
+              <Text style={[styles.commentText, isDeleted && styles.deletedCommentText]}>
+                {isDeleted ? '삭제된 댓글입니다.' : parseContentText(comment.content)}
+              </Text>
+            </Hyperlink>
           )}
           
           {/* 액션 버튼들 - 좋아요, 답글 (수정 중이 아닐 때만 표시) */}
@@ -2674,5 +2687,11 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     fontSize: 14,
     fontWeight: '600',
+  },
+  
+  // 링크 텍스트 스타일
+  linkText: {
+    color: '#2563eb',
+    textDecorationLine: 'underline',
   },
 }); 
