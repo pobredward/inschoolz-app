@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, RefreshControl, Alert, ActivityIndicator, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, RefreshControl, Alert, ActivityIndicator, Image, Linking } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { checkAttendance, UserAttendance } from '../../lib/attendance';
@@ -260,6 +260,21 @@ export default function ProfileScreen() {
         }
       ]
     );
+  };
+
+  // 웹 링크로 이동하는 함수
+  const openWebLink = async (url: string) => {
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('오류', '링크를 열 수 없습니다.');
+      }
+    } catch (error) {
+      console.error('링크 열기 오류:', error);
+      Alert.alert('오류', '링크를 여는 중 문제가 발생했습니다.');
+    }
   };
 
   // 인증 로딩 중
@@ -593,6 +608,15 @@ export default function ProfileScreen() {
             </TouchableOpacity>
             
             <TouchableOpacity 
+              style={styles.settingButton}
+              onPress={handleDeleteAccount}
+            >
+              <Text style={styles.settingIcon}>🗑️</Text>
+              <Text style={styles.settingText}>계정 삭제</Text>
+              <Text style={styles.settingArrow}>›</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
               style={[styles.settingButton, styles.signOutButton]}
               onPress={handleSignOut}
             >
@@ -603,28 +627,54 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-                 {/* 계정 관리 섹션 추가 */}
-         <View style={styles.settingsSection}>
-           <Text style={styles.sectionTitle}>🚨 계정 관리</Text>
-           
-           <View style={[styles.settingsCard, { borderColor: '#FCA5A5', backgroundColor: '#FEF2F2' }]}>
-            <View style={styles.accountDeleteSection}>
-              <Text style={[styles.infoLabel, { color: '#DC2626', fontWeight: 'bold' }]}>
-                계정 삭제
-              </Text>
-              <Text style={[styles.accountDeleteDescription, { color: '#7F1D1D' }]}>
-                계정을 삭제하면 모든 개인정보가 영구적으로 삭제됩니다.{'\n'}
-                작성한 게시글과 댓글은 "삭제된 계정"으로 표시되지만 내용은 유지됩니다.
-              </Text>
-              
-              <TouchableOpacity
-                style={styles.deleteAccountButton}
-                onPress={handleDeleteAccount}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.deleteAccountButtonText}>계정 삭제</Text>
-              </TouchableOpacity>
-            </View>
+        {/* 정책 및 약관 섹션 */}
+        <View style={styles.policySection}>
+          <Text style={styles.sectionTitle}>📋 정책 및 약관</Text>
+          <View style={styles.policyCard}>
+            <TouchableOpacity 
+              style={styles.policyButton}
+              onPress={() => openWebLink('https://www.inschoolz.com/about')}
+            >
+              <Text style={styles.policyIcon}>ℹ️</Text>
+              <Text style={styles.policyText}>회사소개</Text>
+              <Text style={styles.policyArrow}>›</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.policyButton}
+              onPress={() => openWebLink('https://www.inschoolz.com/terms')}
+            >
+              <Text style={styles.policyIcon}>📄</Text>
+              <Text style={styles.policyText}>이용약관</Text>
+              <Text style={styles.policyArrow}>›</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.policyButton}
+              onPress={() => openWebLink('https://www.inschoolz.com/privacy')}
+            >
+              <Text style={styles.policyIcon}>🔒</Text>
+              <Text style={styles.policyText}>개인정보처리방침</Text>
+              <Text style={styles.policyArrow}>›</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.policyButton}
+              onPress={() => openWebLink('https://www.inschoolz.com/youth-protection')}
+            >
+              <Text style={styles.policyIcon}>🛡️</Text>
+              <Text style={styles.policyText}>청소년보호정책</Text>
+              <Text style={styles.policyArrow}>›</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.policyButton}
+              onPress={() => openWebLink('https://www.inschoolz.com/help')}
+            >
+              <Text style={styles.policyIcon}>❓</Text>
+              <Text style={styles.policyText}>고객지원</Text>
+              <Text style={styles.policyArrow}>›</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -1046,47 +1096,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
   },
-  accountDeleteSection: {
-    alignItems: 'center',
-    padding: 16,
-  },
-  
-  accountDeleteDescription: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginVertical: 12,
-    lineHeight: 20,
-  },
-  
-  deleteAccountButton: {
-    backgroundColor: '#DC2626',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  
-     deleteAccountButtonText: {
-     color: '#FFFFFF',
-     fontSize: 14,
-     fontWeight: '600',
+
+   policySection: {
+     backgroundColor: 'white',
+     margin: 20,
+     padding: 20,
+     borderRadius: 12,
+     shadowColor: '#000',
+     shadowOffset: {
+       width: 0,
+       height: 2,
+     },
+     shadowOpacity: 0.1,
+     shadowRadius: 3.84,
+     elevation: 5,
    },
-   
-   settingsSection: {
-     backgroundColor: '#FFFFFF',
+   policyCard: {
+     gap: 8,
+   },
+   policyButton: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     backgroundColor: '#f9fafb',
      borderRadius: 12,
      padding: 16,
-     marginVertical: 8,
-     shadowColor: '#000',
-     shadowOffset: { width: 0, height: 2 },
-     shadowOpacity: 0.1,
-     shadowRadius: 4,
-     elevation: 3,
+     width: '100%',
    },
-   
-   settingsCard: {
-     borderWidth: 1,
-     borderRadius: 8,
-     padding: 16,
+   policyIcon: {
+     fontSize: 16,
+     marginRight: 12,
+   },
+   policyText: {
+     fontSize: 16,
+     color: '#374151',
+     flex: 1,
+   },
+   policyArrow: {
+     fontSize: 16,
+     color: '#9ca3af',
+     marginLeft: 'auto',
    },
  }); 
