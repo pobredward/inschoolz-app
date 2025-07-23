@@ -31,6 +31,7 @@ import AnonymousCommentEditor from '../../../../components/ui/AnonymousCommentEd
 import { PollVoting } from '../../../../components/ui/PollVoting';
 // 유틸리티 함수 import
 import { formatRelativeTime, formatAbsoluteTime, toTimestamp } from '../../../../utils/timeUtils';
+import { BlockedUserContent } from '../../../../components/ui/BlockedUserContent';
 
 const parseContentText = (content: string) => {
   if (!content) return '';
@@ -159,6 +160,22 @@ export default function PostDetailScreen() {
   const [reportTargetType, setReportTargetType] = useState<'post' | 'comment'>('post');
   const [reportTargetContent, setReportTargetContent] = useState<string>('');
   const [reportPostId, setReportPostId] = useState<string>('');
+  
+  // 차단된 사용자 목록
+  const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
+
+  // 차단된 사용자 목록 로드
+  const loadBlockedUsers = useCallback(async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const { getBlockedUserIds } = await import('../../../../lib/users');
+      const blockedIds = await getBlockedUserIds(user.uid);
+      setBlockedUserIds(new Set(blockedIds));
+    } catch (error) {
+      console.error('차단된 사용자 목록 로드 실패:', error);
+    }
+  }, [user?.uid]);
 
   // 익명 댓글 관련 상태
   const [showAnonymousForm, setShowAnonymousForm] = useState(false);
@@ -1056,221 +1073,127 @@ export default function PostDetailScreen() {
           `${comment.anonymousAuthor?.nickname || '익명'} (비회원)` : 
           '익명') : 
         comment.author?.userName || '사용자');
-    const maxLevel = 1; // 최대 1단계 대댓글까지만 허용
+    const maxLevel = 1;
     
+    // 차단된 사용자인지 확인
+    const isBlocked = comment.authorId && user && blockedUserIds.has(comment.authorId);
+    
+    if (isBlocked && comment.authorId) {
+      return (
+        <View key={comment.id} style={[styles.commentContainer, isReply && styles.replyContainer]}>
+          <View style={styles.blockedCommentContent}>
+            <Text style={styles.blockedCommentText}>차단한 사용자의 댓글입니다</Text>
+            <Text style={styles.blockedUserName}>@{comment.author?.userName || '사용자'}</Text>
+          </View>
+        </View>
+      );
+    }
+
     return (
       <View key={comment.id} style={[styles.commentContainer, isReply && styles.replyContainer]}>
-        <View style={styles.commentWrapper}>
-          {comment.isAnonymous && comment.authorId === null ? (
-            <View style={[styles.commentAvatar, styles.anonymousAvatar]}>
-              <Ionicons name="person-outline" size={16} color="#22c55e" />
+        <View style={styles.commentHeader}>
+          <View style={styles.commentHeaderLeft}>
+            {renderProfileImage(
+              comment.author?.profileImageUrl,
+              comment.author?.userName,
+              comment.isAnonymous
+            )}
+            <View>
+              <Text style={styles.commentAuthor}>{authorName}</Text>
+              <Text style={styles.commentDate}>
+                {formatTimeAgo(comment.createdAt)}
+              </Text>
             </View>
-          ) : (
-            <TouchableOpacity 
-              onPress={() => comment.authorId && router.push(`/users/${comment.authorId}`)}
+          </View>
+          
+          <View style={styles.commentHeaderRight}>
+            {/* 좋아요 버튼 */}
+            <TouchableOpacity
+              style={styles.likeButton}
+              onPress={() => handleCommentLike(comment.id)}
             >
-              {renderProfileImage(comment.author?.profileImageUrl, authorName, comment.isAnonymous)}
+              <Ionicons 
+                name={commentLikeStatuses[comment.id] ? "heart" : "heart-outline"} 
+                size={14} 
+                color={commentLikeStatuses[comment.id] ? "#ef4444" : "#6b7280"} 
+              />
+              <Text style={[styles.likeCount, commentLikeStatuses[comment.id] && styles.likedCount]}>
+                {comment.stats.likeCount}
+              </Text>
             </TouchableOpacity>
-          )}
-      
-          <View style={styles.commentContent}>
-            <View style={styles.commentHeader}>
-              <View style={styles.commentAuthorRow}>
-                {comment.isAnonymous && comment.authorId === null ? (
-                  <Text style={styles.commentAuthor}>
-                    {authorName}
-                  </Text>
-                ) : (
-                  <TouchableOpacity 
-                    onPress={() => comment.authorId && router.push(`/users/${comment.authorId}`)}
-                  >
-                    <Text style={[styles.commentAuthor, styles.clickableAuthor]}>
-                      {authorName}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              <View style={styles.commentMetaRow}>
-                <Text style={styles.commentDate}>
-                  {formatDate(comment.createdAt)}
-                </Text>
-                {!isDeleted && (
-                  <TouchableOpacity
-                    style={styles.commentMenuButton}
-                    onPress={() => {
-                      Alert.alert(
-                        '댓글 메뉴',
-                        '',
-                        [
-                          // 회원 댓글인 경우 (자신의 댓글)
-                          ...(user?.uid === comment.authorId ? [
-                            { text: '수정', onPress: () => {} },
-                            { text: '삭제', onPress: async () => {
-                              try {
-                                // 대댓글이 있는지 확인
-                                const hasReplies = comments.some(c => c.parentId === comment.id);
-                                
-                                if (hasReplies) {
-                                  // 대댓글이 있으면 소프트 삭제
-                                  await updateDoc(doc(db, 'posts', postId, 'comments', comment.id), {
-                                    'status.isDeleted': true,
-                                    content: '삭제된 댓글입니다.',
-                                    updatedAt: serverTimestamp()
-                                  });
-                                } else {
-                                  // 대댓글이 없으면 완전 삭제
-                                  await deleteDoc(doc(db, 'posts', postId, 'comments', comment.id));
-                                }
-                                
-                                // 게시글의 댓글 수 감소
-                                await updateDoc(doc(db, 'posts', postId), {
-                                  'stats.commentCount': increment(-1)
-                                });
-                                
-                                Alert.alert('성공', '댓글이 삭제되었습니다.');
-                                // 댓글 목록 새로고침
-                                await loadComments(postId);
-                              } catch (error) {
-                                console.error('댓글 삭제 실패:', error);
-                                Alert.alert('오류', '댓글 삭제에 실패했습니다.');
-                              }
-                            }, style: 'destructive' as const },
-                          ] : 
-                          // 익명 댓글인 경우
-                          comment.isAnonymous && comment.authorId === null ? [
-                            { text: '수정 (비밀번호 필요)', onPress: () => {
-                              setPasswordModalData({ commentId: comment.id, action: 'edit' });
-                              setShowPasswordModal(true);
-                            }},
-                            { text: '삭제 (비밀번호 필요)', onPress: () => {
-                              setPasswordModalData({ commentId: comment.id, action: 'delete' });
-                              setShowPasswordModal(true);
-                            }, style: 'destructive' as const },
-                          ] : [
-                            // 다른 사람의 댓글인 경우
-                            { text: '신고', onPress: () => {
-                              setReportTargetId(comment.id);
-                              setReportTargetType('comment');
-                              setReportTargetContent(comment.content);
-                              setReportPostId(postId);
-                              setShowReportModal(true);
-                            }, style: 'destructive' as const },
-                            { text: '차단하기', onPress: async () => {
-                              if (!user || !comment.authorId) {
-                                Alert.alert('알림', '로그인이 필요합니다.');
-                                return;
-                              }
 
-                              if (comment.authorId === user.uid) {
-                                Alert.alert('알림', '자기 자신을 차단할 수 없습니다.');
-                                return;
-                              }
+            {/* 답글 버튼 */}
+            {level < maxLevel && (
+              <TouchableOpacity
+                style={styles.replyButton}
+                onPress={() => {
+                  setReplyingTo({
+                    id: comment.id,
+                    author: authorName
+                  });
+                }}
+              >
+                <Ionicons name="chatbubble-outline" size={14} color="#6b7280" />
+                <Text style={styles.replyButtonText}>답글</Text>
+              </TouchableOpacity>
+            )}
 
-                              Alert.alert(
-                                '사용자 차단',
-                                `${comment.author?.userName}님을 차단하시겠습니까?`,
-                                [
-                                  { text: '취소', style: 'cancel' },
-                                  {
-                                    text: '차단',
-                                    style: 'destructive',
-                                    onPress: async () => {
-                                      try {
-                                        const { toggleBlock } = await import('../../../../lib/users');
-                                        const result = await toggleBlock(user.uid, comment.authorId!);
-                                        Alert.alert('완료', result.isBlocked ? '사용자를 차단했습니다.' : '차단을 해제했습니다.');
-                                      } catch (error) {
-                                        console.error('차단 처리 실패:', error);
-                                        Alert.alert('오류', '차단 처리에 실패했습니다.');
-                                      }
-                                    }
+            {/* 더보기 메뉴 */}
+            {(user && (comment.authorId === user.uid || comment.isAnonymous)) && (
+              <TouchableOpacity
+                style={styles.moreButton}
+                onPress={() => {
+                  Alert.alert(
+                    '댓글 옵션',
+                    '어떤 작업을 하시겠습니까?',
+                    [
+                      // ... existing menu options ...
+                      ...(user && comment.authorId && comment.authorId !== user.uid ? [{
+                        text: '차단하기', onPress: async () => {
+                          Alert.alert(
+                            '사용자 차단',
+                            `${comment.author?.userName}님을 차단하시겠습니까?`,
+                            [
+                              { text: '취소', style: 'cancel' },
+                              {
+                                text: '차단',
+                                style: 'destructive',
+                                onPress: async () => {
+                                  try {
+                                    const { toggleBlock } = await import('../../../../lib/users');
+                                    const result = await toggleBlock(user.uid, comment.authorId!);
+                                    Alert.alert('완료', result.isBlocked ? '사용자를 차단했습니다.' : '차단을 해제했습니다.');
+                                    // 차단된 사용자 목록 새로고침
+                                    loadBlockedUsers();
+                                  } catch (error) {
+                                    console.error('차단 처리 실패:', error);
+                                    Alert.alert('오류', '차단 처리에 실패했습니다.');
                                   }
-                                ]
-                              );
-                            }},
-                          ]),
-                          { text: '취소', style: 'cancel' as const },
-                        ]
-                      );
-                    }}
-                  >
-                    <Ionicons name="ellipsis-horizontal" size={16} color="#94a3b8" />
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-            
-            <Text style={[styles.commentText, isDeleted && styles.deletedCommentText]}>
-              {parseContentText(comment.content)}
-            </Text>
-        
-            {!isDeleted && (
-              <View style={styles.commentActions}>
-                <TouchableOpacity 
-                  style={styles.commentAction}
-                  onPress={() => handleCommentLike(comment.id)}
-                >
-                  <Ionicons 
-                    name={commentLikeStatuses[comment.id] ? "heart" : "heart-outline"} 
-                    size={14} 
-                    color={commentLikeStatuses[comment.id] ? "#ef4444" : "#64748b"} 
-                  />
-                  <Text style={[
-                    styles.commentActionText,
-                    commentLikeStatuses[comment.id] && { color: "#ef4444" }
-                  ]}>
-                    {comment.stats.likeCount}
-                  </Text>
-                </TouchableOpacity>
-                
-                {level < maxLevel && (
-                  <TouchableOpacity 
-                    style={styles.commentAction}
-                    onPress={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
-                  >
-                    <Ionicons name="chatbubbles-outline" size={14} color="#64748b" />
-                    <Text style={styles.commentActionText}>답글</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+                                }
+                              }
+                            ]
+                          );
+                        }}
+                      }] : []),
+                      { text: '취소', style: 'cancel' as const },
+                    ]
+                  );
+                }}
+              >
+                <Ionicons name="ellipsis-horizontal" size={16} color="#94a3b8" />
+              </TouchableOpacity>
             )}
           </View>
         </View>
         
-        {/* 대댓글 렌더링 */}
-        {comment.replies && comment.replies.map((reply) => (
-          renderComment(reply, level + 1, authorName)
-        ))}
-        
-        {/* 답글 작성 UI */}
-        {replyingTo === comment.id && level === 0 && (
-          <View style={styles.replyInputContainer}>
-            <View style={styles.replyToIndicator}>
-              <Text style={styles.replyToIndicatorText}>
-                <Text style={styles.replyToAuthorHighlight}>@{authorName}</Text>님에게 답글
-              </Text>
-            </View>
-            <TextInput
-              style={styles.replyInput}
-              value={replyContent}
-              onChangeText={setReplyContent}
-              placeholder="답글을 입력하세요..."
-              multiline
-            />
-            <View style={styles.replyButtonContainer}>
-              <TouchableOpacity 
-                style={styles.replyCancelButton}
-                onPress={() => setReplyingTo(null)}
-              >
-                <Text style={styles.replyCancelButtonText}>취소</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.replyButton}
-                onPress={() => handleReplySubmit(comment.id)}
-              >
-                <Text style={styles.replyButtonText}>답글 작성</Text>
-              </TouchableOpacity>
-            </View>
+        <Text style={[styles.commentText, isDeleted && styles.deletedCommentText]}>
+          {parseContentText(comment.content)}
+        </Text>
+
+        {/* 답글 목록 */}
+        {comment.replies && comment.replies.length > 0 && (
+          <View style={styles.repliesContainer}>
+            {comment.replies.map((reply) => renderComment(reply, level + 1, authorName))}
           </View>
         )}
       </View>
@@ -2102,5 +2025,25 @@ const styles = StyleSheet.create({
   },
   clickableAuthor: {
     color: '#3b82f6',
+  },
+  blockedCommentContent: {
+    backgroundColor: '#f0fdf4', // 차단된 댓글 배경색
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#22c55e',
+    alignItems: 'center',
+  },
+  blockedCommentText: {
+    fontSize: 14,
+    color: '#15803d',
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  blockedUserName: {
+    fontSize: 14,
+    color: '#15803d',
+    fontWeight: '600',
   },
 }); 
