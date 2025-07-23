@@ -250,6 +250,7 @@ export default function Step5Terms({ formData, updateForm, onSubmit, prevStep, i
         <Text style={styles.additionalInfoText}>• 개인정보 처리방침은 개인정보보호법에 따라 작성되었습니다.</Text>
         <Text style={styles.additionalInfoText}>• 위치정보는 서비스 제공 목적으로만 사용되며, 1년 후 자동 삭제됩니다.</Text>
         <Text style={styles.additionalInfoText}>• 마케팅 수신 동의는 언제든지 철회할 수 있습니다.</Text>
+        <Text style={styles.additionalInfoText}>• 모든 신고는 24시간 이내에 검토되며, 처리 결과는 알림으로 안내됩니다.</Text>
         <Text style={styles.additionalInfoText}>• 문의사항: 010-6711-7933, pobredward@gmail.com</Text>
       </View>
 

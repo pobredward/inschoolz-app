@@ -199,7 +199,18 @@ export function ReportModal({
             <Text style={styles.characterCount}>{description.length}/500</Text>
           </View>
 
-
+          {/* 24시간 내 처리 안내 */}
+          <View style={styles.infoSection}>
+            <View style={styles.infoIcon}>
+              <Text style={styles.infoIconText}>!</Text>
+            </View>
+            <View style={styles.infoContent}>
+              <Text style={styles.infoTitle}>신고 처리 안내</Text>
+              <Text style={styles.infoText}>
+                모든 신고는 <Text style={styles.boldText}>24시간 이내</Text>에 검토되며, 처리 결과는 알림으로 안내됩니다.
+              </Text>
+            </View>
+          </View>
 
           {/* 경고 문구 */}
           <View style={styles.warningSection}>
@@ -313,6 +324,44 @@ const styles = StyleSheet.create({
   descriptionInput: {
     minHeight: 80,
     textAlignVertical: 'top',
+  },
+  infoSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e0f2fe',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  infoIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#3b82f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  infoIconText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  infoContent: {
+    flex: 1,
+  },
+  infoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 2,
+  },
+  infoText: {
+    fontSize: 12,
+    color: '#4b5563',
+  },
+  boldText: {
+    fontWeight: 'bold',
   },
 
   warningSection: {
