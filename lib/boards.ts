@@ -1612,3 +1612,48 @@ export const deleteComment = async (
      throw error;
    }
  };
+
+/**
+ * 댓글 수정 (회원 댓글만)
+ */
+export const updateComment = async (
+  postId: string,
+  commentId: string,
+  content: string,
+  userId: string
+): Promise<void> => {
+  try {
+    if (!content.trim()) {
+      throw new Error('댓글 내용을 입력해주세요.');
+    }
+
+    const commentRef = doc(db, 'posts', postId, 'comments', commentId);
+    const commentDoc = await getDoc(commentRef);
+    
+    if (!commentDoc.exists()) {
+      throw new Error('존재하지 않는 댓글입니다.');
+    }
+    
+    const commentData = commentDoc.data() as any;
+    
+    // 댓글 작성자 확인 (익명 댓글은 수정할 수 없음)
+    if (!commentData.authorId || commentData.authorId !== userId) {
+      throw new Error('댓글 수정 권한이 없습니다.');
+    }
+
+    // 익명 댓글인 경우 수정 불가
+    if (commentData.isAnonymous) {
+      throw new Error('익명 댓글은 이 방법으로 수정할 수 없습니다.');
+    }
+
+    // 댓글 내용 업데이트
+    await updateDoc(commentRef, {
+      content: content.trim(),
+      updatedAt: serverTimestamp(),
+      isEdited: true, // 수정됨 표시
+    });
+  } catch (error) {
+    console.error('댓글 수정 실패:', error);
+    throw error;
+  }
+};

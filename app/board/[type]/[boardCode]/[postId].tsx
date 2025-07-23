@@ -28,7 +28,6 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, getDocs, addDoc, query, where, orderBy, Timestamp, updateDoc, deleteDoc, serverTimestamp, increment } from 'firebase/firestore';
 import AnonymousCommentForm from '../../../../components/ui/AnonymousCommentForm';
 import AnonymousPasswordModal from '../../../../components/ui/AnonymousPasswordModal';
-import AnonymousCommentEditor from '../../../../components/ui/AnonymousCommentEditor';
 import { PollVoting } from '../../../../components/ui/PollVoting';
 // 유틸리티 함수 import
 import { formatRelativeTime, formatAbsoluteTime, toTimestamp } from '../../../../utils/timeUtils';
@@ -218,6 +217,12 @@ export default function PostDetailScreen() {
     commentId: string;
     content: string;
     password: string;
+  } | null>(null);
+
+  // 회원 댓글 수정 상태
+  const [editingComment, setEditingComment] = useState<{
+    commentId: string;
+    content: string;
   } | null>(null);
 
   const [showExperienceModal, setShowExperienceModal] = useState(false);
@@ -1004,10 +1009,11 @@ export default function PostDetailScreen() {
 
   // 댓글 더보기 메뉴 핸들러
   const handleCommentMorePress = (comment: CommentWithAuthor) => {
-    if (!user) return;
-
-    const isOwnComment = comment.authorId === user.uid;
+    const isOwnComment = user && comment.authorId === user.uid;
     const isAnonymousComment = comment.isAnonymous;
+    
+    // 비회원일 때는 익명 댓글에만 메뉴 표시
+    if (!user && !isAnonymousComment) return;
     
     let options: string[] = [];
     
@@ -1016,12 +1022,15 @@ export default function PostDetailScreen() {
       if (isAnonymousComment) {
         options = ['수정', '삭제', '취소'];
       } else {
-        options = ['삭제', '취소'];
+        options = ['수정', '삭제', '취소'];
       }
-    } else {
-      // 다른 사용자의 댓글인 경우
+    } else if (user) {
+      // 로그인한 사용자이고 다른 사용자의 댓글인 경우
       const isBlocked = blockedUserIds.has(comment.authorId || '');
       options = ['신고', isBlocked ? '차단 해제' : '차단', '취소'];
+    } else {
+      // 비회원이고 일반 댓글인 경우 (이미 위에서 return되므로 도달하지 않음)
+      return;
     }
 
     Alert.alert(
@@ -1036,6 +1045,12 @@ export default function PostDetailScreen() {
               if (isAnonymousComment) {
                 setPasswordModalData({ commentId: comment.id, action: 'edit' });
                 setShowPasswordModal(true);
+              } else {
+                // 회원 댓글 수정
+                setEditingComment({
+                  commentId: comment.id,
+                  content: comment.content
+                });
               }
               break;
                          case '삭제':
@@ -1053,6 +1068,7 @@ export default function PostDetailScreen() {
                        style: 'destructive',
                        onPress: async () => {
                          try {
+                           if (!user) return;
                            const { deleteComment } = await import('../../../../lib/boards');
                            const result = await deleteComment(post!.id, comment.id, user.uid);
                            
@@ -1101,6 +1117,7 @@ export default function PostDetailScreen() {
                      style: 'destructive',
                      onPress: async () => {
                        try {
+                         if (!user) return;
                          const { toggleBlock } = await import('../../../../lib/users');
                          await toggleBlock(user.uid, comment.authorId!);
                          // 차단 목록에 추가
@@ -1125,6 +1142,7 @@ export default function PostDetailScreen() {
                      text: '차단 해제',
                      onPress: async () => {
                        try {
+                         if (!user) return;
                          const { toggleBlock } = await import('../../../../lib/users');
                          await toggleBlock(user.uid, comment.authorId!);
                          // 차단 목록에서 제거
@@ -1199,9 +1217,40 @@ export default function PostDetailScreen() {
 
   // 익명 댓글 수정 완료
   const handleAnonymousCommentEditComplete = async () => {
-    setEditingAnonymousComment(null);
-    if (post) {
+    if (!editingAnonymousComment || !post) return;
+
+    try {
+      const { updateAnonymousComment } = await import('../../../../lib/boards');
+      await updateAnonymousComment(
+        post.id, 
+        editingAnonymousComment.commentId, 
+        editingAnonymousComment.content, 
+        editingAnonymousComment.password
+      );
+      
+      setEditingAnonymousComment(null);
       await loadComments(post.id);
+      Alert.alert('성공', '댓글이 수정되었습니다.');
+    } catch (error) {
+      console.error('익명 댓글 수정 실패:', error);
+      Alert.alert('오류', '댓글 수정에 실패했습니다.');
+    }
+  };
+
+  // 회원 댓글 수정 완료
+  const handleCommentEditComplete = async (content: string) => {
+    if (!editingComment || !user || !post) return;
+
+    try {
+      const { updateComment } = await import('../../../../lib/boards');
+      await updateComment(post.id, editingComment.commentId, content, user.uid);
+      
+      setEditingComment(null);
+      await loadComments(post.id);
+      Alert.alert('성공', '댓글이 수정되었습니다.');
+    } catch (error) {
+      console.error('댓글 수정 실패:', error);
+      Alert.alert('오류', '댓글 수정에 실패했습니다.');
     }
   };
 
@@ -1334,7 +1383,7 @@ export default function PostDetailScreen() {
           </View>
           
           {/* 더보기 메뉴 */}
-          {user && (
+          {(user || comment.isAnonymous) && (
             <TouchableOpacity
               style={styles.moreButton}
               onPress={() => handleCommentMorePress(comment)}
@@ -1346,12 +1395,55 @@ export default function PostDetailScreen() {
         
         {/* 댓글 내용 - 프로필 이미지 여백에 맞춰 들여쓰기 */}
         <View style={styles.commentContent}>
-          <Text style={[styles.commentText, isDeleted && styles.deletedCommentText]}>
-            {isDeleted ? '삭제된 댓글입니다.' : parseContentText(comment.content)}
-          </Text>
+          {/* 수정 중인 댓글인지 확인 */}
+          {(editingComment?.commentId === comment.id || editingAnonymousComment?.commentId === comment.id) ? (
+            <View style={styles.editingContainer}>
+              <TextInput
+                style={styles.editingInput}
+                value={editingComment?.commentId === comment.id ? editingComment.content : editingAnonymousComment?.content || ''}
+                onChangeText={(text) => {
+                  if (editingComment?.commentId === comment.id) {
+                    setEditingComment(prev => prev ? { ...prev, content: text } : null);
+                  } else if (editingAnonymousComment?.commentId === comment.id) {
+                    setEditingAnonymousComment(prev => prev ? { ...prev, content: text } : null);
+                  }
+                }}
+                multiline
+                autoFocus
+                placeholder="댓글을 입력하세요..."
+              />
+              <View style={styles.editingActions}>
+                <TouchableOpacity
+                  style={styles.editingSaveButton}
+                  onPress={() => {
+                    if (editingComment?.commentId === comment.id) {
+                      handleCommentEditComplete(editingComment.content);
+                    } else if (editingAnonymousComment?.commentId === comment.id) {
+                      handleAnonymousCommentEditComplete();
+                    }
+                  }}
+                >
+                  <Text style={styles.editingSaveButtonText}>저장</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.editingCancelButton}
+                  onPress={() => {
+                    setEditingComment(null);
+                    setEditingAnonymousComment(null);
+                  }}
+                >
+                  <Text style={styles.editingCancelButtonText}>취소</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <Text style={[styles.commentText, isDeleted && styles.deletedCommentText]}>
+              {isDeleted ? '삭제된 댓글입니다.' : parseContentText(comment.content)}
+            </Text>
+          )}
           
-          {/* 액션 버튼들 - 좋아요, 답글 */}
-          {!isDeleted && (
+          {/* 액션 버튼들 - 좋아요, 답글 (수정 중이 아닐 때만 표시) */}
+          {!isDeleted && !(editingComment?.commentId === comment.id || editingAnonymousComment?.commentId === comment.id) && (
             <View style={styles.commentActions}>
               <TouchableOpacity
                 style={styles.actionButton}
@@ -1839,18 +1931,7 @@ export default function PostDetailScreen() {
           </SafeAreaView>
         </Modal>
 
-        {/* 익명 댓글 수정 에디터 */}
-        {post && (
-          <AnonymousCommentEditor
-            visible={!!editingAnonymousComment}
-            postId={post.id}
-            commentId={editingAnonymousComment?.commentId || ''}
-            initialContent={editingAnonymousComment?.content || ''}
-            password={editingAnonymousComment?.password || ''}
-            onSave={handleAnonymousCommentEditComplete}
-            onCancel={() => setEditingAnonymousComment(null)}
-          />
-        )}
+
       </SafeAreaView>
     </View>
   );
@@ -2544,5 +2625,54 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     fontStyle: 'italic',
     marginTop: 8,
+  },
+  
+  // 인라인 댓글 편집 스타일
+  editingContainer: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  editingInput: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#374151',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    padding: 12,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  editingActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 8,
+  },
+  editingSaveButton: {
+    backgroundColor: '#22c55e',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  editingSaveButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  editingCancelButton: {
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  editingCancelButtonText: {
+    color: '#6b7280',
+    fontSize: 14,
+    fontWeight: '600',
   },
 }); 

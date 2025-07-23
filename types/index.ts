@@ -262,6 +262,8 @@ export interface Comment {
   isAnonymous: boolean;
   parentId: string | null;
   createdAt: FirebaseTimestamp;
+  updatedAt?: FirebaseTimestamp;
+  isEdited?: boolean;
   
   // 익명 댓글 정보 (비회원 작성 시)
   anonymousAuthor?: {
