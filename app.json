@@ -2,7 +2,7 @@
   "expo": {
     "name": "inschoolz-app",
     "slug": "inschoolz-app",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "inschoolzapp",
@@ -12,7 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.onmindlab.inschoolz",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
         "UIBackgroundModes": ["remote-notification"],
         "NSCameraUsageDescription": "This app uses the camera to let you take photos for your profile and posts.",
@@ -23,6 +23,7 @@
     },
     "android": {
       "package": "com.onmindlab.inschoolz",
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
