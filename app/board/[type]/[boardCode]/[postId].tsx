@@ -13,7 +13,8 @@ import {
   Platform,
   Image,
   Dimensions,
-  StatusBar
+  StatusBar,
+  Modal
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -153,8 +154,14 @@ export default function PostDetailScreen() {
   const [newComment, setNewComment] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [likeCount, setLikeCount] = useState(0);
-  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<{
+    id: string;
+    author: string;
+  } | null>(null);
   const [replyContent, setReplyContent] = useState('');
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [anonymousNickname, setAnonymousNickname] = useState('');
+  const [anonymousPassword, setAnonymousPassword] = useState('');
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportTargetId, setReportTargetId] = useState<string>('');
   const [reportTargetType, setReportTargetType] = useState<'post' | 'comment'>('post');
@@ -188,6 +195,17 @@ export default function PostDetailScreen() {
 
   // 익명 댓글 관련 상태
   const [showAnonymousForm, setShowAnonymousForm] = useState(false);
+  
+  // 비회원 댓글 작성 상태
+  const [showGuestCommentForm, setShowGuestCommentForm] = useState(false);
+  const [guestComment, setGuestComment] = useState('');
+  const [guestNickname, setGuestNickname] = useState('');
+  const [guestPassword, setGuestPassword] = useState('');
+  const [guestReplyingTo, setGuestReplyingTo] = useState<{
+    id: string;
+    author: string;
+  } | null>(null);
+  const [guestReplyContent, setGuestReplyContent] = useState('');
   
   // 댓글 좋아요 상태 관리
   const [commentLikeStatuses, setCommentLikeStatuses] = useState<Record<string, boolean>>({});
@@ -729,6 +747,115 @@ export default function PostDetailScreen() {
     );
   };
 
+  // 비회원 댓글 작성 함수
+  const handleGuestCommentSubmit = async () => {
+    if (!guestComment.trim()) {
+      Alert.alert('알림', '댓글을 입력해주세요.');
+      return;
+    }
+
+    if (!guestNickname.trim()) {
+      Alert.alert('알림', '닉네임을 입력해주세요.');
+      return;
+    }
+
+    if (!guestPassword || guestPassword.length !== 4) {
+      Alert.alert('알림', '비밀번호는 4자리 숫자여야 합니다.');
+      return;
+    }
+
+    if (!post) return;
+
+    try {
+      const { createAnonymousComment } = await import('../../../../lib/boards');
+      await createAnonymousComment({
+        postId: post.id,
+        content: guestComment,
+        nickname: guestNickname,
+        password: guestPassword,
+        parentId: null,
+      });
+
+      // 로컬 게시글 댓글 수 업데이트
+      setPost(prev => prev ? {
+        ...prev,
+        stats: {
+          ...prev.stats,
+          commentCount: prev.stats.commentCount + 1
+        }
+      } : null);
+
+      // 댓글 목록 새로고침
+      await loadComments(post.id);
+      
+      // 입력 필드 초기화
+      setGuestComment('');
+      setGuestNickname('');
+      setGuestPassword('');
+      setShowGuestCommentForm(false);
+
+      Alert.alert('완료', '댓글이 작성되었습니다.');
+    } catch (error) {
+      console.error('비회원 댓글 작성 실패:', error);
+      Alert.alert('오류', '댓글 작성에 실패했습니다.');
+    }
+  };
+
+  // 비회원 답글 작성 함수
+  const handleGuestReplySubmit = async () => {
+    if (!guestReplyContent.trim()) {
+      Alert.alert('알림', '답글을 입력해주세요.');
+      return;
+    }
+
+    if (!guestNickname.trim()) {
+      Alert.alert('알림', '닉네임을 입력해주세요.');
+      return;
+    }
+
+    if (!guestPassword || guestPassword.length !== 4) {
+      Alert.alert('알림', '비밀번호는 4자리 숫자여야 합니다.');
+      return;
+    }
+
+    if (!post || !guestReplyingTo) return;
+
+    try {
+      const { createAnonymousComment } = await import('../../../../lib/boards');
+      await createAnonymousComment({
+        postId: post.id,
+        content: guestReplyContent,
+        nickname: guestNickname,
+        password: guestPassword,
+        parentId: guestReplyingTo.id,
+      });
+
+      // 로컬 게시글 댓글 수 업데이트
+      setPost(prev => prev ? {
+        ...prev,
+        stats: {
+          ...prev.stats,
+          commentCount: prev.stats.commentCount + 1
+        }
+      } : null);
+
+      // 댓글 목록 새로고침
+      await loadComments(post.id);
+      
+      // 입력 필드 초기화
+      setGuestReplyContent('');
+      setGuestNickname('');
+      setGuestPassword('');
+      setGuestReplyingTo(null);
+      setShowGuestCommentForm(false);
+
+      Alert.alert('완료', '답글이 작성되었습니다.');
+    } catch (error) {
+      console.error('비회원 답글 작성 실패:', error);
+      Alert.alert('오류', '답글 작성에 실패했습니다.');
+    }
+  };
+
   // 경험치 모달 닫기 핸들러
   const handleExperienceModalClose = () => {
     setShowExperienceModal(false);
@@ -747,50 +874,25 @@ export default function PostDetailScreen() {
     }
 
     try {
-      // 댓글 작성
-      const commentData = {
-        postId: post.id,
-        content: newComment,
-        authorId: user.uid,
-        isAnonymous: false,
-        parentId: null,
-        createdAt: serverTimestamp(),
-        stats: {
-          likeCount: 0
-        },
-        status: {
-          isDeleted: false,
-          isBlocked: false
-        }
-      };
-
-      const docRef = await addDoc(collection(db, 'posts', post.id, 'comments'), commentData);
+      // 댓글 작성 (로그인 사용자는 익명이어도 비밀번호 불필요)
+      const { createComment } = await import('../../../../lib/boards');
+      await createComment(post.id, newComment, user.uid, isAnonymous);
       
-      // 게시글의 댓글 수 증가
-      await updateDoc(doc(db, 'posts', post.id), {
-        'stats.commentCount': increment(1)
-      });
+      // 로컬 게시글 댓글 수 업데이트
+      setPost(prev => prev ? {
+        ...prev,
+        stats: {
+          ...prev.stats,
+          commentCount: prev.stats.commentCount + 1
+        }
+      } : null);
       
       // 댓글 목록 새로고침
       await loadComments(post.id);
       setNewComment('');
-
-      // 알림 발송 로직 (게시글 작성자가 자기 자신이 아닌 경우)
-      try {
-        if (post.authorId !== user.uid) {
-          await createPostCommentNotification(
-            post.authorId,    // 게시글 작성자 ID
-            user.uid,         // 댓글 작성자 ID
-            post.id,          // 게시글 ID
-            docRef.id,        // 댓글 ID
-            post.title || '제목 없음',  // 게시글 제목
-            newComment        // 댓글 내용
-          );
-        }
-      } catch (notificationError) {
-        console.error('알림 발송 실패:', notificationError);
-        // 알림 발송 실패는 댓글 작성을 방해하지 않음
-      }
+      setIsAnonymous(false);
+      setAnonymousNickname('');
+      setAnonymousPassword('');
       
       // 경험치 부여
       try {
@@ -822,114 +924,81 @@ export default function PostDetailScreen() {
     }
   };
 
-  const handleReplySubmit = async (parentId: string) => {
-    if (!replyContent.trim()) {
-      Alert.alert('알림', '답글을 입력해주세요.');
-      return;
-    }
 
-    if (!user || !post) {
-      Alert.alert('알림', '로그인이 필요합니다.');
-      return;
-    }
-
-    try {
-      // 답글 작성
-      const replyData = {
-        postId: post.id,
-        content: replyContent,
-        authorId: user.uid,
-        isAnonymous: false,
-        parentId: parentId,
-        createdAt: serverTimestamp(),
-        stats: {
-          likeCount: 0
-        },
-        status: {
-          isDeleted: false,
-          isBlocked: false
-        }
-      };
-
-      const docRef = await addDoc(collection(db, 'posts', post.id, 'comments'), replyData);
-      
-      // 게시글의 댓글 수 증가 (답글도 댓글 수에 포함)
-      await updateDoc(doc(db, 'posts', post.id), {
-        'stats.commentCount': increment(1)
-      });
-      
-      // 댓글 목록 새로고침
-      await loadComments(post.id);
-      setReplyContent('');
-      setReplyingTo(null);
-
-      // 알림 발송 로직 (부모 댓글 작성자에게)
-      try {
-        // 부모 댓글 정보 조회
-        const parentCommentDoc = await getDoc(doc(db, 'posts', post.id, 'comments', parentId));
-        
-        if (parentCommentDoc.exists()) {
-          const parentCommentData = parentCommentDoc.data();
-          const parentAuthorId = parentCommentData?.authorId;
-          
-          // 부모 댓글 작성자가 자기 자신이 아닌 경우 알림 발송
-          if (parentAuthorId && parentAuthorId !== user.uid) {
-            // 대댓글 작성자명 처리 (익명 여부 고려)
-            const commenterName = false  // 현재 앱에서는 익명 기능이 비활성화되어 있음
-              ? '익명' 
-              : (user.profile?.userName || '사용자');
-              
-            await createCommentReplyNotification(
-              parentAuthorId,
-              post.id,
-              post.title || '제목 없음',
-              parentId,
-              commenterName,
-              replyContent,
-              docRef.id
-            );
-          }
-        }
-      } catch (notificationError) {
-        console.error('알림 발송 실패:', notificationError);
-        // 알림 발송 실패는 답글 작성을 방해하지 않음
-      }
-      
-      // 경험치 부여
-      try {
-        const expResult = await awardCommentExperience(user.uid);
-        if (expResult.success) {
-          setExperienceData({
-            expGained: expResult.expGained,
-            activityType: 'comment',
-            leveledUp: expResult.leveledUp,
-            oldLevel: expResult.oldLevel,
-            newLevel: expResult.newLevel,
-            currentExp: expResult.currentExp,
-            expToNextLevel: expResult.expToNextLevel,
-            remainingCount: expResult.remainingCount,
-            totalDailyLimit: expResult.totalDailyLimit,
-            reason: expResult.reason
-          });
-          setShowExperienceModal(true);
-        }
-      } catch (expError) {
-        console.error('경험치 부여 실패:', expError);
-        // 경험치 부여 실패는 답글 작성 성공에 영향을 주지 않음
-      }
-      
-      Alert.alert('성공', '답글이 작성되었습니다.');
-    } catch (error) {
-      console.error('답글 작성 실패:', error);
-      Alert.alert('오류', '답글 작성에 실패했습니다.');
-    }
-  };
 
   // 익명 댓글 성공 핸들러
   const handleAnonymousCommentSuccess = async () => {
     setShowAnonymousForm(false);
     if (post) {
       await loadComments(post.id);
+    }
+  };
+
+  // 답글 작성 핸들러 추가
+  const handleReplySubmit = async () => {
+    if (!user || !replyingTo || !replyContent.trim()) return;
+
+    try {
+      if (isAnonymous) {
+        // 익명 답글 작성 (로그인 사용자는 비밀번호 불필요)
+        const { createComment } = await import('../../../../lib/boards');
+        await createComment(post!.id, replyContent, user.uid, true, replyingTo.id);
+      } else {
+        // 일반 답글 작성
+        const { createComment } = await import('../../../../lib/boards');
+        await createComment(post!.id, replyContent, user.uid, false, replyingTo.id);
+      }
+
+      // 로컬 게시글 댓글 수 업데이트
+      setPost(prev => prev ? {
+        ...prev,
+        stats: {
+          ...prev.stats,
+          commentCount: prev.stats.commentCount + 1
+        }
+      } : null);
+
+      // 상태 초기화
+      setReplyContent('');
+      setReplyingTo(null);
+      setIsAnonymous(false);
+      setAnonymousNickname('');
+      setAnonymousPassword('');
+
+      // 댓글 목록 새로고침
+      if (post) {
+        await loadComments(post.id);
+      }
+
+      // 경험치 지급 (회원 댓글인 경우만)
+      if (!isAnonymous) {
+        try {
+          const { awardCommentExperience } = await import('../../../../lib/experience-service');
+          const expResult = await awardCommentExperience(user.uid);
+          if (expResult.success) {
+            setExperienceData({
+              expGained: expResult.expGained,
+              activityType: 'comment',
+              leveledUp: expResult.leveledUp,
+              oldLevel: expResult.oldLevel,
+              newLevel: expResult.newLevel,
+              currentExp: expResult.currentExp,
+              expToNextLevel: expResult.expToNextLevel,
+              remainingCount: expResult.remainingCount,
+              totalDailyLimit: expResult.totalDailyLimit,
+              reason: expResult.reason
+            });
+            setShowExperienceModal(true);
+          }
+        } catch (expError) {
+          console.error('경험치 부여 실패:', expError);
+        }
+      }
+
+      Alert.alert('성공', '답글이 작성되었습니다.');
+    } catch (error) {
+      console.error('답글 작성 실패:', error);
+      Alert.alert('오류', '답글 작성에 실패했습니다.');
     }
   };
 
@@ -984,9 +1053,28 @@ export default function PostDetailScreen() {
                        style: 'destructive',
                        onPress: async () => {
                          try {
-                           // TODO: 댓글 삭제 API 호출 구현
-                           Alert.alert('알림', '댓글 삭제 기능은 추후 구현 예정입니다.');
+                           const { deleteComment } = await import('../../../../lib/boards');
+                           const result = await deleteComment(post!.id, comment.id, user.uid);
+                           
+                           // 로컬 게시글 댓글 수 업데이트 (대댓글이 없는 경우에만)
+                           if (!result.hasReplies) {
+                             setPost(prev => prev ? {
+                               ...prev,
+                               stats: {
+                                 ...prev.stats,
+                                 commentCount: Math.max(0, prev.stats.commentCount - 1)
+                               }
+                             } : null);
+                           }
+                           
+                           // 댓글 목록 새로고침
+                           if (post) {
+                             await loadComments(post.id);
+                           }
+                           
+                           Alert.alert('완료', '댓글이 삭제되었습니다.');
                          } catch (error) {
+                           console.error('댓글 삭제 실패:', error);
                            Alert.alert('오류', '댓글 삭제에 실패했습니다.');
                          }
                        }
@@ -1283,10 +1371,20 @@ export default function PostDetailScreen() {
                 <TouchableOpacity
                   style={styles.actionButton}
                   onPress={() => {
-                    setReplyingTo({
-                      id: comment.id,
-                      author: authorName
-                    });
+                    if (user) {
+                      // 로그인 사용자는 기존 방식
+                      setReplyingTo({
+                        id: comment.id,
+                        author: authorName
+                      });
+                    } else {
+                      // 비회원은 별도 답글 폼 표시
+                      setGuestReplyingTo({
+                        id: comment.id,
+                        author: authorName
+                      });
+                      setShowGuestCommentForm(true);
+                    }
                   }}
                 >
                   <Ionicons name="chatbubble-outline" size={14} color="#6b7280" />
@@ -1522,27 +1620,79 @@ export default function PostDetailScreen() {
           {user ? (
             // 로그인한 사용자용 댓글 작성
             <View style={styles.commentInputContainer}>
+              {/* 답글 알림 */}
+              {replyingTo && (
+                <View style={styles.replyIndicator}>
+                  <Text style={styles.replyText}>
+                    {replyingTo.author}님에게 답글 작성 중
+                  </Text>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      setReplyingTo(null);
+                      setReplyContent('');
+                    }}
+                  >
+                    <Ionicons name="close" size={16} color="#6b7280" />
+                  </TouchableOpacity>
+                </View>
+              )}
+              
+              {/* 익명 모드 토글 */}
+              <View style={styles.commentOptions}>
+                <TouchableOpacity 
+                  style={[styles.anonymousToggle, isAnonymous && styles.anonymousToggleActive]}
+                  onPress={() => setIsAnonymous(!isAnonymous)}
+                >
+                  <Ionicons 
+                    name={isAnonymous ? "eye-off" : "eye-off-outline"} 
+                    size={16} 
+                    color={isAnonymous ? "#10b981" : "#6b7280"} 
+                  />
+                  <Text style={[styles.anonymousToggleText, isAnonymous && styles.anonymousToggleTextActive]}>
+                    익명
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
               <View style={styles.commentInputWrapper}>
-                {renderProfileImage(
+                {!isAnonymous && renderProfileImage(
                   user?.profile?.profileImageUrl,
                   user?.profile?.userName,
                   false
                 )}
+                {isAnonymous && (
+                  <View style={styles.anonymousAvatar}>
+                    <Ionicons name="person-outline" size={20} color="#6b7280" />
+                  </View>
+                )}
                 <TextInput
                   style={styles.commentInput}
-                  placeholder="댓글을 입력해 주세요..."
-                  value={newComment}
-                  onChangeText={setNewComment}
+                  placeholder={replyingTo ? `${replyingTo.author}님에게 답글...` : "댓글을 입력해 주세요..."}
+                  value={replyingTo ? replyContent : newComment}
+                  onChangeText={replyingTo ? setReplyContent : setNewComment}
                   multiline
                   maxLength={1000}
                 />
                 <TouchableOpacity 
                   style={styles.commentSubmitButton}
-                  onPress={handleCommentSubmit}
+                  onPress={replyingTo ? handleReplySubmit : handleCommentSubmit}
                 >
                   <Ionicons name="send" size={20} color="#10b981" />
                 </TouchableOpacity>
               </View>
+
+              {/* 익명 모드일 때 닉네임 입력 (로그인 사용자는 비밀번호 불필요) */}
+              {isAnonymous && (
+                <View style={styles.anonymousInputs}>
+                  <TextInput
+                    style={styles.anonymousInput}
+                    placeholder="익명 닉네임 (선택)"
+                    value={anonymousNickname}
+                    onChangeText={setAnonymousNickname}
+                    maxLength={20}
+                  />
+                </View>
+              )}
             </View>
           ) : (
             // 비로그인 사용자용 익명 댓글 작성
@@ -1550,10 +1700,13 @@ export default function PostDetailScreen() {
               <View style={styles.anonymousCommentButton}>
                 <TouchableOpacity 
                   style={styles.anonymousButton}
-                  onPress={() => setShowAnonymousForm(true)}
+                  onPress={() => {
+                    setGuestReplyingTo(null);
+                    setShowGuestCommentForm(true);
+                  }}
                 >
                   <Ionicons name="person-outline" size={20} color="#22c55e" />
-                  <Text style={styles.anonymousButtonText}>익명 댓글 작성</Text>
+                  <Text style={styles.anonymousButtonText}>비회원 댓글 작성</Text>
                 </TouchableOpacity>
               </View>
               <Text style={styles.anonymousNotice}>
@@ -1613,6 +1766,78 @@ export default function PostDetailScreen() {
             action={passwordModalData.action}
           />
         )}
+
+        {/* 비회원 댓글/답글 작성 모달 */}
+        <Modal
+          visible={showGuestCommentForm}
+          animationType="slide"
+          presentationStyle="pageSheet"
+        >
+          <SafeAreaView style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => setShowGuestCommentForm(false)}>
+                <Text style={styles.modalCancelButton}>취소</Text>
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>
+                {guestReplyingTo ? `${guestReplyingTo.author}님에게 답글` : '비회원 댓글 작성'}
+              </Text>
+              <TouchableOpacity 
+                onPress={guestReplyingTo ? handleGuestReplySubmit : handleGuestCommentSubmit}
+                disabled={!guestNickname.trim() || !(guestReplyingTo ? guestReplyContent.trim() : guestComment.trim()) || guestPassword.length !== 4}
+              >
+                <Text style={[
+                  styles.modalSubmitButton,
+                  (!guestNickname.trim() || !(guestReplyingTo ? guestReplyContent.trim() : guestComment.trim()) || guestPassword.length !== 4) && styles.modalSubmitButtonDisabled
+                ]}>작성</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalContent}>
+              <View style={styles.guestInputContainer}>
+                <Text style={styles.inputLabel}>닉네임 *</Text>
+                <TextInput
+                  style={styles.guestInput}
+                  placeholder="닉네임을 입력하세요"
+                  value={guestNickname}
+                  onChangeText={setGuestNickname}
+                  maxLength={20}
+                />
+              </View>
+
+              <View style={styles.guestInputContainer}>
+                <Text style={styles.inputLabel}>비밀번호 (4자리) *</Text>
+                <TextInput
+                  style={styles.guestInput}
+                  placeholder="수정/삭제를 위한 4자리 숫자"
+                  value={guestPassword}
+                  onChangeText={setGuestPassword}
+                  secureTextEntry
+                  maxLength={4}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.guestInputContainer}>
+                <Text style={styles.inputLabel}>
+                  {guestReplyingTo ? '답글 내용' : '댓글 내용'} *
+                </Text>
+                <TextInput
+                  style={[styles.guestInput, styles.guestTextArea]}
+                  placeholder={guestReplyingTo ? `${guestReplyingTo.author}님에게 답글을 작성하세요...` : '댓글을 작성하세요...'}
+                  value={guestReplyingTo ? guestReplyContent : guestComment}
+                  onChangeText={guestReplyingTo ? setGuestReplyContent : setGuestComment}
+                  multiline
+                  maxLength={1000}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              <Text style={styles.guestNotice}>
+                * 비회원 댓글은 4자리 비밀번호로 수정/삭제할 수 있습니다.
+              </Text>
+            </View>
+          </SafeAreaView>
+        </Modal>
 
         {/* 익명 댓글 수정 에디터 */}
         {post && (
@@ -2189,5 +2414,135 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#ef4444',
     marginLeft: 4,
+  },
+  
+  // 답글 및 익명 모드 스타일
+  replyIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  replyText: {
+    fontSize: 14,
+    color: '#374151',
+  },
+  commentOptions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  anonymousToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    gap: 4,
+  },
+  anonymousToggleActive: {
+    borderColor: '#10b981',
+    backgroundColor: '#f0fdf4',
+  },
+  anonymousToggleText: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  anonymousToggleTextActive: {
+    color: '#10b981',
+  },
+  anonymousAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  anonymousInputs: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  anonymousInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    backgroundColor: '#f9fafb',
+  },
+  // 비회원 댓글 모달 스타일
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalCancelButton: {
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  modalSubmitButton: {
+    fontSize: 16,
+    color: '#10b981',
+    fontWeight: '600',
+  },
+  modalSubmitButtonDisabled: {
+    color: '#9ca3af',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 16,
+  },
+  guestInputContainer: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  guestInput: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    backgroundColor: '#f9fafb',
+  },
+  guestTextArea: {
+    minHeight: 120,
+    textAlignVertical: 'top',
+  },
+  guestNotice: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontStyle: 'italic',
+    marginTop: 8,
   },
 }); 

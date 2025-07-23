@@ -1299,11 +1299,11 @@ export const createComment = async (
           const { createPostCommentNotification } = await import('./notifications');
           await createPostCommentNotification(
             postAuthorId,
+            userId,
             postId,
+            commentId,
             postData.title || '게시글',
-            commenterName,
-            content,
-            commentId
+            content
           );
         }
       }
@@ -1398,6 +1398,52 @@ export const createAnonymousComment = async ({
     await updateDoc(doc(db, 'posts', postId), {
       'stats.commentCount': increment(1),
     });
+
+    // 알림 발송 로직
+    try {
+      const postData = postDoc.data();
+      
+      if (parentId) {
+        // 대댓글인 경우: 원 댓글 작성자에게 알림
+        const parentCommentDoc = await getDoc(doc(db, `posts/${postId}/comments`, parentId));
+        if (parentCommentDoc.exists()) {
+          const parentCommentData = parentCommentDoc.data();
+          const parentAuthorId = parentCommentData.authorId;
+          
+          // 익명 댓글에 대한 답글이므로 원 댓글 작성자가 존재하는 경우에만 알림 발송
+          if (parentAuthorId) {
+            const { createCommentReplyNotification } = await import('./notifications');
+            await createCommentReplyNotification(
+              parentAuthorId,
+              postId,
+              postData.title || '게시글',
+              parentId,
+              nickname,
+              content,
+              commentRef.id
+            );
+          }
+        }
+      } else {
+        // 일반 댓글인 경우: 게시글 작성자에게 알림
+        const postAuthorId = postData.authorId;
+        
+        if (postAuthorId) {
+          const { createPostCommentNotification } = await import('./notifications');
+          await createPostCommentNotification(
+            postAuthorId,
+            'anonymous', // 익명 사용자 ID
+            postId,
+            commentRef.id,
+            postData.title || '게시글',
+            content
+          );
+        }
+      }
+    } catch (notificationError) {
+      console.error('익명 댓글 알림 발송 실패:', notificationError);
+      // 알림 발송 실패는 댓글 작성 자체를 실패시키지 않음
+    }
 
     return commentRef.id;
   } catch (error) {
@@ -1504,7 +1550,7 @@ export const deleteComment = async (
   postId: string,
   commentId: string,
   userId: string
-): Promise<void> => {
+): Promise<{ hasReplies: boolean }> => {
   try {
     const commentRef = doc(db, 'posts', postId, 'comments', commentId);
     const commentDoc = await getDoc(commentRef);
@@ -1532,34 +1578,37 @@ export const deleteComment = async (
       const postRef = doc(db, 'posts', postId);
       
       if (hasReplies) {
-        // 대댓글이 있는 경우: 소프트 삭제 (내용만 변경)
+        // 대댓글이 있는 경우: 소프트 삭제 (내용만 변경, 카운트는 유지)
         transaction.update(commentRef, {
           content: '삭제된 댓글입니다.',
           'status.isDeleted': true,
           deletedAt: serverTimestamp(),
         });
+        // 대댓글이 있는 경우 카운트는 감소시키지 않음
       } else {
-        // 대댓글이 없는 경우: 소프트 삭제 (완전 삭제는 하지 않음)
+        // 대댓글이 없는 경우: 소프트 삭제 및 카운트 감소
         transaction.update(commentRef, {
           'status.isDeleted': true,
           deletedAt: serverTimestamp(),
         });
-      }
-      
-      // 게시글의 댓글 수 감소
-      transaction.update(postRef, {
-        'stats.commentCount': increment(-1),
-      });
-      
-      // 사용자 댓글 수 감소
-      const userRef = doc(db, 'users', userId);
-      transaction.update(userRef, {
-        'stats.commentCount': increment(-1),
-        updatedAt: serverTimestamp(),
-      });
-    });
-  } catch (error) {
-    console.error('댓글 삭제 실패:', error);
-    throw error;
-  }
-};
+        
+        // 게시글의 댓글 수 감소 (대댓글이 없는 경우에만)
+        transaction.update(postRef, {
+          'stats.commentCount': increment(-1),
+        });
+        
+        // 사용자 댓글 수 감소 (대댓글이 없는 경우에만)
+        const userRef = doc(db, 'users', userId);
+        transaction.update(userRef, {
+          'stats.commentCount': increment(-1),
+          updatedAt: serverTimestamp(),
+                 });
+       }
+     });
+     
+     return { hasReplies };
+   } catch (error) {
+     console.error('댓글 삭제 실패:', error);
+     throw error;
+   }
+ };

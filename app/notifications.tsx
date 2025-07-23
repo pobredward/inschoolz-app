@@ -244,15 +244,17 @@ export default function NotificationsScreen() {
          
          if (data.postType === 'national') {
            route = `/board/national/${data.boardCode}/${data.postId}`;
-         } else if (data.postType === 'regional' && data.regions) {
-           const regions = data.regions as { sido: string; sigungu: string };
-           route = `/board/regional/${regions.sido}/${regions.sigungu}/${data.boardCode}/${data.postId}`;
-         } else if (data.postType === 'school' && data.schoolId) {
-           route = `/board/school/${data.schoolId}/${data.boardCode}/${data.postId}`;
+         } else if (data.postType === 'regional') {
+           route = `/board/regional/${data.boardCode}/${data.postId}`;
+         } else if (data.postType === 'school') {
+           route = `/board/school/${data.boardCode}/${data.postId}`;
          }
          
          if (route) {
+           console.log('알림 클릭으로 이동:', route);
            router.push(route as any);
+         } else {
+           console.warn('알림 데이터가 불완전합니다:', data);
          }
        } else if (data?.targetUserId && notification.type === 'referral') {
          // 추천인 알림은 해당 사용자 프로필로 이동
