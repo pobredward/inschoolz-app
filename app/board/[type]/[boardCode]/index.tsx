@@ -215,22 +215,18 @@ export default function BoardScreen() {
     }
   }, [user?.uid, loadBlockedUsers]);
 
-  // 화면이 포커스될 때마다 게시글 목록 새로고침 (게시글 상세에서 돌아온 경우)
+  // 화면이 포커스될 때마다 게시글 목록 및 차단 목록 새로고침 (게시글 상세에서 돌아온 경우)
   useFocusEffect(
     useCallback(() => {
-      // 초기 로드가 아닌 경우에만 새로고침 (뒤로가기 등으로 돌아온 경우)
+      // 차단 목록 새로고침
+      if (user?.uid) {
+        loadBlockedUsers();
+      }
+      // 초기 로드가 아닌 경우에만 게시글 새로고침 (뒤로가기 등으로 돌아온 경우)
       if (posts.length > 0) {
         loadBoardAndPosts();
       }
-    }, [posts.length])
-  );
-  useFocusEffect(
-    useCallback(() => {
-      // 초기 로드가 아닌 경우에만 새로고침 (뒤로가기 등으로 돌아온 경우)
-      if (posts.length > 0) {
-        loadBoardAndPosts();
-      }
-    }, [posts.length])
+    }, [posts.length, user?.uid, loadBlockedUsers])
   );
 
   const handlePostPress = (post: Post & { boardName?: string; previewContent?: string }) => {

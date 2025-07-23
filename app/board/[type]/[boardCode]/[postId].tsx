@@ -933,6 +933,130 @@ export default function PostDetailScreen() {
     }
   };
 
+  // 댓글 더보기 메뉴 핸들러
+  const handleCommentMorePress = (comment: CommentWithAuthor) => {
+    if (!user) return;
+
+    const isOwnComment = comment.authorId === user.uid;
+    const isAnonymousComment = comment.isAnonymous;
+    
+    let options: string[] = [];
+    
+    if (isOwnComment || isAnonymousComment) {
+      // 본인 댓글이거나 익명 댓글인 경우
+      if (isAnonymousComment) {
+        options = ['수정', '삭제', '취소'];
+      } else {
+        options = ['삭제', '취소'];
+      }
+    } else {
+      // 다른 사용자의 댓글인 경우
+      const isBlocked = blockedUserIds.has(comment.authorId || '');
+      options = ['신고', isBlocked ? '차단 해제' : '차단', '취소'];
+    }
+
+    Alert.alert(
+      '댓글 옵션',
+      '원하는 작업을 선택하세요.',
+      options.map((option, index) => ({
+        text: option,
+        style: option === '취소' ? 'cancel' : option === '삭제' || option === '신고' ? 'destructive' : 'default',
+        onPress: () => {
+          switch (option) {
+            case '수정':
+              if (isAnonymousComment) {
+                setPasswordModalData({ commentId: comment.id, action: 'edit' });
+                setShowPasswordModal(true);
+              }
+              break;
+                         case '삭제':
+               if (isAnonymousComment) {
+                 setPasswordModalData({ commentId: comment.id, action: 'delete' });
+                 setShowPasswordModal(true);
+               } else {
+                 Alert.alert(
+                   '댓글 삭제',
+                   '댓글을 삭제하시겠습니까?',
+                   [
+                     { text: '취소', style: 'cancel' },
+                     { 
+                       text: '삭제', 
+                       style: 'destructive',
+                       onPress: async () => {
+                         try {
+                           // TODO: 댓글 삭제 API 호출 구현
+                           Alert.alert('알림', '댓글 삭제 기능은 추후 구현 예정입니다.');
+                         } catch (error) {
+                           Alert.alert('오류', '댓글 삭제에 실패했습니다.');
+                         }
+                       }
+                     }
+                   ]
+                 );
+               }
+               break;
+             case '신고':
+               setReportTargetId(comment.id);
+               setReportTargetType('comment');
+               setReportTargetContent(comment.content);
+               setReportPostId(post?.id || '');
+               setShowReportModal(true);
+               break;
+             case '차단':
+               Alert.alert(
+                 '사용자 차단',
+                 `${comment.author?.userName || '이 사용자'}님을 차단하시겠습니까?\n차단된 사용자의 게시글과 댓글은 "차단한 사용자입니다"로 표시됩니다.`,
+                 [
+                   { text: '취소', style: 'cancel' },
+                   {
+                     text: '차단',
+                     style: 'destructive',
+                     onPress: async () => {
+                       try {
+                         const { toggleBlock } = await import('../../../../lib/users');
+                         await toggleBlock(user.uid, comment.authorId!);
+                         // 차단 목록에 추가
+                         setBlockedUserIds(prev => new Set([...prev, comment.authorId!]));
+                         Alert.alert('완료', '사용자를 차단했습니다.');
+                       } catch (error) {
+                         console.error('차단 실패:', error);
+                         Alert.alert('오류', '차단에 실패했습니다.');
+                       }
+                     }
+                   }
+                 ]
+               );
+               break;
+             case '차단 해제':
+               Alert.alert(
+                 '차단 해제',
+                 `${comment.author?.userName || '이 사용자'}님을 차단 해제하시겠습니까?`,
+                 [
+                   { text: '취소', style: 'cancel' },
+                   {
+                     text: '차단 해제',
+                     onPress: async () => {
+                       try {
+                         const { toggleBlock } = await import('../../../../lib/users');
+                         await toggleBlock(user.uid, comment.authorId!);
+                         // 차단 목록에서 제거
+                         handleUnblock(comment.authorId!);
+                         Alert.alert('완료', '차단을 해제했습니다.');
+                       } catch (error) {
+                         console.error('차단 해제 실패:', error);
+                         Alert.alert('오류', '차단 해제에 실패했습니다.');
+                       }
+                     }
+                   }
+                 ]
+               );
+               break;
+          }
+        }
+      }))
+    );
+  };
+
   // 익명 댓글 비밀번호 확인 성공 핸들러
   const handlePasswordVerifySuccess = (verifiedPassword: string) => {
     if (!passwordModalData) return;
@@ -1122,12 +1246,10 @@ export default function PostDetailScreen() {
           </View>
           
           {/* 더보기 메뉴 */}
-          {(user && (comment.authorId === user.uid || comment.isAnonymous)) && (
+          {user && (
             <TouchableOpacity
               style={styles.moreButton}
-              onPress={() => {
-                // TODO: 댓글 옵션 메뉴 구현
-              }}
+              onPress={() => handleCommentMorePress(comment)}
             >
               <Ionicons name="ellipsis-horizontal" size={16} color="#94a3b8" />
             </TouchableOpacity>

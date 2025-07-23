@@ -584,6 +584,15 @@ export default function ProfileScreen() {
             </TouchableOpacity>
             
             <TouchableOpacity 
+              style={styles.settingButton}
+              onPress={() => router.push('/blocked-users')}
+            >
+              <Text style={styles.settingIcon}>🚫</Text>
+              <Text style={styles.settingText}>차단된 사용자</Text>
+              <Text style={styles.settingArrow}>›</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
               style={[styles.settingButton, styles.signOutButton]}
               onPress={handleSignOut}
             >

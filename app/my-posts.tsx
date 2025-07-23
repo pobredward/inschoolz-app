@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
   SafeAreaView,
   Alert,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
 import { getUserPosts, getBlockedUserIds } from '../lib/users';
 import { BlockedUserContent } from '../components/ui/BlockedUserContent';
@@ -112,6 +112,15 @@ export default function MyPostsScreen() {
       loadBlockedUsers();
     }
   }, [user?.uid]);
+
+  // 화면이 포커스될 때마다 차단 목록 새로고침
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.uid) {
+        loadBlockedUsers();
+      }
+    }, [user?.uid])
+  );
 
   useEffect(() => {
     filterPosts(posts, selectedType);
