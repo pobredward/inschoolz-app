@@ -126,6 +126,7 @@ export interface User {
   email: string;
   role: UserRole;
   isVerified: boolean;
+  status?: 'active' | 'inactive' | 'suspended';
   
   // 프로필 정보
   profile: UserProfile;

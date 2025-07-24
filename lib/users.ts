@@ -14,7 +14,8 @@ import {
   increment,
   getCountFromServer,
   Timestamp,
-  QueryConstraint
+  QueryConstraint,
+  FieldValue
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { User, FirebaseTimestamp } from '../types'; // 통일된 타입 사용
@@ -277,7 +278,8 @@ export const logAdminAction = async (actionData: Omit<AdminActionLog, 'id' | 'ti
 export const updateUserStatusEnhanced = async (
   userId: string, 
   newStatus: 'active' | 'inactive' | 'suspended', 
-  settings?: SuspensionSettings
+  settings?: SuspensionSettings,
+  adminId?: string
 ): Promise<void> => {
   try {
     const userRef = doc(db, 'users', userId);
@@ -290,7 +292,7 @@ export const updateUserStatusEnhanced = async (
     const userData = userDoc.data() as User;
     const oldStatus = userData.status;
 
-    const updateData: Record<string, unknown> = {
+    const updateData: Record<string, FieldValue | string | number | boolean | object | null> = {
       status: newStatus,
       updatedAt: serverTimestamp()
     };
@@ -317,20 +319,48 @@ export const updateUserStatusEnhanced = async (
 
     await updateDoc(userRef, updateData);
 
+    // 정지 알림 발송
+    if (newStatus === 'suspended' && settings && settings.notifyUser) {
+      try {
+        const { createSanctionNotification } = await import('./notifications');
+        
+        let duration = '';
+        if (settings.type === 'temporary' && settings.duration) {
+          duration = `${settings.duration}일`;
+        } else if (settings.type === 'permanent') {
+          duration = '영구';
+        }
+
+        await createSanctionNotification(
+          userId,
+          'suspension',
+          settings.reason,
+          duration
+        );
+
+        console.log('정지 알림 발송 완료:', userId);
+      } catch (notificationError) {
+        console.error('정지 알림 발송 실패:', notificationError);
+        // 알림 발송 실패는 정지 처리 자체를 실패시키지 않음
+      }
+    }
+
     // 관리자 작업 로그 기록
     await logAdminAction({
-      adminId: 'current_admin', // 실제로는 현재 관리자 ID
-      adminName: 'Admin', // 실제로는 현재 관리자 이름
+      adminId: adminId || 'current_admin',
+      adminName: 'Admin',
       action: 'status_change',
       targetUserId: userId,
-      targetUserName: userData.profile?.userName || userData.email,
-      oldValue: oldStatus,
+      targetUserName: userData.profile?.userName || userData.email || '',
+      oldValue: oldStatus || 'active',
       newValue: newStatus,
       reason: settings?.reason
     });
+
+    console.log('사용자 상태 업데이트 완료:', { userId, oldStatus, newStatus });
   } catch (error) {
-    console.error('사용자 상태 변경 오류:', error);
-    throw new Error('사용자 상태를 변경하는 중 오류가 발생했습니다.');
+    console.error('사용자 상태 업데이트 오류:', error);
+    throw error;
   }
 };
 
@@ -675,7 +705,7 @@ export const bulkUpdateUsers = async (userIds: string[], updates: {
 
 // UserRelationship 타입 정의 (차단/팔로우 관계)
 interface UserRelationship {
-  id: string;
+  id?: string;
   userId: string;
   targetId: string;
   type: 'follow' | 'block';
@@ -1130,19 +1160,6 @@ export const updateProfileImage = async (
     };
   }
 };
-
-/**
- * 사용자 관계 타입 정의
- */
-interface UserRelationship {
-  id?: string;
-  userId: string;
-  targetId: string;
-  type: 'follow' | 'block';
-  status: 'active' | 'inactive';
-  createdAt: any;
-  updatedAt: any;
-}
 
 /**
  * 팔로우 상태 확인
