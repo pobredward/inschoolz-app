@@ -13,10 +13,12 @@ import {
   deleteDoc,
   increment,
   getCountFromServer,
-  Timestamp
+  Timestamp,
+  QueryConstraint
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { User, FirebaseTimestamp } from '../types'; // 통일된 타입 사용
+import { EnhancedAdminUserListParams, AdminActionLog, SuspensionSettings } from '../types/admin';
 import { storage } from './firebase'; // storage 추가
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'; // storage 관련 함수 추가
 import { getBoard } from './boards'; // 게시판 정보 조회를 위해 추가
@@ -37,7 +39,7 @@ interface Post {
     sido: string;
     sigungu: string;
   };
-  attachments?: any[];
+  attachments?: unknown[];
   status: {
     isDeleted: boolean;
   };
@@ -90,7 +92,250 @@ export interface AdminUserListResponse {
 }
 
 /**
- * 관리자용 사용자 목록 조회
+ * 개선된 관리자용 사용자 목록 조회 (다중 필드 검색 지원)
+ */
+export const getEnhancedUsersList = async (params: EnhancedAdminUserListParams = {}): Promise<AdminUserListResponse> => {
+  try {
+    const {
+      page = 1,
+      pageSize = 20,
+      search = '',
+      searchType = 'all',
+      role = 'all',
+      status = 'all',
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      dateRange,
+      levelRange,
+      experienceRange,
+      regions,
+      hasWarnings
+    } = params;
+
+    const usersRef = collection(db, 'users');
+    const constraints: QueryConstraint[] = [];
+
+    // 역할 필터
+    if (role !== 'all') {
+      constraints.push(where('role', '==', role));
+    }
+
+    // 상태 필터
+    if (status !== 'all') {
+      constraints.push(where('status', '==', status));
+    }
+
+    // 검색 조건 (다중 필드 지원)
+    if (search.trim()) {
+      const searchTerm = search.trim();
+      
+      if (searchType === 'all') {
+        // 모든 필드에서 검색 (OR 조건)
+        // Firestore의 제한으로 인해 클라이언트 측에서 필터링
+        // 서버에서는 userName으로만 검색하고 클라이언트에서 추가 필터링
+        constraints.push(where('profile.userName', '>=', searchTerm));
+        constraints.push(where('profile.userName', '<=', searchTerm + '\uf8ff'));
+      } else if (searchType === 'userName') {
+        constraints.push(where('profile.userName', '>=', searchTerm));
+        constraints.push(where('profile.userName', '<=', searchTerm + '\uf8ff'));
+      } else if (searchType === 'realName') {
+        constraints.push(where('profile.realName', '>=', searchTerm));
+        constraints.push(where('profile.realName', '<=', searchTerm + '\uf8ff'));
+      } else if (searchType === 'email') {
+        constraints.push(where('email', '>=', searchTerm.toLowerCase()));
+        constraints.push(where('email', '<=', searchTerm.toLowerCase() + '\uf8ff'));
+      } else if (searchType === 'school') {
+        constraints.push(where('school.name', '>=', searchTerm));
+        constraints.push(where('school.name', '<=', searchTerm + '\uf8ff'));
+      }
+    }
+
+    // 날짜 범위 필터
+    if (dateRange) {
+      if (dateRange.from) {
+        constraints.push(where('createdAt', '>=', Timestamp.fromDate(dateRange.from)));
+      }
+      if (dateRange.to) {
+        constraints.push(where('createdAt', '<=', Timestamp.fromDate(dateRange.to)));
+      }
+    }
+
+    // 레벨 범위 필터
+    if (levelRange) {
+      if (levelRange.min) {
+        constraints.push(where('stats.level', '>=', levelRange.min));
+      }
+      if (levelRange.max) {
+        constraints.push(where('stats.level', '<=', levelRange.max));
+      }
+    }
+
+    // 경험치 범위 필터
+    if (experienceRange) {
+      if (experienceRange.min) {
+        constraints.push(where('stats.totalExperience', '>=', experienceRange.min));
+      }
+      if (experienceRange.max) {
+        constraints.push(where('stats.totalExperience', '<=', experienceRange.max));
+      }
+    }
+
+    // 지역 필터
+    if (regions) {
+      if (regions.sido) {
+        constraints.push(where('regions.sido', '==', regions.sido));
+      }
+      if (regions.sigungu) {
+        constraints.push(where('regions.sigungu', '==', regions.sigungu));
+      }
+    }
+
+    // 경고 여부 필터
+    if (hasWarnings !== undefined) {
+      if (hasWarnings) {
+        constraints.push(where('warnings.count', '>', 0));
+      } else {
+        constraints.push(where('warnings.count', '==', 0));
+      }
+    }
+
+    // 정렬 추가
+    constraints.push(orderBy(sortBy, sortOrder));
+
+    // 페이지네이션
+    const offset = (page - 1) * pageSize;
+    constraints.push(limit(pageSize + offset));
+
+    const q = query(usersRef, ...constraints);
+    const querySnapshot = await getDocs(q);
+    let allUsers: User[] = [];
+    
+    querySnapshot.forEach((doc) => {
+      allUsers.push({ 
+        uid: doc.id, 
+        ...doc.data() 
+      } as User);
+    });
+
+    // 클라이언트 측 추가 필터링 (다중 필드 검색용)
+    if (search.trim() && searchType === 'all') {
+      const searchTerm = search.trim().toLowerCase();
+      allUsers = allUsers.filter(user => {
+        const userName = user.profile?.userName?.toLowerCase() || '';
+        const realName = user.profile?.realName?.toLowerCase() || '';
+        const email = user.email?.toLowerCase() || '';
+        const schoolName = user.school?.name?.toLowerCase() || '';
+        
+        return userName.includes(searchTerm) || 
+               realName.includes(searchTerm) || 
+               email.includes(searchTerm) || 
+               schoolName.includes(searchTerm);
+      });
+    }
+
+    // 페이지네이션 적용
+    const users = allUsers.slice(offset, offset + pageSize);
+
+    // 전체 개수 조회 (필터 조건 적용)
+    const countConstraints = constraints.slice(0, -2); // 마지막 2개(orderBy, limit) 제거
+    const countQuery = countConstraints.length > 0 
+      ? query(usersRef, ...countConstraints)
+      : query(usersRef);
+    const countSnapshot = await getCountFromServer(countQuery);
+    const totalCount = countSnapshot.data().count;
+
+    return {
+      users,
+      totalCount,
+      hasMore: totalCount > page * pageSize,
+      currentPage: page
+    };
+  } catch (error) {
+    console.error('개선된 사용자 목록 조회 오류:', error);
+    throw new Error('사용자 목록을 가져오는 중 오류가 발생했습니다.');
+  }
+};
+
+/**
+ * 관리자 작업 로그 기록
+ */
+export const logAdminAction = async (actionData: Omit<AdminActionLog, 'id' | 'timestamp'>): Promise<void> => {
+  try {
+    await addDoc(collection(db, 'adminActionLogs'), {
+      ...actionData,
+      timestamp: serverTimestamp()
+    });
+  } catch (error) {
+    console.error('관리자 작업 로그 기록 오류:', error);
+    // 로그 기록 실패는 주요 작업을 중단시키지 않음
+  }
+};
+
+/**
+ * 개선된 사용자 상태 변경 (정지 기간 지원)
+ */
+export const updateUserStatusEnhanced = async (
+  userId: string, 
+  newStatus: 'active' | 'inactive' | 'suspended', 
+  settings?: SuspensionSettings
+): Promise<void> => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    
+    if (!userDoc.exists()) {
+      throw new Error('사용자를 찾을 수 없습니다.');
+    }
+
+    const userData = userDoc.data() as User;
+    const oldStatus = userData.status;
+
+    const updateData: Record<string, unknown> = {
+      status: newStatus,
+      updatedAt: serverTimestamp()
+    };
+
+    if (newStatus === 'suspended' && settings) {
+      updateData.suspensionReason = settings.reason;
+      updateData.suspendedAt = serverTimestamp();
+      
+      if (settings.type === 'temporary' && settings.duration) {
+        const suspendedUntil = new Date();
+        suspendedUntil.setDate(suspendedUntil.getDate() + settings.duration);
+        updateData.suspendedUntil = Timestamp.fromDate(suspendedUntil);
+        updateData.autoRestore = settings.autoRestore;
+      }
+      
+      updateData.notifyUser = settings.notifyUser;
+    } else if (newStatus === 'active') {
+      // 정지 해제 시 관련 필드 정리
+      updateData.suspensionReason = null;
+      updateData.suspendedAt = null;
+      updateData.suspendedUntil = null;
+      updateData.autoRestore = null;
+    }
+
+    await updateDoc(userRef, updateData);
+
+    // 관리자 작업 로그 기록
+    await logAdminAction({
+      adminId: 'current_admin', // 실제로는 현재 관리자 ID
+      adminName: 'Admin', // 실제로는 현재 관리자 이름
+      action: 'status_change',
+      targetUserId: userId,
+      targetUserName: userData.profile?.userName || userData.email,
+      oldValue: oldStatus,
+      newValue: newStatus,
+      reason: settings?.reason
+    });
+  } catch (error) {
+    console.error('사용자 상태 변경 오류:', error);
+    throw new Error('사용자 상태를 변경하는 중 오류가 발생했습니다.');
+  }
+};
+
+/**
+ * 기존 관리자용 사용자 목록 조회 (호환성 유지)
  */
 export const getUsersList = async (params: AdminUserListParams = {}): Promise<AdminUserListResponse> => {
   try {
@@ -105,30 +350,32 @@ export const getUsersList = async (params: AdminUserListParams = {}): Promise<Ad
     } = params;
 
     const usersRef = collection(db, 'users');
-    let q = query(usersRef);
+    const constraints: QueryConstraint[] = [];
 
     // 역할 필터
     if (role !== 'all') {
-      q = query(q, where('role', '==', role));
+      constraints.push(where('role', '==', role));
     }
 
     // 상태 필터
     if (status !== 'all') {
-      q = query(q, where('status', '==', status));
+      constraints.push(where('status', '==', status));
     }
 
     // 검색 (userName 기준)
     if (search) {
-      q = query(q, where('profile.userName', '>=', search), where('profile.userName', '<=', search + '\uf8ff'));
+      constraints.push(where('profile.userName', '>=', search));
+      constraints.push(where('profile.userName', '<=', search + '\uf8ff'));
     }
 
     // 정렬
-    q = query(q, orderBy(sortBy, sortOrder));
+    constraints.push(orderBy(sortBy, sortOrder));
 
     // 페이지네이션
     const offset = (page - 1) * pageSize;
-    q = query(q, limit(pageSize + offset));
+    constraints.push(limit(pageSize + offset));
 
+    const q = query(usersRef, ...constraints);
     const querySnapshot = await getDocs(q);
     const allUsers: User[] = [];
     
