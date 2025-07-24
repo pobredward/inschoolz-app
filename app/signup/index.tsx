@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert, SafeAreaView, StatusBa
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { registerWithEmail } from '../../lib/auth';
+import { checkEmailAvailability, checkUserNameAvailability } from '../../lib/users';
 import { useAuthStore } from '../../store/authStore';
 // 기본 logger 함수
 const logger = {
@@ -114,6 +115,34 @@ export default function SignupContainer() {
         logger.warn('약관 동의 검증 실패');
         Alert.alert('오류', '필수 약관에 모두 동의해주세요.');
         return;
+      }
+
+      // 최종 userName 중복 체크 (보안 강화)
+      if (formData.userName) {
+        try {
+          const userNameCheck = await checkUserNameAvailability(formData.userName);
+          if (!userNameCheck.isAvailable) {
+            Alert.alert('사용자명 오류', userNameCheck.message);
+            return;
+          }
+        } catch (error) {
+          Alert.alert('사용자명 확인 오류', '사용자명 확인 중 오류가 발생했습니다.');
+          return;
+        }
+      }
+
+      // 최종 이메일 중복 체크 (보안 강화)
+      if (formData.email) {
+        try {
+          const emailCheck = await checkEmailAvailability(formData.email);
+          if (!emailCheck.isAvailable) {
+            Alert.alert('이메일 오류', emailCheck.message);
+            return;
+          }
+        } catch (error) {
+          Alert.alert('이메일 확인 오류', '이메일 확인 중 오류가 발생했습니다.');
+          return;
+        }
       }
 
       logger.debug('SignupContainer 검증 통과, registerWithEmail 호출 시작');

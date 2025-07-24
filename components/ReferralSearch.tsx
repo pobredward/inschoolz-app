@@ -9,7 +9,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { searchUsers } from '../lib/users';
+import { searchUsers, checkReferralExists } from '../lib/users';
 
 interface ReferralUser {
   uid: string;

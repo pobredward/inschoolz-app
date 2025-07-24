@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
 import { z } from 'zod';
 import { Ionicons } from '@expo/vector-icons';
+import { checkEmailAvailability } from '../../lib/users';
 
 const schema = z.object({
   email: z.string().email('유효한 이메일을 입력하세요.'),
@@ -12,6 +13,14 @@ const schema = z.object({
   path: ['confirmPassword'],
 });
 
+// 검증 상태 타입
+type ValidationStatus = 'idle' | 'checking' | 'available' | 'unavailable';
+
+interface ValidationState {
+  status: ValidationStatus;
+  message?: string;
+}
+
 export default function Step1BasicInfo({ formData, updateForm, nextStep }: {
   formData: any;
   updateForm: (data: Partial<any>) => void;
@@ -21,8 +30,62 @@ export default function Step1BasicInfo({ formData, updateForm, nextStep }: {
   const [fieldError, setFieldError] = useState<{ [key: string]: string }>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
+  
+  // 이메일 검증 상태
+  const [emailStatus, setEmailStatus] = useState<ValidationState>({ status: 'idle' });
+
+  // 이메일 중복 체크 함수
+  const checkEmail = useCallback(async (email: string) => {
+    if (!email || email.trim() === '') {
+      setEmailStatus({ status: 'idle' });
+      return;
+    }
+
+    setEmailStatus({ status: 'checking' });
+
+    try {
+      const result = await checkEmailAvailability(email);
+      if (result.isAvailable) {
+        setEmailStatus({ 
+          status: 'available', 
+          message: result.message 
+        });
+      } else {
+        setEmailStatus({ 
+          status: 'unavailable', 
+          message: result.message 
+        });
+      }
+    } catch {
+      setEmailStatus({ 
+        status: 'unavailable', 
+        message: '검증 중 오류가 발생했습니다.' 
+      });
+    }
+  }, []);
+
+  // 이메일 입력 디바운싱
+  useEffect(() => {
+    const emailValue = formData.email;
+    if (!emailValue) {
+      setEmailStatus({ status: 'idle' });
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      checkEmail(emailValue);
+    }, 300); // 500ms에서 300ms로 단축
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.email, checkEmail]);
 
   const handleNext = () => {
+    // 이메일 중복 체크 확인
+    if (emailStatus.status === 'unavailable') {
+      setError('이메일 중복을 해결해주세요.');
+      return;
+    }
+
     const result = schema.safeParse(formData);
     if (!result.success) {
       const errors: { [key: string]: string } = {};
@@ -36,6 +99,32 @@ export default function Step1BasicInfo({ formData, updateForm, nextStep }: {
     setFieldError({});
     setError(null);
     nextStep();
+  };
+
+  // 검증 상태에 따른 아이콘 반환
+  const getValidationIcon = (status: ValidationStatus) => {
+    switch (status) {
+      case 'checking':
+        return <ActivityIndicator size="small" color="#007AFF" />;
+      case 'available':
+        return <Ionicons name="checkmark-circle" size={20} color="#22C55E" />;
+      case 'unavailable':
+        return <Ionicons name="close-circle" size={20} color="#EF4444" />;
+      default:
+        return null;
+    }
+  };
+
+  // 검증 상태에 따른 메시지 색상
+  const getMessageColor = (status: ValidationStatus) => {
+    switch (status) {
+      case 'available':
+        return '#22C55E';
+      case 'unavailable':
+        return '#EF4444';
+      default:
+        return '#6B7280';
+    }
   };
 
   return (
@@ -52,15 +141,29 @@ export default function Step1BasicInfo({ formData, updateForm, nextStep }: {
           
           <View style={styles.formGroup}>
             <Text style={styles.label}>이메일</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="이메일을 입력하세요"
-              value={formData.email || ''}
-              onChangeText={(text) => updateForm({ email: text })}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholderTextColor="#9ca3af"
-            />
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[
+                  styles.input,
+                  emailStatus.status === 'unavailable' && styles.inputError,
+                  emailStatus.status === 'available' && styles.inputSuccess
+                ]}
+                placeholder="이메일을 입력하세요"
+                value={formData.email || ''}
+                onChangeText={(text) => updateForm({ email: text })}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholderTextColor="#9ca3af"
+              />
+              <View style={styles.validationIcon}>
+                {getValidationIcon(emailStatus.status)}
+              </View>
+            </View>
+            {emailStatus.message && (
+              <Text style={[styles.validationMessage, { color: getMessageColor(emailStatus.status) }]}>
+                {emailStatus.message}
+              </Text>
+            )}
             {fieldError.email && <Text style={styles.error}>{fieldError.email}</Text>}
           </View>
           
@@ -198,6 +301,10 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     marginLeft: 2,
   },
+  inputContainer: {
+    position: 'relative',
+    width: '100%',
+  },
   input: {
     width: '100%',
     backgroundColor: 'white',
@@ -206,6 +313,27 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
+  },
+  inputError: {
+    borderColor: '#EF4444',
+    borderWidth: 2,
+  },
+  inputSuccess: {
+    borderColor: '#22C55E',
+    borderWidth: 2,
+  },
+  validationIcon: {
+    position: 'absolute',
+    right: 12,
+    top: '50%',
+    transform: [{ translateY: -10 }],
+    padding: 4,
+  },
+  validationMessage: {
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 2,
+    alignSelf: 'flex-start',
   },
   passwordContainer: {
     position: 'relative',

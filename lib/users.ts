@@ -1160,4 +1160,129 @@ export const getUserComments = async (
   }
 };
 
+/**
+ * 이메일 중복 확인 함수
+ * @param email 확인할 이메일 주소
+ * @returns 사용 가능 여부와 메시지
+ */
+export const checkEmailAvailability = async (email: string): Promise<{
+  isAvailable: boolean;
+  message: string;
+}> => {
+  try {
+    if (!email || email.trim() === '') {
+      return { isAvailable: false, message: '이메일을 입력해주세요.' };
+    }
+
+    // 이메일 형식 검증
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return { isAvailable: false, message: '올바른 이메일 형식이 아닙니다.' };
+    }
+
+    // Firestore에서 중복 확인
+    const usersRef = collection(db, 'users');
+    const q = query(
+      usersRef,
+      where('email', '==', email.trim().toLowerCase()),
+      limit(1)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+      return { isAvailable: false, message: '이미 가입된 이메일 주소입니다.' };
+    }
+
+    return { isAvailable: true, message: '사용 가능한 이메일입니다.' };
+  } catch (error) {
+    console.error('이메일 중복 확인 오류:', error);
+    return { isAvailable: false, message: '이메일 확인 중 오류가 발생했습니다.' };
+  }
+};
+
+/**
+ * userName 중복 확인 함수
+ * @param userName 확인할 사용자명
+ * @returns 사용 가능 여부와 메시지
+ */
+export const checkUserNameAvailability = async (userName: string): Promise<{
+  isAvailable: boolean;
+  message: string;
+}> => {
+  try {
+    if (!userName || userName.trim() === '') {
+      return { isAvailable: false, message: '사용자명을 입력해주세요.' };
+    }
+
+    // 사용자명 유효성 검증
+    if (userName.length < 5 || userName.length > 20) {
+      return { isAvailable: false, message: '사용자명은 5-20자 사이여야 합니다.' };
+    }
+
+    if (!/^[a-z0-9]+$/.test(userName)) {
+      return { isAvailable: false, message: '사용자명은 영문 소문자와 숫자만 사용 가능합니다.' };
+    }
+
+    // Firestore에서 중복 확인
+    const usersRef = collection(db, 'users');
+    const q = query(
+      usersRef,
+      where('profile.userName', '==', userName.trim()),
+      limit(1)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+      return { isAvailable: false, message: '이미 사용 중인 사용자명입니다.' };
+    }
+
+    return { isAvailable: true, message: '사용 가능한 사용자명입니다.' };
+  } catch (error) {
+    console.error('사용자명 중복 확인 오류:', error);
+    return { isAvailable: false, message: '사용자명 확인 중 오류가 발생했습니다.' };
+  }
+}; 
+
+/**
+ * 추천인 아이디 존재 여부 확인 함수
+ * @param userName 확인할 추천인 아이디
+ * @returns 존재 여부와 사용자 정보
+ */
+export const checkReferralExists = async (userName: string): Promise<{ 
+  exists: boolean; 
+  displayName?: string;
+  userName?: string;
+}> => {
+  try {
+    if (!userName || userName.trim() === '') {
+      return { exists: false };
+    }
+
+    const usersRef = collection(db, 'users');
+    const q = query(
+      usersRef,
+      where('profile.userName', '==', userName.trim()),
+      limit(1)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+      const userData = querySnapshot.docs[0].data();
+      return { 
+        exists: true, 
+        displayName: userData.profile.userName || '사용자',
+        userName: userData.profile.userName
+      };
+    }
+
+    return { exists: false };
+  } catch (error) {
+    console.error('추천 아이디 확인 오류:', error);
+    return { exists: false };
+  }
+}; 
+
  
