@@ -162,8 +162,6 @@ export default function PostDetailScreen() {
   } | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
-  const [anonymousNickname, setAnonymousNickname] = useState('');
-  const [anonymousPassword, setAnonymousPassword] = useState('');
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportTargetId, setReportTargetId] = useState<string>('');
   const [reportTargetType, setReportTargetType] = useState<'post' | 'comment'>('post');
@@ -910,8 +908,6 @@ export default function PostDetailScreen() {
       await loadComments(post.id);
       setNewComment('');
       setIsAnonymous(false);
-      setAnonymousNickname('');
-      setAnonymousPassword('');
       
       // 경험치 부여
       try {
@@ -981,8 +977,6 @@ export default function PostDetailScreen() {
       setReplyContent('');
       setReplyingTo(null);
       setIsAnonymous(false);
-      setAnonymousNickname('');
-      setAnonymousPassword('');
 
       // 댓글 목록 새로고침
       if (post) {
@@ -1025,19 +1019,17 @@ export default function PostDetailScreen() {
   const handleCommentMorePress = (comment: CommentWithAuthor) => {
     const isOwnComment = user && comment.authorId === user.uid;
     const isAnonymousComment = comment.isAnonymous;
+    const isGuestAnonymousComment = isAnonymousComment && !comment.authorId; // 비회원 익명 댓글
+    const isMemberAnonymousComment = isAnonymousComment && comment.authorId; // 회원 익명 댓글
     
-    // 비회원일 때는 익명 댓글에만 메뉴 표시
-    if (!user && !isAnonymousComment) return;
+    // 비회원일 때는 비회원 익명 댓글에만 메뉴 표시
+    if (!user && !isGuestAnonymousComment) return;
     
     let options: string[] = [];
     
-    if (isOwnComment || isAnonymousComment) {
-      // 본인 댓글이거나 익명 댓글인 경우
-      if (isAnonymousComment) {
-        options = ['수정', '삭제', '취소'];
-      } else {
-        options = ['수정', '삭제', '취소'];
-      }
+    if (isOwnComment || isGuestAnonymousComment) {
+      // 본인 댓글이거나 비회원 익명 댓글인 경우
+      options = ['수정', '삭제', '취소'];
     } else if (user) {
       // 로그인한 사용자이고 다른 사용자의 댓글인 경우
       const isBlocked = blockedUserIds.has(comment.authorId || '');
@@ -1056,11 +1048,12 @@ export default function PostDetailScreen() {
         onPress: () => {
           switch (option) {
             case '수정':
-              if (isAnonymousComment) {
+              if (isGuestAnonymousComment) {
+                // 비회원 익명 댓글은 비밀번호 필요
                 setPasswordModalData({ commentId: comment.id, action: 'edit' });
                 setShowPasswordModal(true);
               } else {
-                // 회원 댓글 수정
+                // 회원 댓글 (일반 댓글 또는 회원 익명 댓글) 수정
                 setEditingComment({
                   commentId: comment.id,
                   content: comment.content
@@ -1068,7 +1061,8 @@ export default function PostDetailScreen() {
               }
               break;
                          case '삭제':
-               if (isAnonymousComment) {
+               if (isGuestAnonymousComment) {
+                 // 비회원 익명 댓글은 비밀번호 필요
                  setPasswordModalData({ commentId: comment.id, action: 'delete' });
                  setShowPasswordModal(true);
                } else {
@@ -1397,7 +1391,7 @@ export default function PostDetailScreen() {
           </View>
           
           {/* 더보기 메뉴 */}
-          {(user || comment.isAnonymous) && (
+          {(user || (comment.isAnonymous && !comment.authorId)) && (
             <TouchableOpacity
               style={styles.moreButton}
               onPress={() => handleCommentMorePress(comment)}
@@ -1735,67 +1729,9 @@ export default function PostDetailScreen() {
 
           {/* 댓글 작성 */}
           {user ? (
-            // 로그인한 사용자용 댓글 작성
             (() => {
-              const suspensionStatus = checkSuspensionStatus(user);
-              
-              if (suspensionStatus.isSuspended) {
-                return (
-                  <View style={styles.suspensionNotice}>
-                    <Ionicons 
-                      name={suspensionStatus.isPermanent ? "ban" : "time"} 
-                      size={24} 
-                      color="#ef4444" 
-                    />
-                    <Text style={styles.suspensionText}>
-                      {suspensionStatus.isPermanent
-                        ? "계정이 영구 정지되어 댓글을 작성할 수 없습니다."
-                        : `계정이 정지되어 댓글을 작성할 수 없습니다. (남은 기간: ${suspensionStatus.remainingDays}일)`
-                      }
-                    </Text>
-                    <Text style={styles.suspensionReasonText}>
-                      사유: {suspensionStatus.reason || '정책 위반'}
-                    </Text>
-                  </View>
-                );
-              }
-              
               return (
                 <>
-                  {/* 답글 알림 */}
-                  {replyingTo && (
-                    <View style={styles.replyIndicator}>
-                      <Text style={styles.replyText}>
-                        {replyingTo.author}님에게 답글 작성 중
-                      </Text>
-                      <TouchableOpacity 
-                        onPress={() => {
-                          setReplyingTo(null);
-                          setReplyContent('');
-                        }}
-                      >
-                        <Ionicons name="close" size={16} color="#6b7280" />
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                  
-                  {/* 익명 모드 토글 */}
-                  <View style={styles.commentOptions}>
-                    <TouchableOpacity 
-                      style={[styles.anonymousToggle, isAnonymous && styles.anonymousToggleActive]}
-                      onPress={() => setIsAnonymous(!isAnonymous)}
-                    >
-                      <Ionicons 
-                        name={isAnonymous ? "eye-off" : "eye-off-outline"} 
-                        size={16} 
-                        color={isAnonymous ? "#10b981" : "#6b7280"} 
-                      />
-                      <Text style={[styles.anonymousToggleText, isAnonymous && styles.anonymousToggleTextActive]}>
-                        익명
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
                   <View style={styles.commentInputWrapper}>
                     {!isAnonymous && renderProfileImage(
                       user?.profile?.profileImageUrl,
@@ -1823,18 +1759,25 @@ export default function PostDetailScreen() {
                     </TouchableOpacity>
                   </View>
 
-                  {/* 익명 모드일 때 닉네임 입력 (로그인 사용자는 비밀번호 불필요) */}
-                  {isAnonymous && (
-                    <View style={styles.anonymousInputs}>
-                      <TextInput
-                        style={styles.anonymousInput}
-                        placeholder="익명 닉네임 (선택)"
-                        value={anonymousNickname}
-                        onChangeText={setAnonymousNickname}
-                        maxLength={20}
+                  {/* 익명 모드 토글 */}
+                  <View style={styles.commentOptions}>
+                    <TouchableOpacity
+                      style={styles.anonymousToggle}
+                      onPress={() => setIsAnonymous(!isAnonymous)}
+                    >
+                      <Ionicons 
+                        name={isAnonymous ? "checkbox" : "square-outline"} 
+                        size={20} 
+                        color={isAnonymous ? "#10b981" : "#6b7280"} 
                       />
-                    </View>
-                  )}
+                      <Text style={[
+                        styles.anonymousToggleText,
+                        isAnonymous && styles.anonymousToggleTextActive
+                      ]}>
+                        익명으로 작성
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </>
               );
             })()
@@ -2591,14 +2534,6 @@ const styles = StyleSheet.create({
   },
   anonymousToggleTextActive: {
     color: '#10b981',
-  },
-  anonymousAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#f3f4f6',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   anonymousInputs: {
     flexDirection: 'row',

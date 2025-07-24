@@ -1561,7 +1561,7 @@ export const deleteComment = async (
     
     const commentData = commentDoc.data() as any;
     
-    // 댓글 작성자 확인 (익명 댓글은 삭제할 수 없음)
+    // 댓글 작성자 확인 (작성자만 삭제 가능)
     if (!commentData.authorId || commentData.authorId !== userId) {
       throw new Error('댓글 삭제 권한이 없습니다.');
     }
@@ -1636,14 +1636,9 @@ export const updateComment = async (
     
     const commentData = commentDoc.data() as any;
     
-    // 댓글 작성자 확인 (익명 댓글은 수정할 수 없음)
+    // 댓글 작성자 확인 (작성자만 수정 가능)
     if (!commentData.authorId || commentData.authorId !== userId) {
       throw new Error('댓글 수정 권한이 없습니다.');
-    }
-
-    // 익명 댓글인 경우 수정 불가
-    if (commentData.isAnonymous) {
-      throw new Error('익명 댓글은 이 방법으로 수정할 수 없습니다.');
     }
 
     // 댓글 내용 업데이트
