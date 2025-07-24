@@ -630,12 +630,11 @@ export const updateUserExperienceAdmin = async (userId: string, newExperience: n
 /**
  * 사용자 경고 추가
  */
-export const addUserWarning = async (userId: string, reason: string, severity: 'low' | 'medium' | 'high'): Promise<void> => {
+export const addUserWarning = async (userId: string, reason: string): Promise<void> => {
   try {
     // 경고 추가
     await addDoc(collection(db, 'users', userId, 'warningHistory'), {
       reason,
-      severity,
       status: 'active',
       adminId: 'current_admin', // 실제로는 현재 관리자 ID
       createdAt: serverTimestamp()
