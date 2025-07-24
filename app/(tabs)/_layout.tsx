@@ -30,12 +30,19 @@ const pastelGreenColors = {
 
 function CustomHeader() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
-  const { user, clearAuth, isLoading, error, setError } = useAuthStore();
+  const { 
+    user, 
+    clearAuth, 
+    isLoading, 
+    error, 
+    setError, 
+    unreadNotificationCount, 
+    updateUnreadNotificationCount 
+  } = useAuthStore();
   const router = useRouter();
   const segments = useSegments();
 
-  // 읽지 않은 알림 개수 조회
+  // 읽지 않은 알림 개수 조회 - AuthStore 업데이트
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
 
@@ -43,18 +50,18 @@ function CustomHeader() {
       if (user?.uid) {
         try {
           const count = await getUnreadNotificationCount(user.uid);
-          setUnreadNotificationCount(count);
+          updateUnreadNotificationCount(count); // AuthStore 업데이트
         } catch (error) {
           console.error('읽지 않은 알림 개수 조회 실패:', error);
         }
       } else {
-        setUnreadNotificationCount(0);
+        updateUnreadNotificationCount(0); // 로그아웃 시 0으로 초기화
       }
     };
 
     loadUnreadCount();
 
-    // 30초마다 업데이트
+    // 30초마다 업데이트 (백그라운드 동기화)
     const interval = setInterval(loadUnreadCount, 30000);
 
     return () => {
@@ -63,7 +70,7 @@ function CustomHeader() {
         unsubscribe();
       }
     };
-  }, [user?.uid]);
+  }, [user?.uid, updateUnreadNotificationCount]);
 
   // Firebase 실시간 리스너는 AuthStore에서 중앙 관리되므로 별도 로드 불필요
 
@@ -85,45 +92,32 @@ function CustomHeader() {
     try {
       setIsDropdownOpen(false);
       setError(''); // 기존 에러 초기화
-      await clearAuth();
-      Alert.alert('로그아웃', '성공적으로 로그아웃되었습니다.');
-      // 로그아웃 후 인증 페이지로 이동
-      router.replace('/auth');
-    } catch (error) {
-      // 에러는 이미 logger에서 처리되므로 여기서는 사용자에게만 알림
+      
       Alert.alert(
-        '로그아웃 오류', 
-        error instanceof Error ? error.message : '로그아웃 중 오류가 발생했습니다.'
+        '로그아웃',
+        '정말 로그아웃하시겠습니까?',
+        [
+          { text: '취소', style: 'cancel' },
+          {
+            text: '로그아웃',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await clearAuth();
+                router.replace('/(tabs)'); // 홈으로 리다이렉트
+              } catch (error) {
+                console.error('로그아웃 실패:', error);
+              }
+            }
+          }
+        ]
       );
+    } catch (error) {
+      console.error('로그아웃 처리 오류:', error);
     }
-  };
-
-  const handleSettings = () => {
-    setIsDropdownOpen(false);
-    // 설정 페이지로 이동 (향후 구현)
-    Alert.alert('설정', '설정 페이지는 개발 중입니다.');
-  };
-
-  const handleMyPage = () => {
-    setIsDropdownOpen(false);
-    router.push('/(tabs)/profile');
-  };
-
-  const handleLogin = () => {
-    setIsDropdownOpen(false);
-    router.push('/auth');
-  };
-
-  const handleSignup = () => {
-    setIsDropdownOpen(false);
-    router.push('/signup');
   };
 
   const handleNotificationPress = () => {
-    if (!user) {
-      Alert.alert('알림', '로그인이 필요합니다.');
-      return;
-    }
     router.push('/notifications');
   };
 
@@ -162,24 +156,18 @@ function CustomHeader() {
   };
 
   return (
-    <View>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.logo}>InSchoolz</Text>
-        </View>
-        
-        <View style={styles.headerRight}>
-          {/* 경험치/레벨 표시 - 로그인된 사용자만 */}
-          {user && renderExperienceDisplay()}
-          
-          {/* 알림 버튼 - 로그인된 사용자만 */}
-          {user && (
-            <TouchableOpacity 
-              style={styles.notificationButton} 
+    <View style={styles.header}>
+      <View style={styles.headerLeft}>
+        <Text style={styles.logo}>InSchoolz</Text>
+      </View>
+      
+      <View style={styles.headerRight}>
+        {user && (
+          <>
+            {/* 알림 버튼 */}
+            <TouchableOpacity
+              style={styles.notificationButton}
               onPress={handleNotificationPress}
-              accessibilityLabel="알림"
-              accessibilityRole="button"
-              accessibilityHint="알림 목록을 확인합니다"
             >
               <Ionicons name="notifications-outline" size={24} color={pastelGreenColors[600]} />
               {unreadNotificationCount > 0 && (
@@ -190,120 +178,82 @@ function CustomHeader() {
                 </View>
               )}
             </TouchableOpacity>
-          )}
-          
-          {/* 프로필 아이콘 */}
-          <TouchableOpacity 
-            style={styles.profileButton} 
-            onPress={handleProfilePress}
-            accessibilityLabel="사용자 메뉴 열기"
-            accessibilityRole="button"
-            accessibilityHint="프로필 드롭다운 메뉴를 엽니다"
-          >
-            {user?.profile?.profileImageUrl ? (
-              <Image 
-                source={{ uri: user.profile.profileImageUrl }} 
-                style={styles.profileImage}
-              />
-            ) : (
-              <IconSymbol 
-                name="person.circle.fill" 
-                size={28} 
-                color={pastelGreenColors[600]} 
-              />
-            )}
-          </TouchableOpacity>
-        </View>
 
-        {/* 드롭다운 모달 */}
-        <Modal
-          visible={isDropdownOpen}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={handleCloseDropdown}
-        >
-          <TouchableOpacity 
-            style={styles.modalOverlay} 
-            activeOpacity={1} 
-            onPress={handleCloseDropdown}
-          >
-            <View style={styles.dropdownContainer}>
-              {user ? (
-                <>
-                  <View style={styles.userInfo}>
-                    <Text style={styles.userName}>{user.profile?.userName || '사용자'}</Text>
-                    <Text style={styles.userEmail}>{user.email}</Text>
-                  </View>
-                  <View style={styles.dropdownDivider} />
-                  <TouchableOpacity 
-                    style={styles.dropdownItem} 
-                    onPress={handleMyPage}
-                    accessibilityLabel="마이페이지로 이동"
-                    accessibilityRole="button"
-                  >
-                    <IconSymbol name="person.fill" size={16} color={pastelGreenColors[600]} />
-                    <Text style={styles.dropdownText}>마이페이지</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.dropdownItem} 
-                    onPress={handleSettings}
-                    accessibilityLabel="설정"
-                    accessibilityRole="button"
-                  >
-                    <IconSymbol name="gearshape.fill" size={16} color={pastelGreenColors[500]} />
-                    <Text style={styles.dropdownText}>설정</Text>
-                  </TouchableOpacity>
-                  <View style={styles.dropdownDivider} />
-                  <TouchableOpacity 
-                    style={[styles.dropdownItem, { opacity: isLoading ? 0.6 : 1 }]} 
-                    onPress={handleLogout}
-                    disabled={isLoading}
-                    accessibilityLabel="로그아웃"
-                    accessibilityRole="button"
-                  >
-                    <IconSymbol name="rectangle.portrait.and.arrow.right" size={16} color={pastelGreenColors[700]} />
-                    <Text style={styles.dropdownText}>
-                      {isLoading ? '로그아웃 중...' : '로그아웃'}
-                    </Text>
-                  </TouchableOpacity>
-                </>
+            {/* 프로필 버튼 */}
+            <TouchableOpacity
+              style={styles.profileButton}
+              onPress={handleProfilePress}
+            >
+              {user?.profile?.profileImageUrl ? (
+                <Image 
+                  source={{ uri: user.profile.profileImageUrl }} 
+                  style={styles.profileImage}
+                />
               ) : (
-                <>
-                  <TouchableOpacity 
-                    style={styles.dropdownItem} 
-                    onPress={handleLogin}
-                    accessibilityLabel="로그인하기"
-                    accessibilityRole="button"
-                  >
-                    <IconSymbol name="arrow.right.circle.fill" size={16} color={pastelGreenColors[600]} />
-                    <Text style={styles.dropdownText}>로그인</Text>
-                  </TouchableOpacity>
-                  <View style={styles.dropdownDivider} />
-                  <TouchableOpacity 
-                    style={styles.dropdownItem} 
-                    onPress={handleSignup}
-                    accessibilityLabel="회원가입하기"
-                    accessibilityRole="button"
-                  >
-                    <IconSymbol name="person.badge.plus" size={16} color={pastelGreenColors[500]} />
-                    <Text style={styles.dropdownText}>회원가입</Text>
-                  </TouchableOpacity>
-                </>
+                <IconSymbol 
+                  name="person.circle.fill" 
+                  size={28} 
+                  color={pastelGreenColors[600]} 
+                />
               )}
-            </View>
-          </TouchableOpacity>
-        </Modal>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
-      
-      {/* 에러 표시 (있을 경우) */}
-      {error && (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity onPress={() => setError('')} style={styles.errorCloseButton}>
-            <Text style={styles.errorCloseText}>✕</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+
+      {/* 프로필 드롭다운 모달 */}
+      <Modal
+        visible={isDropdownOpen}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseDropdown}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={handleCloseDropdown}
+        >
+          <View style={styles.dropdownContainer}>
+            {user && (
+              <>
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>{user.profile?.userName || '사용자'}</Text>
+                  <Text style={styles.userEmail}>{user.email}</Text>
+                </View>
+                
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setIsDropdownOpen(false);
+                    router.push('/(tabs)/profile');
+                  }}
+                >
+                  <IconSymbol name="person.fill" size={16} color={pastelGreenColors[600]} />
+                  <Text style={styles.dropdownText}>마이페이지</Text>
+                </TouchableOpacity>
+
+                {user.role === 'admin' && (
+                  <TouchableOpacity
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setIsDropdownOpen(false);
+                      router.push('/admin/users');
+                    }}
+                  >
+                    <IconSymbol name="shield.fill" size={16} color={pastelGreenColors[500]} />
+                    <Text style={styles.dropdownText}>관리자</Text>
+                  </TouchableOpacity>
+                )}
+                
+                <TouchableOpacity style={styles.dropdownItem} onPress={handleLogout}>
+                  <IconSymbol name="rectangle.portrait.and.arrow.right" size={16} color={pastelGreenColors[700]} />
+                  <Text style={[styles.dropdownText, { color: pastelGreenColors[700] }]}>로그아웃</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }

@@ -9,14 +9,14 @@ import { User } from '../types';
 import { calculateCurrentLevelProgress, resetDailyActivityLimits } from '../lib/experience';
 import { logger } from '../utils/logger';
 
-// 인증 상태 타입 정의
+// AuthStore 타입 정의
 interface AuthState {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   error: string | null;
-  // 실시간 리스너 관리를 위한 상태 추가
   realtimeListener: (() => void) | null;
+  unreadNotificationCount: number; // 읽지 않은 알림 개수 추가
 }
 
 // 인증 액션 타입 정의
@@ -34,6 +34,8 @@ interface AuthActions {
   incrementExperience: (amount: number) => void;
   updateGameStats: (gameType: string, stats: { totalScore: number }) => void;
   setupRealtimeUserListener: (userId: string) => () => void;
+  updateUnreadNotificationCount: (count: number) => void; // 알림 개수 업데이트 함수 추가
+  decrementUnreadNotificationCount: (amount?: number) => void; // 알림 개수 감소 함수 추가
 }
 
 // 초기 상태
@@ -43,6 +45,7 @@ const initialState: AuthState = {
   isAuthenticated: false,
   error: null,
   realtimeListener: null,
+  unreadNotificationCount: 0, // 초기값 0
 };
 
 // AuthStore 생성
@@ -318,6 +321,17 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         set({ realtimeListener: unsubscribe });
         
         return unsubscribe;
+      },
+
+      // 읽지 않은 알림 개수 업데이트
+      updateUnreadNotificationCount: (count: number) => {
+        set({ unreadNotificationCount: Math.max(0, count) });
+      },
+
+      // 읽지 않은 알림 개수 감소
+      decrementUnreadNotificationCount: (amount = 1) => {
+        const { unreadNotificationCount } = get();
+        set({ unreadNotificationCount: Math.max(0, unreadNotificationCount - amount) });
       },
     }),
     {

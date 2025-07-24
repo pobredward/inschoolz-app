@@ -186,12 +186,16 @@ function NotificationItem({ notification, onPress, onDelete }: NotificationItemP
 }
 
 export default function NotificationsScreen() {
-  const { user } = useAuthStore();
+  const { 
+    user, 
+    unreadNotificationCount, 
+    updateUnreadNotificationCount, 
+    decrementUnreadNotificationCount 
+  } = useAuthStore();
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
 
   // 알림 목록 조회
   const loadNotifications = useCallback(async (showRefresh = false) => {
@@ -210,7 +214,7 @@ export default function NotificationsScreen() {
       ]);
 
       setNotifications(notificationsData);
-      setUnreadCount(unreadCountData);
+      updateUnreadNotificationCount(unreadCountData); // AuthStore 업데이트
     } catch (error) {
       console.error('알림 조회 실패:', error);
       Alert.alert('오류', '알림을 불러오는데 실패했습니다.');
@@ -218,7 +222,7 @@ export default function NotificationsScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [user]);
+  }, [user, updateUnreadNotificationCount]);
 
   useEffect(() => {
     loadNotifications();
@@ -232,37 +236,37 @@ export default function NotificationsScreen() {
         setNotifications(prev =>
           prev.map(n => n.id === notification.id ? { ...n, isRead: true } : n)
         );
-        setUnreadCount(prev => Math.max(0, prev - 1));
+        decrementUnreadNotificationCount(1); // AuthStore 업데이트
       }
 
-             // 타입별로 적절한 페이지로 이동
-       const { data } = notification;
-       
-       if (data?.postId && (notification.type === 'post_comment' || notification.type === 'comment_reply')) {
-         // 댓글 관련 알림은 해당 게시글로 이동
-         let route = '';
-         
-         if (data.postType === 'national') {
-           route = `/board/national/${data.boardCode}/${data.postId}`;
-         } else if (data.postType === 'regional') {
-           route = `/board/regional/${data.boardCode}/${data.postId}`;
-         } else if (data.postType === 'school') {
-           route = `/board/school/${data.boardCode}/${data.postId}`;
-         }
-         
-         if (route) {
-           console.log('알림 클릭으로 이동:', route);
-           router.push(route as any);
-         } else {
-           console.warn('알림 데이터가 불완전합니다:', data);
-         }
-       } else if (data?.targetUserId && notification.type === 'referral') {
-         // 추천인 알림은 해당 사용자 프로필로 이동
-         router.push(`/users/${data.targetUserId}` as any);
-       } else if (notification.type === 'system') {
-         // 시스템 알림은 특별한 이동 없음
-         Alert.alert('시스템 알림', notification.message);
-       }
+      // 타입별로 적절한 페이지로 이동
+      const { data } = notification;
+      
+      if (data?.postId && (notification.type === 'post_comment' || notification.type === 'comment_reply')) {
+        // 댓글 관련 알림은 해당 게시글로 이동
+        let route = '';
+        
+        if (data.postType === 'national') {
+          route = `/board/national/${data.boardCode}/${data.postId}`;
+        } else if (data.postType === 'regional') {
+          route = `/board/regional/${data.boardCode}/${data.postId}`;
+        } else if (data.postType === 'school') {
+          route = `/board/school/${data.boardCode}/${data.postId}`;
+        }
+        
+        if (route) {
+          console.log('알림 클릭으로 이동:', route);
+          router.push(route as any);
+        } else {
+          console.warn('알림 데이터가 불완전합니다:', data);
+        }
+      } else if (data?.targetUserId && notification.type === 'referral') {
+        // 추천인 알림은 해당 사용자 프로필로 이동
+        router.push(`/users/${data.targetUserId}` as any);
+      } else if (notification.type === 'system') {
+        // 시스템 알림은 특별한 이동 없음
+        Alert.alert('시스템 알림', notification.message);
+      }
     } catch (error) {
       console.error('알림 처리 실패:', error);
       Alert.alert('오류', '알림 처리에 실패했습니다.');
@@ -271,12 +275,12 @@ export default function NotificationsScreen() {
 
   // 모든 알림 읽음 처리
   const handleMarkAllAsRead = async () => {
-    if (!user || unreadCount === 0) return;
+    if (!user || unreadNotificationCount === 0) return;
 
     try {
       await markAllNotificationsAsRead(user.uid);
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-      setUnreadCount(0);
+      updateUnreadNotificationCount(0); // AuthStore 업데이트 - 0으로 설정
       Alert.alert('완료', '모든 알림을 읽음 처리했습니다.');
     } catch (error) {
       console.error('모든 알림 읽음 처리 실패:', error);
@@ -293,7 +297,7 @@ export default function NotificationsScreen() {
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
       
       if (deletedNotification && !deletedNotification.isRead) {
-        setUnreadCount(prev => Math.max(0, prev - 1));
+        decrementUnreadNotificationCount(1); // AuthStore 업데이트
       }
     } catch (error) {
       console.error('알림 삭제 실패:', error);
@@ -323,14 +327,14 @@ export default function NotificationsScreen() {
         <View style={styles.headerLeft}>
           <Ionicons name="notifications" size={24} color="#059669" />
           <Text style={styles.headerTitle}>알림</Text>
-          {unreadCount > 0 && (
+          {unreadNotificationCount > 0 && (
             <View style={styles.unreadBadge}>
-              <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
+              <Text style={styles.unreadBadgeText}>{unreadNotificationCount}</Text>
             </View>
           )}
         </View>
         
-        {unreadCount > 0 && (
+        {unreadNotificationCount > 0 && (
           <TouchableOpacity
             style={styles.markAllButton}
             onPress={handleMarkAllAsRead}
