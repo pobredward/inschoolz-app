@@ -30,6 +30,7 @@ import { uploadImage } from '@/lib/firebase';
 import RichTextEditor from '@/components/RichTextEditor';
 import { awardPostExperience } from '@/lib/experience-service';
 import { ExperienceModal } from '@/components/ui/ExperienceModal';
+import { checkSuspensionStatus } from '@/lib/auth/suspension-check';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -72,6 +73,28 @@ export default function WritePostPage() {
   const [pollOptions, setPollOptions] = useState<{ text: string; imageUrl?: string }[]>([{ text: '' }, { text: '' }]);
   const [attachments, setAttachments] = useState<{ type: 'image' | 'file'; url: string; name: string; size: number }[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [suspensionStatus, setSuspensionStatus] = useState<any>(null);
+
+  // 사용자 정지 상태 확인
+  useEffect(() => {
+    if (user) {
+      const status = checkSuspensionStatus(user);
+      setSuspensionStatus(status);
+      
+      if (status.isSuspended) {
+        const message = status.isPermanent
+          ? "계정이 영구 정지되어 게시글을 작성할 수 없습니다."
+          : `계정이 정지되어 게시글을 작성할 수 없습니다. (남은 기간: ${status.remainingDays}일)`;
+        
+        Alert.alert(
+          "게시글 작성 불가",
+          message,
+          [{ text: "확인", onPress: () => router.back() }]
+        );
+        return;
+      }
+    }
+  }, [user, router]);
 
   // 이미지 업로드 핸들러 (Rich Text Editor에서 호출)
   const handleImageUpload = (attachment: { type: 'image'; url: string; name: string; size: number }) => {
@@ -423,6 +446,52 @@ export default function WritePostPage() {
           <Text style={styles.loadingText}>게시판 정보를 불러오는 중...</Text>
         </View>
       </SafeAreaView>
+    );
+  }
+
+  // 정지된 사용자에게 안내 화면 표시
+  if (suspensionStatus?.isSuspended) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={20} color="#333" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>게시글 작성</Text>
+            <View style={{ width: 36 }} />
+          </View>
+          
+          <View style={styles.suspensionContainer}>
+            <View style={styles.suspensionIcon}>
+              <Ionicons 
+                name={suspensionStatus.isPermanent ? "ban" : "time"} 
+                size={60} 
+                color="#ef4444" 
+              />
+            </View>
+            <Text style={styles.suspensionTitle}>
+              계정이 {suspensionStatus.isPermanent ? '영구' : '임시'} 정지되었습니다
+            </Text>
+            <Text style={styles.suspensionMessage}>
+              {suspensionStatus.isPermanent
+                ? "계정이 영구 정지되어 게시글을 작성할 수 없습니다."
+                : `계정이 정지되어 게시글을 작성할 수 없습니다.\n남은 기간: ${suspensionStatus.remainingDays}일`
+              }
+            </Text>
+            <Text style={styles.suspensionReason}>
+              사유: {suspensionStatus.reason || '정책 위반'}
+            </Text>
+            <TouchableOpacity 
+              style={styles.goBackButton}
+              onPress={() => router.back()}
+            >
+              <Text style={styles.goBackButtonText}>돌아가기</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
     );
   }
 
@@ -910,5 +979,45 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 120, // 키보드 높이만큼 여백 추가
+  },
+  suspensionContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#f9fafb',
+  },
+  suspensionIcon: {
+    marginBottom: 15,
+  },
+  suspensionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  suspensionMessage: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  suspensionReason: {
+    fontSize: 14,
+    color: '#EF4444',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  goBackButton: {
+    backgroundColor: '#10B981',
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderRadius: 8,
+  },
+  goBackButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 }); 

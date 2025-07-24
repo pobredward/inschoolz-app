@@ -34,6 +34,7 @@ import { PollVoting } from '../../../../components/ui/PollVoting';
 // 유틸리티 함수 import
 import { formatRelativeTime, formatAbsoluteTime, toTimestamp } from '../../../../utils/timeUtils';
 import { BlockedUserContent } from '../../../../components/ui/BlockedUserContent';
+import { checkSuspensionStatus } from '@/lib/auth/suspension-check';
 
 const parseContentText = (content: string) => {
   if (!content) return '';
@@ -877,6 +878,17 @@ export default function PostDetailScreen() {
 
     if (!user || !post) {
       Alert.alert('알림', '로그인이 필요합니다.');
+      return;
+    }
+
+    // 정지된 사용자 차단
+    const suspensionStatus = checkSuspensionStatus(user);
+    if (suspensionStatus.isSuspended) {
+      const message = suspensionStatus.isPermanent
+        ? "계정이 영구 정지되어 댓글을 작성할 수 없습니다."
+        : `계정이 정지되어 댓글을 작성할 수 없습니다. (남은 기간: ${suspensionStatus.remainingDays}일)`;
+      
+      Alert.alert("댓글 작성 불가", message);
       return;
     }
 
@@ -1724,81 +1736,108 @@ export default function PostDetailScreen() {
           {/* 댓글 작성 */}
           {user ? (
             // 로그인한 사용자용 댓글 작성
-            <View style={styles.commentInputContainer}>
-              {/* 답글 알림 */}
-              {replyingTo && (
-                <View style={styles.replyIndicator}>
-                  <Text style={styles.replyText}>
-                    {replyingTo.author}님에게 답글 작성 중
-                  </Text>
-                  <TouchableOpacity 
-                    onPress={() => {
-                      setReplyingTo(null);
-                      setReplyContent('');
-                    }}
-                  >
-                    <Ionicons name="close" size={16} color="#6b7280" />
-                  </TouchableOpacity>
-                </View>
-              )}
+            (() => {
+              const suspensionStatus = checkSuspensionStatus(user);
               
-              {/* 익명 모드 토글 */}
-              <View style={styles.commentOptions}>
-                <TouchableOpacity 
-                  style={[styles.anonymousToggle, isAnonymous && styles.anonymousToggleActive]}
-                  onPress={() => setIsAnonymous(!isAnonymous)}
-                >
-                  <Ionicons 
-                    name={isAnonymous ? "eye-off" : "eye-off-outline"} 
-                    size={16} 
-                    color={isAnonymous ? "#10b981" : "#6b7280"} 
-                  />
-                  <Text style={[styles.anonymousToggleText, isAnonymous && styles.anonymousToggleTextActive]}>
-                    익명
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.commentInputWrapper}>
-                {!isAnonymous && renderProfileImage(
-                  user?.profile?.profileImageUrl,
-                  user?.profile?.userName,
-                  false
-                )}
-                {isAnonymous && (
-                  <View style={styles.anonymousAvatar}>
-                    <Ionicons name="person-outline" size={20} color="#6b7280" />
+              if (suspensionStatus.isSuspended) {
+                return (
+                  <View style={styles.suspensionNotice}>
+                    <Ionicons 
+                      name={suspensionStatus.isPermanent ? "ban" : "time"} 
+                      size={24} 
+                      color="#ef4444" 
+                    />
+                    <Text style={styles.suspensionText}>
+                      {suspensionStatus.isPermanent
+                        ? "계정이 영구 정지되어 댓글을 작성할 수 없습니다."
+                        : `계정이 정지되어 댓글을 작성할 수 없습니다. (남은 기간: ${suspensionStatus.remainingDays}일)`
+                      }
+                    </Text>
+                    <Text style={styles.suspensionReasonText}>
+                      사유: {suspensionStatus.reason || '정책 위반'}
+                    </Text>
                   </View>
-                )}
-                <TextInput
-                  style={styles.commentInput}
-                  placeholder={replyingTo ? `${replyingTo.author}님에게 답글...` : "댓글을 입력해 주세요..."}
-                  value={replyingTo ? replyContent : newComment}
-                  onChangeText={replyingTo ? setReplyContent : setNewComment}
-                  multiline
-                  maxLength={1000}
-                />
-                <TouchableOpacity 
-                  style={styles.commentSubmitButton}
-                  onPress={replyingTo ? handleReplySubmit : handleCommentSubmit}
-                >
-                  <Ionicons name="send" size={20} color="#10b981" />
-                </TouchableOpacity>
-              </View>
+                );
+              }
+              
+              return (
+                <>
+                  {/* 답글 알림 */}
+                  {replyingTo && (
+                    <View style={styles.replyIndicator}>
+                      <Text style={styles.replyText}>
+                        {replyingTo.author}님에게 답글 작성 중
+                      </Text>
+                      <TouchableOpacity 
+                        onPress={() => {
+                          setReplyingTo(null);
+                          setReplyContent('');
+                        }}
+                      >
+                        <Ionicons name="close" size={16} color="#6b7280" />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  
+                  {/* 익명 모드 토글 */}
+                  <View style={styles.commentOptions}>
+                    <TouchableOpacity 
+                      style={[styles.anonymousToggle, isAnonymous && styles.anonymousToggleActive]}
+                      onPress={() => setIsAnonymous(!isAnonymous)}
+                    >
+                      <Ionicons 
+                        name={isAnonymous ? "eye-off" : "eye-off-outline"} 
+                        size={16} 
+                        color={isAnonymous ? "#10b981" : "#6b7280"} 
+                      />
+                      <Text style={[styles.anonymousToggleText, isAnonymous && styles.anonymousToggleTextActive]}>
+                        익명
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
 
-              {/* 익명 모드일 때 닉네임 입력 (로그인 사용자는 비밀번호 불필요) */}
-              {isAnonymous && (
-                <View style={styles.anonymousInputs}>
-                  <TextInput
-                    style={styles.anonymousInput}
-                    placeholder="익명 닉네임 (선택)"
-                    value={anonymousNickname}
-                    onChangeText={setAnonymousNickname}
-                    maxLength={20}
-                  />
-                </View>
-              )}
-            </View>
+                  <View style={styles.commentInputWrapper}>
+                    {!isAnonymous && renderProfileImage(
+                      user?.profile?.profileImageUrl,
+                      user?.profile?.userName,
+                      false
+                    )}
+                    {isAnonymous && (
+                      <View style={styles.anonymousAvatar}>
+                        <Ionicons name="person-outline" size={20} color="#6b7280" />
+                      </View>
+                    )}
+                    <TextInput
+                      style={styles.commentInput}
+                      placeholder={replyingTo ? `${replyingTo.author}님에게 답글...` : "댓글을 입력해 주세요..."}
+                      value={replyingTo ? replyContent : newComment}
+                      onChangeText={replyingTo ? setReplyContent : setNewComment}
+                      multiline
+                      maxLength={1000}
+                    />
+                    <TouchableOpacity 
+                      style={styles.commentSubmitButton}
+                      onPress={replyingTo ? handleReplySubmit : handleCommentSubmit}
+                    >
+                      <Ionicons name="send" size={20} color="#10b981" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* 익명 모드일 때 닉네임 입력 (로그인 사용자는 비밀번호 불필요) */}
+                  {isAnonymous && (
+                    <View style={styles.anonymousInputs}>
+                      <TextInput
+                        style={styles.anonymousInput}
+                        placeholder="익명 닉네임 (선택)"
+                        value={anonymousNickname}
+                        onChangeText={setAnonymousNickname}
+                        maxLength={20}
+                      />
+                    </View>
+                  )}
+                </>
+              );
+            })()
           ) : (
             // 비로그인 사용자용 익명 댓글 작성
             <View style={styles.anonymousCommentContainer}>
@@ -2693,5 +2732,23 @@ const styles = StyleSheet.create({
   linkText: {
     color: '#2563eb',
     textDecorationLine: 'underline',
+  },
+  suspensionNotice: {
+    backgroundColor: '#fef2f2',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  suspensionText: {
+    fontSize: 16,
+    color: '#b91c1c',
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  suspensionReasonText: {
+    fontSize: 14,
+    color: '#4b5563',
+    textAlign: 'center',
   },
 }); 
