@@ -258,7 +258,7 @@ export default function Step4Profile({
                   userNameStatus.status === 'unavailable' && styles.inputError,
                   userNameStatus.status === 'available' && styles.inputSuccess
                 ]}
-                placeholder="영문, 숫자 조합 5-20자"
+                placeholder="영문자, 숫자 조합 5-20자"
                 value={formData.userName || ''}
                 onChangeText={(text) => updateForm({ userName: text })}
                 placeholderTextColor="#9ca3af"

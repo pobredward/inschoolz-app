@@ -9,11 +9,10 @@ import { getKoreanDateString } from '../../utils/timeUtils';
 import { Ionicons } from '@expo/vector-icons';
 import { formatPhoneNumber } from '../../utils/formatters';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { db, auth} from '../../lib/firebase';
 import { SafeScreenContainer } from '../../components/SafeScreenContainer';
 import FollowersModal from '../../components/FollowersModal';
 import { deleteAccount } from '../../lib/auth';
-import { auth } from '../../lib/firebase';
 
 export default function ProfileScreen() {
   const { user, clearAuth, isLoading: authLoading } = useAuthStore();

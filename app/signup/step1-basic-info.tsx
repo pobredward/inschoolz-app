@@ -148,7 +148,7 @@ export default function Step1BasicInfo({ formData, updateForm, nextStep }: {
                   emailStatus.status === 'unavailable' && styles.inputError,
                   emailStatus.status === 'available' && styles.inputSuccess
                 ]}
-                placeholder="이메일을 입력하세요"
+                placeholder="email@naver.com"
                 value={formData.email || ''}
                 onChangeText={(text) => updateForm({ email: text })}
                 keyboardType="email-address"

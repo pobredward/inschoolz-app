@@ -1483,8 +1483,8 @@ export const checkUserNameAvailability = async (userName: string): Promise<{
       return { isAvailable: false, message: '사용자명은 5-20자 사이여야 합니다.' };
     }
 
-    if (!/^[a-z0-9]+$/.test(userName)) {
-      return { isAvailable: false, message: '사용자명은 영문 소문자와 숫자만 사용 가능합니다.' };
+    if (!/^[a-zA-Z0-9]+$/.test(userName)) {
+      return { isAvailable: false, message: '사용자명은 영문자와 숫자만 사용 가능합니다.' };
     }
 
     // Firestore에서 중복 확인
