@@ -277,13 +277,13 @@ export default function Step4Profile({
           
           <View style={styles.formGroup}>
             <View style={styles.labelRow}>
-              <Text style={styles.label}>실명</Text>
+              <Text style={styles.label}>이름</Text>
               <Text style={styles.required}>*</Text>
             </View>
             <View style={styles.inputContainerRegular}>
               <TextInput
                 style={styles.input}
-                placeholder="실명을 입력하세요"
+                placeholder="홍길동"
                 value={formData.realName || ''}
                 onChangeText={(text) => updateForm({ realName: text })}
                 placeholderTextColor="#9ca3af"
