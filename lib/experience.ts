@@ -363,8 +363,13 @@ export const checkDailyLimit = async (userId: string, activityType: 'posts' | 'c
     limit = settings.dailyLimits.commentsForReward;
   } else if (activityType === 'games') {
     if (gameType) {
-      // 특정 게임 타입의 카운트만
-      currentCount = activityLimits.dailyCounts.games?.[gameType] || 0;
+      // 특정 게임 타입의 카운트만 (타입 안전성 검증)
+      if (gameType === 'flappyBird' || gameType === 'reactionGame' || gameType === 'tileGame') {
+        currentCount = activityLimits.dailyCounts.games?.[gameType] || 0;
+      } else {
+        console.warn('Invalid game type:', gameType);
+        currentCount = 0;
+      }
     } else {
       // 모든 게임 타입의 합계
       const gamesCounts = activityLimits.dailyCounts.games || {};
