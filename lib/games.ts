@@ -82,8 +82,17 @@ const calculateGameXP = async (gameType: GameType, reactionTime: number): Promis
 export const updateGameScore = async (userId: string, gameType: GameType, score: number, reactionTime?: number): Promise<GameResult> => {
   try {
     // 캐시 무효화하여 최신 Firebase 설정 가져오기
-    const { invalidateSystemSettingsCache } = await import('./experience');
+    const { invalidateSystemSettingsCache, checkDailyLimit } = await import('./experience');
     invalidateSystemSettingsCache();
+    
+    // 플레이 전 일일 제한 확인
+    const limitCheck = await checkDailyLimit(userId, 'games', gameType);
+    if (!limitCheck.canEarnExp) {
+      return {
+        success: false,
+        message: `오늘의 ${gameType} 플레이 횟수를 모두 사용했습니다. (${limitCheck.currentCount}/${limitCheck.limit})`
+      };
+    }
     
     const userRef = doc(db, 'users', userId);
     const userDoc = await getDoc(userRef);
@@ -114,7 +123,7 @@ export const updateGameScore = async (userId: string, gameType: GameType, score:
       updateData[`gameStats.${gameType}.bestReactionTime`] = score; // 타일 게임은 점수를 저장
     }
     
-    // 일일 플레이 카운트 증가 (날짜 체크 불필요 - 접속 시점에 이미 리셋됨)
+    // 일일 플레이 카운트 증가
     updateData[`activityLimits.dailyCounts.games.${gameType}`] = increment(1);
     
     // Firestore 업데이트

@@ -313,7 +313,7 @@ export const checkLevelUp = (currentLevel: number, currentExp: number, currentLe
 /**
  * 일일 활동 제한 확인
  */
-export const checkDailyLimit = async (userId: string, activityType: 'posts' | 'comments' | 'games'): Promise<{
+export const checkDailyLimit = async (userId: string, activityType: 'posts' | 'comments' | 'games', gameType?: string): Promise<{
   canEarnExp: boolean;
   currentCount: number;
   limit: number;
@@ -332,14 +332,21 @@ export const checkDailyLimit = async (userId: string, activityType: 'posts' | 'c
   
   // 오늘 첫 활동이거나 날짜가 바뀐 경우
   if (!activityLimits || activityLimits.lastResetDate !== today) {
-    const resetTime = new Date();
-    resetTime.setHours(23, 59, 59, 999); // 오늘 자정
+    // 일일 제한 리셋 수행
+    await resetDailyLimits(userId, today);
+    
+    // 다음 리셋 시간 계산 (다음 날 00:00 KST)
+    const now = new Date();
+    const koreaTime = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+    const resetTime = new Date(koreaTime);
+    resetTime.setUTCHours(15, 0, 0, 0); // 한국시간 00:00 = UTC 15:00
+    resetTime.setUTCDate(resetTime.getUTCDate() + 1);
     
     return {
       canEarnExp: true,
       currentCount: 0,
       limit: settings.dailyLimits[activityType === 'posts' ? 'postsForReward' : 
-                                   activityType === 'comments' ? 'commentsForReward' : 'gamePlayCount'],
+                                 activityType === 'comments' ? 'commentsForReward' : 'gamePlayCount'],
       resetTime
     };
   }
@@ -355,13 +362,23 @@ export const checkDailyLimit = async (userId: string, activityType: 'posts' | 'c
     currentCount = activityLimits.dailyCounts.comments || 0;
     limit = settings.dailyLimits.commentsForReward;
   } else if (activityType === 'games') {
-    const gamesCounts = activityLimits.dailyCounts.games || {};
-    currentCount = (gamesCounts.flappyBird || 0) + (gamesCounts.reactionGame || 0) + (gamesCounts.tileGame || 0);
+    if (gameType) {
+      // 특정 게임 타입의 카운트만
+      currentCount = activityLimits.dailyCounts.games?.[gameType] || 0;
+    } else {
+      // 모든 게임 타입의 합계
+      const gamesCounts = activityLimits.dailyCounts.games || {};
+      currentCount = (gamesCounts.flappyBird || 0) + (gamesCounts.reactionGame || 0) + (gamesCounts.tileGame || 0);
+    }
     limit = settings.dailyLimits.gamePlayCount;
   }
   
-  const resetTime = new Date();
-  resetTime.setHours(23, 59, 59, 999);
+  // 다음 리셋 시간 계산
+  const now = new Date();
+  const koreaTime = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+  const resetTime = new Date(koreaTime);
+  resetTime.setUTCHours(15, 0, 0, 0); // 한국시간 00:00 = UTC 15:00
+  resetTime.setUTCDate(resetTime.getUTCDate() + 1);
   
   return {
     canEarnExp: currentCount < limit,
@@ -369,6 +386,25 @@ export const checkDailyLimit = async (userId: string, activityType: 'posts' | 'c
     limit,
     resetTime
   };
+};
+
+/**
+ * 일일 제한 데이터 리셋
+ */
+export const resetDailyLimits = async (userId: string, today: string): Promise<void> => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      'activityLimits.lastResetDate': today,
+      'activityLimits.dailyCounts.posts': 0,
+      'activityLimits.dailyCounts.comments': 0,
+      'activityLimits.dailyCounts.games.flappyBird': 0,
+      'activityLimits.dailyCounts.games.reactionGame': 0,
+      'activityLimits.dailyCounts.games.tileGame': 0,
+    });
+  } catch (error) {
+    console.error('일일 제한 리셋 오류:', error);
+  }
 };
 
 /**

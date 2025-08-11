@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { updateGameScore } from '../../lib/games';
+import { useAuthStore } from '../../store/authStore';
 
 type GameState = 'waiting' | 'playing' | 'finished';
 
@@ -64,7 +65,29 @@ export default function TileGameScreen() {
   }, [totalPairs]);
 
   // 게임 시작
-  const startGame = () => {
+  const startGame = async () => {
+    const { user } = useAuthStore.getState();
+    if (!user?.uid) {
+      return;
+    }
+    
+    // 플레이 전 제한 재확인
+    try {
+      const { checkDailyLimit } = await import('../../lib/experience');
+      const limitCheck = await checkDailyLimit(user.uid, 'games', 'tileGame');
+      if (!limitCheck.canEarnExp) {
+        Alert.alert(
+          '플레이 제한',
+          `오늘의 타일 게임 플레이 횟수를 모두 사용했습니다. (${limitCheck.currentCount}/${limitCheck.limit})`
+        );
+        return;
+      }
+    } catch (error) {
+      console.error('제한 확인 오류:', error);
+      Alert.alert('오류', '게임을 시작할 수 없습니다.');
+      return;
+    }
+    
     initializeGame();
     setGameState('playing');
     setGameStartTime(performance.now());
