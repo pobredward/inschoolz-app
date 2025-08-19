@@ -212,7 +212,7 @@ export default function RankingScreen() {
   }
 
   return (
-    <SafeScreenContainer style={styles.container}>
+    <SafeScreenContainer scrollable={true}>
       <View style={styles.header}>
         <Text style={styles.title}>🏆 랭킹</Text>
         
@@ -284,19 +284,7 @@ export default function RankingScreen() {
       </View>
 
       {/* 랭킹 리스트 */}
-      <ScrollView 
-        style={styles.listContainer}
-        refreshControl={
-          <RefreshControl refreshing={rankingState.isLoading} onRefresh={handleRefresh} />
-        }
-        onMomentumScrollEnd={({ nativeEvent }) => {
-          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
-          const paddingToBottom = 20;
-          if (layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom) {
-            handleLoadMore();
-          }
-        }}
-      >
+      <View style={styles.listContainer}>
         {canShowRanking() ? (
           rankingState.users.length > 0 ? (
             rankingState.users.map((user, index) => (
@@ -355,16 +343,12 @@ export default function RankingScreen() {
             </Text>
           </TouchableOpacity>
         )}
-      </ScrollView>
+      </View>
     </SafeScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f9fafb',
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -483,7 +467,6 @@ const styles = StyleSheet.create({
     color: '#1f2937',
   },
   listContainer: {
-    flex: 1,
     padding: 16,
   },
   rankingItem: {

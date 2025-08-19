@@ -177,184 +177,25 @@ export default function HomeScreen() {
   // 로그인하지 않은 상태
   if (!user) {
     return (
-      <SafeScreenContainer>
-        <ScrollView style={styles.container}>
-          <View style={styles.header}>
-            <Text style={styles.title}>📚 Inschoolz</Text>
-            <Text style={styles.subtitle}>학생들을 위한 커뮤니티</Text>
-          </View>
-
-          <View style={styles.loginPrompt}>
-            <Ionicons name="person-circle-outline" size={64} color="#9CA3AF" />
-            <Text style={styles.loginPromptTitle}>로그인이 필요합니다</Text>
-            <Text style={styles.loginPromptDescription}>
-              Inschoolz의 모든 기능을 이용하려면 로그인해주세요.
-            </Text>
-            <TouchableOpacity style={styles.loginButton} onPress={navigateToLogin}>
-              <Text style={styles.loginButtonText}>로그인하기</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* 로그인 없이도 볼 수 있는 컨텐츠 */}
-          
-          {/* 인기 게시글 */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>🔥 인기 게시글</Text>
-              <TouchableOpacity onPress={() => navigateToCommunity('national')}>
-                <Text style={styles.moreButton}>더보기</Text>
-              </TouchableOpacity>
-            </View>
-            
-            {popularPosts.length > 0 ? (
-              popularPosts.map((post, index) => (
-                <PostListItem
-                  key={post.id}
-                  post={post}
-                  onPress={navigateToPost}
-                  typeBadgeText="전국"
-                  boardBadgeText={(post as any).boardName || post.boardCode}
-                />
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>아직 인기 게시글이 없습니다</Text>
-              </View>
-            )}
-          </View>
-          
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🎮 미니게임</Text>
-            <View style={styles.gameGrid}>
-              <TouchableOpacity 
-                style={styles.gameCard}
-                onPress={() => Alert.alert('로그인 필요', '게임을 플레이하려면 로그인해주세요.')}
-              >
-                <Text style={styles.gameIcon}>⚡</Text>
-                <Text style={styles.gameTitle}>반응속도</Text>
-                <Text style={styles.gameDesc}>로그인 후 플레이</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.gameCard}
-                onPress={() => Alert.alert('준비 중', '곧 출시될 예정입니다! 🚀')}
-              >
-                <Text style={styles.gameIcon}>🧩</Text>
-                <Text style={styles.gameTitle}>타일 맞추기</Text>
-                <Text style={styles.gameDesc}>준비 중</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>📝 커뮤니티</Text>
-            <View style={styles.communityGrid}>
-              <TouchableOpacity 
-                style={styles.communityCard}
-                onPress={() => navigateToCommunity('national')}
-              >
-                <Text style={styles.communityIcon}>🌍</Text>
-                <Text style={styles.communityTitle}>전국</Text>
-                <Text style={styles.communityDesc}>전국 학생들과 소통</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.communityCard}
-                onPress={() => navigateToCommunity('regional')}
-              >
-                <Text style={styles.communityIcon}>🏘️</Text>
-                <Text style={styles.communityTitle}>지역</Text>
-                <Text style={styles.communityDesc}>로그인 후 이용</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.communityCard}
-                onPress={() => navigateToCommunity('school')}
-              >
-                <Text style={styles.communityIcon}>🏫</Text>
-                <Text style={styles.communityTitle}>학교</Text>
-                <Text style={styles.communityDesc}>로그인 후 이용</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </ScrollView>
-      </SafeScreenContainer>
-    );
-  }
-
-  // 로그인된 상태에서 데이터 로딩 중
-  if (loading) {
-    return (
-      <SafeScreenContainer>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#10B981" />
-          <Text style={styles.loadingText}>데이터를 불러오는 중...</Text>
-        </View>
-      </SafeScreenContainer>
-    );
-  }
-
-  // 로그인된 상태의 메인 화면
-  return (
-    <SafeScreenContainer>
-      <ScrollView 
-        style={styles.container}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        {/* 헤더 */}
+      <SafeScreenContainer scrollable={true}>
         <View style={styles.header}>
           <Text style={styles.title}>📚 Inschoolz</Text>
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>{user.profile?.userName || '익명'}</Text>
-            <View style={styles.expBar}>
-              <View style={styles.expBarBackground}>
-                <View style={[styles.expBarFill, { width: `${expProgress.percentage}%` }]} />
-              </View>
-              <Text style={styles.expText}>
-                Lv.{user.stats?.level || 1} ({expProgress.current}/{expProgress.required})
-              </Text>
-            </View>
-          </View>
+          <Text style={styles.subtitle}>학생들을 위한 커뮤니티</Text>
         </View>
 
-        {/* 출석 체크 */}
-        <View style={styles.section}>
-          <View style={styles.attendanceCard}>
-            <Text style={styles.attendanceTitle}>📅 출석 체크</Text>
-            {attendance?.checkedToday ? (
-              <Text style={styles.attendanceDesc}>
-                오늘 출석 완료! 연속 {attendance.streak}일째 출석 중! 🔥
-              </Text>
-            ) : (
-              <Text style={styles.attendanceDesc}>
-                {attendance?.streak ? `연속 ${attendance.streak}일째 출석 중!` : '출석체크로 경험치를 받으세요!'}
-              </Text>
-            )}
-            <TouchableOpacity 
-              style={[
-                styles.attendanceButton,
-                { 
-                  backgroundColor: attendance?.checkedToday ? '#10b981' : '#2563eb',
-                  opacity: isCheckingAttendance ? 0.7 : 1
-                }
-              ]}
-              onPress={handleAttendanceCheck}
-              disabled={attendance?.checkedToday || isCheckingAttendance}
-            >
-              <Text style={styles.attendanceButtonText}>
-                {isCheckingAttendance 
-                  ? '처리중...' 
-                  : attendance?.checkedToday 
-                    ? '✅ 출석 완료' 
-                    : '출석 체크하기 (+10 XP)'
-                }
-              </Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.loginPrompt}>
+          <Ionicons name="person-circle-outline" size={64} color="#9CA3AF" />
+          <Text style={styles.loginPromptTitle}>로그인이 필요합니다</Text>
+          <Text style={styles.loginPromptDescription}>
+            Inschoolz의 모든 기능을 이용하려면 로그인해주세요.
+          </Text>
+          <TouchableOpacity style={styles.loginButton} onPress={navigateToLogin}>
+            <Text style={styles.loginButtonText}>로그인하기</Text>
+          </TouchableOpacity>
         </View>
 
+        {/* 로그인 없이도 볼 수 있는 컨텐츠 */}
+        
         {/* 인기 게시글 */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -380,26 +221,17 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
-
-        {/* 미니게임 */}
+        
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🎮 미니게임</Text>
           <View style={styles.gameGrid}>
             <TouchableOpacity 
               style={styles.gameCard}
-              onPress={() => navigateToGame('reaction')}
+              onPress={() => Alert.alert('로그인 필요', '게임을 플레이하려면 로그인해주세요.')}
             >
               <Text style={styles.gameIcon}>⚡</Text>
               <Text style={styles.gameTitle}>반응속도</Text>
-              <Text style={styles.gameDesc}>
-                {gameStats.bestReactionTimes.reactionGame 
-                                          ? `최고: ${gameStats.bestReactionTimes.reactionGame.toFixed(2)}ms` 
-                  : '도전해보세요!'
-                }
-              </Text>
-              <Text style={styles.gamePlayCount}>
-                오늘 {gameStats.todayPlays.reactionGame || 0}/5 플레이
-              </Text>
+              <Text style={styles.gameDesc}>로그인 후 플레이</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -413,7 +245,6 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* 커뮤니티 바로가기 */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📝 커뮤니티</Text>
           <View style={styles.communityGrid}>
@@ -432,7 +263,7 @@ export default function HomeScreen() {
             >
               <Text style={styles.communityIcon}>🏘️</Text>
               <Text style={styles.communityTitle}>지역</Text>
-              <Text style={styles.communityDesc}>우리 지역 친구들과 소통</Text>
+              <Text style={styles.communityDesc}>로그인 후 이용</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -441,11 +272,176 @@ export default function HomeScreen() {
             >
               <Text style={styles.communityIcon}>🏫</Text>
               <Text style={styles.communityTitle}>학교</Text>
-              <Text style={styles.communityDesc}>우리 학교만의 공간</Text>
+              <Text style={styles.communityDesc}>로그인 후 이용</Text>
             </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
+      </SafeScreenContainer>
+    );
+  }
+
+  // 로그인된 상태에서 데이터 로딩 중
+  if (loading) {
+    return (
+      <SafeScreenContainer>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#10B981" />
+          <Text style={styles.loadingText}>데이터를 불러오는 중...</Text>
+        </View>
+      </SafeScreenContainer>
+    );
+  }
+
+  // 로그인된 상태의 메인 화면
+  return (
+    <SafeScreenContainer 
+      scrollable={true}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >
+      {/* 헤더 */}
+      <View style={styles.header}>
+        <Text style={styles.title}>📚 Inschoolz</Text>
+        <View style={styles.userInfo}>
+          <Text style={styles.userName}>{user.profile?.userName || '익명'}</Text>
+          <View style={styles.expBar}>
+            <View style={styles.expBarBackground}>
+              <View style={[styles.expBarFill, { width: `${expProgress.percentage}%` }]} />
+            </View>
+            <Text style={styles.expText}>
+              Lv.{user.stats?.level || 1} ({expProgress.current}/{expProgress.required})
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* 출석 체크 */}
+      <View style={styles.section}>
+        <View style={styles.attendanceCard}>
+          <Text style={styles.attendanceTitle}>📅 출석 체크</Text>
+          {attendance?.checkedToday ? (
+            <Text style={styles.attendanceDesc}>
+              오늘 출석 완료! 연속 {attendance.streak}일째 출석 중! 🔥
+            </Text>
+          ) : (
+            <Text style={styles.attendanceDesc}>
+              {attendance?.streak ? `연속 ${attendance.streak}일째 출석 중!` : '출석체크로 경험치를 받으세요!'}
+            </Text>
+          )}
+          <TouchableOpacity 
+            style={[
+              styles.attendanceButton,
+              { 
+                backgroundColor: attendance?.checkedToday ? '#10b981' : '#2563eb',
+                opacity: isCheckingAttendance ? 0.7 : 1
+              }
+            ]}
+            onPress={handleAttendanceCheck}
+            disabled={attendance?.checkedToday || isCheckingAttendance}
+          >
+            <Text style={styles.attendanceButtonText}>
+              {isCheckingAttendance 
+                ? '처리중...' 
+                : attendance?.checkedToday 
+                  ? '✅ 출석 완료' 
+                  : '출석 체크하기 (+10 XP)'
+              }
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* 인기 게시글 */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>🔥 인기 게시글</Text>
+          <TouchableOpacity onPress={() => navigateToCommunity('national')}>
+            <Text style={styles.moreButton}>더보기</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {popularPosts.length > 0 ? (
+          popularPosts.map((post, index) => (
+            <PostListItem
+              key={post.id}
+              post={post}
+              onPress={navigateToPost}
+              typeBadgeText="전국"
+              boardBadgeText={(post as any).boardName || post.boardCode}
+            />
+          ))
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>아직 인기 게시글이 없습니다</Text>
+          </View>
+        )}
+      </View>
+
+      {/* 미니게임 */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>🎮 미니게임</Text>
+        <View style={styles.gameGrid}>
+          <TouchableOpacity 
+            style={styles.gameCard}
+            onPress={() => navigateToGame('reaction')}
+          >
+            <Text style={styles.gameIcon}>⚡</Text>
+            <Text style={styles.gameTitle}>반응속도</Text>
+            <Text style={styles.gameDesc}>
+              {gameStats.bestReactionTimes.reactionGame 
+                                        ? `최고: ${gameStats.bestReactionTimes.reactionGame.toFixed(2)}ms` 
+                : '도전해보세요!'
+              }
+            </Text>
+            <Text style={styles.gamePlayCount}>
+              오늘 {gameStats.todayPlays.reactionGame || 0}/5 플레이
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.gameCard}
+            onPress={() => Alert.alert('준비 중', '곧 출시될 예정입니다! 🚀')}
+          >
+            <Text style={styles.gameIcon}>🧩</Text>
+            <Text style={styles.gameTitle}>타일 맞추기</Text>
+            <Text style={styles.gameDesc}>준비 중</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* 커뮤니티 바로가기 */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>📝 커뮤니티</Text>
+        <View style={styles.communityGrid}>
+          <TouchableOpacity 
+            style={styles.communityCard}
+            onPress={() => navigateToCommunity('national')}
+          >
+            <Text style={styles.communityIcon}>🌍</Text>
+            <Text style={styles.communityTitle}>전국</Text>
+            <Text style={styles.communityDesc}>전국 학생들과 소통</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.communityCard}
+            onPress={() => navigateToCommunity('regional')}
+          >
+            <Text style={styles.communityIcon}>🏘️</Text>
+            <Text style={styles.communityTitle}>지역</Text>
+            <Text style={styles.communityDesc}>우리 지역 친구들과 소통</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.communityCard}
+            onPress={() => navigateToCommunity('school')}
+          >
+            <Text style={styles.communityIcon}>🏫</Text>
+            <Text style={styles.communityTitle}>학교</Text>
+            <Text style={styles.communityDesc}>우리 학교만의 공간</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </SafeScreenContainer>
   );
 }
@@ -461,10 +457,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6b7280',
   },
-  container: {
-    flex: 1,
-    backgroundColor: '#f9fafb',
-  },
+
   header: {
     backgroundColor: 'white',
     marginHorizontal: 16,

@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "702584515843",
+    "project_id": "inschoolz",
+    "storage_bucket": "inschoolz.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:702584515843:android:31fb0e8464f2ba74714d36",
+        "android_client_info": {
+          "package_name": "com.onmindlab.inschoolz"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "702584515843-i4g6uf5nki2vvp14rk1gql61b2s8mear.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDJuEVdLw-ineSKFDYhhdqlF-5LrH-SrV4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "702584515843-i4g6uf5nki2vvp14rk1gql61b2s8mear.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

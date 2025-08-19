@@ -25,10 +25,10 @@ export function SafeScreenContainer({
   const containerStyle = [
     styles.container,
     {
-      // 상단은 SafeAreaView가 이미 처리하므로 추가 여백 최소화
-      paddingTop: 16,
-      // 하단은 bottom navigation을 고려한 여백
-      paddingBottom: bottomNavHeight + 16,
+      // 상단 여백 제거 (헤더가 이미 처리함)
+      paddingTop: 0,
+      // 하단은 bottom navigation을 고려한 최소 여백
+      paddingBottom: bottomNavHeight + 8,
     },
     style,
   ];
@@ -40,8 +40,8 @@ export function SafeScreenContainer({
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: 16,
-            paddingBottom: bottomNavHeight + 16,
+            paddingTop: 0,
+            paddingBottom: bottomNavHeight + 8,
           },
           contentContainerStyle,
         ]}
@@ -67,6 +67,5 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 16,
   },
 }); 

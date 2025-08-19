@@ -593,7 +593,7 @@ export default function CommunityScreen() {
   const isLoginRequired = (selectedTab === 'school' || selectedTab === 'regional') && !user;
 
   return (
-    <SafeScreenContainer>
+    <SafeScreenContainer scrollable={true}>
       {renderTabs()}
       {selectedTab === 'school' && (
         <SchoolSelector 
@@ -623,17 +623,13 @@ export default function CommunityScreen() {
               <ActivityIndicator size="large" color="#10B981" />
             </View>
           ) : (
-            <FlatList
-              data={posts}
-              renderItem={renderPostCard}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.postList}
-              showsVerticalScrollIndicator={false}
-              refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-              }
-              ListEmptyComponent={renderEmptyState}
-            />
+            <View style={styles.postsContainer}>
+              {posts.length > 0 ? (
+                posts.map((post) => renderPostCard({ item: post }))
+              ) : (
+                renderEmptyState()
+              )}
+            </View>
           )}
 
           {/* 글쓰기 버튼 - 로그인된 경우에만 표시 */}
@@ -659,6 +655,9 @@ export default function CommunityScreen() {
 }
 
 const styles = StyleSheet.create({
+  postsContainer: {
+    padding: 16,
+  },
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: 'white',
@@ -741,9 +740,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  postList: {
-    padding: 16,
-  },
+
   postCard: {
     backgroundColor: 'white',
     borderRadius: 12,

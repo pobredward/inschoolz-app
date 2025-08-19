@@ -357,33 +357,32 @@ export default function ProfileScreen() {
   const weeklyCalendar = generateWeeklyCalendar();
 
   return (
-    <SafeScreenContainer>
-      <ScrollView
-        style={styles.container}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        {/* 프로필 헤더 */}
-        <View style={styles.profileHeader}>
-          <View style={styles.profileImageContainer}>
-            {user.profile?.profileImageUrl ? (
-              <Image
-                source={{ uri: user.profile.profileImageUrl }}
-                style={styles.profileImage}
-                onError={() => {
-                  console.warn('프로필 이미지 로드 실패, 기본 아이콘 표시');
-                }}
-              />
-            ) : (
-              <Ionicons name="person-circle" size={80} color="#10B981" />
-            )}
-          </View>
-          <Text style={styles.userName}>{user.profile?.userName || '익명'}</Text>
-          <Text style={styles.userEmail}>{user.email}</Text>
-          
-          {/* 레벨 및 경험치 */}
-          <View style={styles.levelContainer}>
+    <SafeScreenContainer
+      scrollable={true}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >
+      {/* 프로필 헤더 */}
+      <View style={styles.profileHeader}>
+        <View style={styles.profileImageContainer}>
+          {user.profile?.profileImageUrl ? (
+            <Image
+              source={{ uri: user.profile.profileImageUrl }}
+              style={styles.profileImage}
+              onError={() => {
+                console.warn('프로필 이미지 로드 실패, 기본 아이콘 표시');
+              }}
+            />
+          ) : (
+            <Ionicons name="person-circle" size={80} color="#10B981" />
+          )}
+        </View>
+        <Text style={styles.userName}>{user.profile?.userName || '익명'}</Text>
+        <Text style={styles.userEmail}>{user.email}</Text>
+        
+        {/* 레벨 및 경험치 */}
+        <View style={styles.levelContainer}>
             <Text style={styles.levelText}>Lv.{userStats.level}</Text>
             <View style={styles.expBar}>
               <View style={styles.expBarBackground}>
@@ -676,7 +675,6 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
 
       {/* 팔로워/팔로잉 모달 */}
       <FollowersModal
@@ -691,10 +689,6 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f9fafb',
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
