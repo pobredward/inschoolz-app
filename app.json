@@ -33,7 +33,7 @@
       },
       "edgeToEdgeEnabled": true,
       "googleServicesFile": "./google-services.json"
-    },
+    }, 
     "web": {
       "bundler": "metro",
       "output": "static",
