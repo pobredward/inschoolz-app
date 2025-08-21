@@ -9,6 +9,8 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential,
   User as FirebaseUser,
+  PhoneAuthProvider,
+  signInWithCredential,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -470,4 +472,208 @@ export const getCurrentUser = (): Promise<User | null> => {
       }
     });
   });
+};
+
+/**
+ * 휴대폰 번호로 로그인/회원가입 (앱용)
+ */
+/**
+ * userName 중복 확인 (대소문자 구분)
+ */
+export const checkUserNameAvailability = async (userName: string): Promise<boolean> => {
+  try {
+    const trimmedUserName = userName.trim();
+    
+    if (trimmedUserName.length < 2) {
+      return false;
+    }
+    
+    logger.info('userName 중복 확인:', trimmedUserName);
+    
+    // users 컬렉션에서 정확히 같은 userName이 있는지 확인 (대소문자 구분)
+    const usersRef = collection(db, 'users');
+    const q = query(
+      usersRef, 
+      where('profile.userName', '==', trimmedUserName)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    
+    // 문서가 존재하면 중복, 존재하지 않으면 사용 가능
+    const isAvailable = querySnapshot.empty;
+    logger.info(`userName "${trimmedUserName}" is ${isAvailable ? 'available' : 'taken'}`);
+    
+    return isAvailable;
+  } catch (error) {
+    logger.error('userName 중복 확인 오류:', error);
+    // 오류 발생시 안전하게 false 반환 (중복으로 간주)
+    return false;
+  }
+};
+
+/**
+ * 이메일 중복 확인
+ */
+export const checkEmailExists = async (email: string): Promise<boolean> => {
+  try {
+    const trimmedEmail = email.trim().toLowerCase();
+    
+    if (!trimmedEmail) {
+      return false;
+    }
+    
+    logger.info('이메일 중복 확인:', trimmedEmail);
+    
+    // users 컬렉션에서 이메일 확인
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where('email', '==', trimmedEmail));
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+      logger.info('이메일 중복 발견:', trimmedEmail);
+      return true;
+    }
+    
+    logger.info('이메일 중복 없음:', trimmedEmail);
+    return false;
+  } catch (error) {
+    logger.error('이메일 중복 확인 오류:', error);
+    return false;
+  }
+};
+
+/**
+ * 휴대폰 번호 중복 확인
+ */
+export const checkPhoneNumberExists = async (phoneNumber: string): Promise<boolean> => {
+  try {
+    // 입력된 번호를 여러 형식으로 정규화하여 검색
+    const inputNumber = phoneNumber.trim();
+    
+    // 가능한 형식들
+    const possibleFormats = [
+      inputNumber, // 원본 그대로
+      inputNumber.replace(/-/g, ''), // 하이픈 제거
+      inputNumber.startsWith('+82') ? inputNumber : `+82${inputNumber.replace(/^0/, '').replace(/-/g, '')}`, // +82 형식
+      inputNumber.startsWith('010') ? inputNumber : `010${inputNumber.replace(/^\+82/, '').replace(/-/g, '')}`, // 010 형식
+    ];
+    
+    logger.info('휴대폰 번호 중복 확인:', inputNumber, possibleFormats);
+    
+    // users 컬렉션에서 여러 형식으로 검색
+    const usersRef = collection(db, 'users');
+    
+    for (const format of possibleFormats) {
+      const q = query(
+        usersRef, 
+        where('profile.phoneNumber', '==', format)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        logger.info('휴대폰 번호 중복 발견:', format);
+        return true; // 중복 발견
+      }
+    }
+    
+    logger.info('휴대폰 번호 중복 없음');
+    return false;
+  } catch (error) {
+    logger.error('휴대폰 번호 확인 오류:', error);
+    return false;
+  }
+};
+
+export const authenticateWithPhoneNumber = async (
+  verificationId: string,
+  verificationCode: string,
+  userName?: string
+): Promise<User> => {
+  try {
+    // PhoneAuthProvider로 credential 생성
+    const credential = PhoneAuthProvider.credential(verificationId, verificationCode);
+    const userCredential = await signInWithCredential(auth, credential);
+    const firebaseUser = userCredential.user;
+    
+    // Firestore에서 기존 사용자 확인
+    const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+    
+    if (userDoc.exists()) {
+      // 기존 사용자 - 로그인
+      const userData = userDoc.data() as User;
+      
+      // 마지막 로그인 시간 업데이트
+      await updateDoc(doc(db, 'users', firebaseUser.uid), {
+        lastLoginAt: serverTimestamp(),
+      });
+      
+      logger.info('휴대폰 로그인 성공:', userData.uid);
+      return { ...userData, uid: firebaseUser.uid };
+    } else {
+      // 새 사용자 - 회원가입
+      if (!userName) {
+        throw new Error('회원가입 시 사용자명이 필요합니다.');
+      }
+      
+      // Firebase Auth에서 휴대폰 번호 가져오기
+      const phoneNumber = firebaseUser.phoneNumber || '';
+      
+      // 프로필 업데이트
+      await updateProfile(firebaseUser, { displayName: userName });
+      
+      // Firestore에 사용자 정보 저장
+      const newUser: User = {
+        uid: firebaseUser.uid,
+        email: '', // 휴대폰 가입 시 이메일 없음
+        profile: {
+          userName: userName.trim(),
+          displayName: userName.trim(),
+          phoneNumber: phoneNumber,
+          photoURL: null,
+          bio: null,
+          region: null,
+          mainSchool: null,
+          favoriteSchools: [],
+          isPrivate: false,
+        },
+        preferences: {
+          theme: 'light',
+          notifications: {
+            push: true,
+            email: false,
+            community: true,
+            chat: true,
+          },
+          language: 'ko',
+        },
+        createdAt: serverTimestamp() as Timestamp,
+        updatedAt: serverTimestamp() as Timestamp,
+        lastLoginAt: serverTimestamp() as Timestamp,
+      };
+      
+      await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+      
+      logger.info('휴대폰 회원가입 성공:', newUser.uid);
+      return newUser;
+    }
+  } catch (error) {
+    logger.error('휴대폰 인증 실패:', error);
+    
+    if (error instanceof Error) {
+      // Firebase 에러 메시지를 사용자 친화적으로 변환
+      switch (error.message) {
+        case 'auth/invalid-verification-code':
+          throw new Error('인증번호가 올바르지 않습니다.');
+        case 'auth/code-expired':
+          throw new Error('인증번호가 만료되었습니다. 다시 요청해주세요.');
+        case 'auth/too-many-requests':
+          throw new Error('너무 많은 시도를 했습니다. 잠시 후 다시 시도해주세요.');
+        default:
+          throw new Error('휴대폰 인증에 실패했습니다.');
+      }
+    }
+    
+    throw new Error('휴대폰 인증에 실패했습니다.');
+  }
 }; 
