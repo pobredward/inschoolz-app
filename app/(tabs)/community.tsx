@@ -85,6 +85,7 @@ export default function CommunityScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showBoardSelector, setShowBoardSelector] = useState(false);
   const [showSortSelector, setShowSortSelector] = useState(false); // 정렬 선택 모달 상태 추가
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false); // 카테고리 드롭다운 상태 추가
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
 
   // 차단된 사용자 목록 로드
@@ -418,39 +419,104 @@ export default function CommunityScreen() {
 
   const renderCategoryFilter = () => (
     <View style={styles.categoryContainer}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-        <TouchableOpacity
-          style={[
-            styles.categoryButton,
-            selectedBoard === 'all' && styles.activeCategoryButton
-          ]}
-          onPress={() => setSelectedBoard('all')}
+      {/* 가로 스크롤 카테고리와 화살표 버튼 */}
+      <View style={styles.categoryRow}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false} 
+          style={styles.categoryScroll}
+          contentContainerStyle={styles.categoryScrollContent}
         >
-          <Text style={[
-            styles.categoryText,
-            selectedBoard === 'all' && styles.activeCategoryText
-          ]}>
-            전체
-          </Text>
-        </TouchableOpacity>
-        {boards.map((board) => (
           <TouchableOpacity
-            key={board.code}
             style={[
               styles.categoryButton,
-              selectedBoard === board.code && styles.activeCategoryButton
+              selectedBoard === 'all' && styles.activeCategoryButton
             ]}
-            onPress={() => setSelectedBoard(board.code)}
+            onPress={() => setSelectedBoard('all')}
           >
             <Text style={[
               styles.categoryText,
-              selectedBoard === board.code && styles.activeCategoryText
+              selectedBoard === 'all' && styles.activeCategoryText
             ]}>
-              {board.name}
+              전체
             </Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+          {boards.map((board) => (
+            <TouchableOpacity
+              key={board.code}
+              style={[
+                styles.categoryButton,
+                selectedBoard === board.code && styles.activeCategoryButton
+              ]}
+              onPress={() => setSelectedBoard(board.code)}
+            >
+              <Text style={[
+                styles.categoryText,
+                selectedBoard === board.code && styles.activeCategoryText
+              ]}>
+                {board.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+        
+        {/* 화살표 버튼 */}
+        <TouchableOpacity
+          style={styles.arrowButton}
+          onPress={() => setShowCategoryDropdown(!showCategoryDropdown)}
+        >
+          <Ionicons 
+            name={showCategoryDropdown ? "chevron-up" : "chevron-down"} 
+            size={20} 
+            color="#6B7280" 
+          />
+        </TouchableOpacity>
+      </View>
+      
+      {/* 인라인 확장 카테고리 영역 */}
+      {showCategoryDropdown && (
+        <View style={styles.expandedCategoryContainer}>
+          <View style={styles.expandedCategoryGrid}>
+            <TouchableOpacity
+              style={[
+                styles.expandedCategoryButton,
+                selectedBoard === 'all' && styles.activeExpandedCategoryButton
+              ]}
+              onPress={() => {
+                setSelectedBoard('all');
+                setShowCategoryDropdown(false);
+              }}
+            >
+              <Text style={[
+                styles.expandedCategoryText,
+                selectedBoard === 'all' && styles.activeExpandedCategoryText
+              ]}>
+                전체
+              </Text>
+            </TouchableOpacity>
+            {boards.map((board) => (
+              <TouchableOpacity
+                key={`expanded-${board.code}`}
+                style={[
+                  styles.expandedCategoryButton,
+                  selectedBoard === board.code && styles.activeExpandedCategoryButton
+                ]}
+                onPress={() => {
+                  setSelectedBoard(board.code);
+                  setShowCategoryDropdown(false);
+                }}
+              >
+                <Text style={[
+                  styles.expandedCategoryText,
+                  selectedBoard === board.code && styles.activeExpandedCategoryText
+                ]}>
+                  {board.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
     </View>
   );
 
@@ -698,8 +764,63 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5E7EB',
     paddingVertical: 12,
   },
-  categoryScroll: {
+  categoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
+  },
+  categoryScroll: {
+    flex: 1,
+    marginRight: 8,
+  },
+  categoryScrollContent: {
+    paddingRight: 16,
+  },
+  arrowButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 36,
+    height: 36,
+  },
+  expandedCategoryContainer: {
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    maxHeight: 300,
+  },
+  expandedCategoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  expandedCategoryButton: {
+    width: '48%',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: 'white',
+    alignItems: 'center',
+  },
+  activeExpandedCategoryButton: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  expandedCategoryText: {
+    fontSize: 14,
+    color: '#374151',
+    textAlign: 'center',
+  },
+  activeExpandedCategoryText: {
+    color: 'white',
+    fontWeight: '500',
   },
   categoryButton: {
     paddingHorizontal: 16,
@@ -1018,4 +1139,5 @@ const styles = StyleSheet.create({
     color: '#10B981',
     fontWeight: '500',
   },
+
 }); 
