@@ -625,7 +625,11 @@ export default function CommunityScreen() {
           ) : (
             <View style={styles.postsContainer}>
               {posts.length > 0 ? (
-                posts.map((post) => renderPostCard({ item: post }))
+                posts.map((post) => (
+                  <View key={post.id}>
+                    {renderPostCard({ item: post })}
+                  </View>
+                ))
               ) : (
                 renderEmptyState()
               )}
