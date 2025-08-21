@@ -16,7 +16,7 @@ import { loginWithEmail, registerWithEmail, authenticateWithPhoneNumber, checkUs
 import { router } from 'expo-router';
 import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { PhoneAuthProvider } from 'firebase/auth';
-import { auth, firebaseConfig } from '../lib/firebase';
+import { auth, firebaseConfig, recaptchaSiteKeys } from '../lib/firebase';
 
 
 export default function SimpleAuthScreen() {
@@ -287,6 +287,9 @@ export default function SimpleAuthScreen() {
           <FirebaseRecaptchaVerifierModal
             ref={recaptchaVerifier}
             firebaseConfig={firebaseConfig}
+            // reCAPTCHA Enterprise 호환성 설정
+            attemptInvisibleVerification={true}
+            language="ko"
           />
           
           {/* 로고 및 헤더 */}
