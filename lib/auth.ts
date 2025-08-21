@@ -514,6 +514,42 @@ export const checkUserNameAvailability = async (userName: string): Promise<boole
 /**
  * 이메일 중복 확인
  */
+/**
+ * 휴대폰 번호를 한국 표준 형식(010-1234-5678)으로 정규화
+ */
+export const normalizePhoneNumber = (phoneNumber: string): string => {
+  if (!phoneNumber) return '';
+  
+  // 모든 비숫자 문자 제거
+  const numbers = phoneNumber.replace(/\D/g, '');
+  
+  // +82로 시작하는 경우 처리
+  if (phoneNumber.startsWith('+82')) {
+    const koreanNumber = numbers.slice(2); // +82 제거
+    // 첫 번째 0이 없으면 추가
+    const normalizedNumber = koreanNumber.startsWith('1') ? `0${koreanNumber}` : koreanNumber;
+    
+    // 010-1234-5678 형식으로 포맷팅
+    if (normalizedNumber.length === 11) {
+      return `${normalizedNumber.slice(0, 3)}-${normalizedNumber.slice(3, 7)}-${normalizedNumber.slice(7)}`;
+    }
+  }
+  
+  // 일반적인 010으로 시작하는 경우
+  if (numbers.length === 11 && numbers.startsWith('010')) {
+    return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7)}`;
+  }
+  
+  // 길이가 10인 경우 (0이 빠진 경우)
+  if (numbers.length === 10 && numbers.startsWith('10')) {
+    const fullNumber = `0${numbers}`;
+    return `${fullNumber.slice(0, 3)}-${fullNumber.slice(3, 7)}-${fullNumber.slice(7)}`;
+  }
+  
+  // 정규화할 수 없는 경우 원본 반환
+  return phoneNumber;
+};
+
 export const checkEmailExists = async (email: string): Promise<boolean> => {
   try {
     const trimmedEmail = email.trim().toLowerCase();
@@ -617,7 +653,9 @@ export const authenticateWithPhoneNumber = async (
       }
       
       // Firebase Auth에서 휴대폰 번호 가져오기
-      const phoneNumber = firebaseUser.phoneNumber || '';
+      const rawPhoneNumber = firebaseUser.phoneNumber || '';
+      // 휴대폰 번호를 한국 표준 형식으로 정규화
+      const phoneNumber = normalizePhoneNumber(rawPhoneNumber);
       
       // 프로필 업데이트
       await updateProfile(firebaseUser, { displayName: userName });
