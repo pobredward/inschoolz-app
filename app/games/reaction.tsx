@@ -7,13 +7,13 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  SafeAreaView,
   Pressable,
   StatusBar,
   Platform,
   Dimensions,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuthStore } from '../../store/authStore';
@@ -37,6 +37,7 @@ interface RankingUser {
 
 export default function ReactionGameScreen() {
   const { user, setupRealtimeUserListener } = useAuthStore();
+  const insets = useSafeAreaInsets();
   const [gameState, setGameState] = useState<GameState>('waiting');
   const [currentAttempt, setCurrentAttempt] = useState(1);
   const [remainingAttempts, setRemainingAttempts] = useState(5);
@@ -330,21 +331,27 @@ export default function ReactionGameScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
-      <SafeAreaView style={styles.safeArea}>
-        <ScrollView
-          style={styles.scrollView}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        >
-          {/* 헤더 */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={20} color="#111827" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>반응속도 게임</Text>
-            <View style={styles.headerSpacer} />
-          </View>
+      
+      {/* 고정 헤더 */}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={20} color="#111827" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>반응속도 게임</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      {/* 스크롤 가능한 컨텐츠 */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollViewContent,
+          { paddingTop: insets.top + 56 } // 헤더 높이만큼 상단 패딩
+        ]}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
 
           {/* 게임 영역 */}
           <View style={styles.gameArea}>
@@ -478,8 +485,7 @@ export default function ReactionGameScreen() {
               <Text style={styles.noDataText}>아직 랭킹 데이터가 없습니다.</Text>
             )}
           </View>
-        </ScrollView>
-      </SafeAreaView>
+      </ScrollView>
     </View>
   );
 }
@@ -495,7 +501,14 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollViewContent: {
+    flexGrow: 1,
+  },
   header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -504,8 +517,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
-    elevation: 0,
-    shadowOpacity: 0,
+    elevation: 10,
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    zIndex: 1000,
   },
   backButton: {
     width: 36,

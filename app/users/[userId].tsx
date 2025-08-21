@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Modal } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/authStore';
 import { 
   getUserById, 
@@ -22,6 +23,7 @@ import { User } from '../../types';
 export default function UserProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const { user: currentUser } = useAuthStore();
+  const insets = useSafeAreaInsets();
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [attendanceData, setAttendanceData] = useState<UserAttendance>({
     checkedToday: false,
@@ -230,16 +232,21 @@ export default function UserProfileScreen() {
   }
 
   return (
-    <SafeScreenContainer>
-      <ScrollView style={styles.container}>
-        {/* 헤더 */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
-            <Ionicons name="arrow-back" size={24} color="#374151" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>프로필</Text>
-          <View style={styles.placeholder} />
-        </View>
+    <View style={styles.container}>
+      {/* 고정 헤더 */}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
+          <Ionicons name="arrow-back" size={24} color="#374151" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>프로필</Text>
+        <View style={styles.placeholder} />
+      </View>
+
+      {/* 스크롤 가능한 컨텐츠 */}
+      <SafeScreenContainer 
+        scrollable={true}
+        contentContainerStyle={{ paddingTop: insets.top + 64 }} // 헤더 높이만큼 상단 패딩
+      >
 
         {/* 0. 기본 정보 (프로필 이미지, 유저네임) */}
         <View style={styles.profileCard}>
@@ -434,7 +441,7 @@ export default function UserProfileScreen() {
             )}
           </View>
         </View>
-      </ScrollView>
+      </SafeScreenContainer>
 
       {/* 팔로워/팔로잉 모달 */}
       <FollowersModal
@@ -444,7 +451,7 @@ export default function UserProfileScreen() {
         type={followersModalType}
         title={followersModalType === 'followers' ? '팔로워' : '팔로잉'}
       />
-    </SafeScreenContainer>
+    </View>
   );
 }
 
@@ -502,6 +509,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -509,6 +520,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    elevation: 10,
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    zIndex: 1000,
   },
   headerTitle: {
     fontSize: 18,
