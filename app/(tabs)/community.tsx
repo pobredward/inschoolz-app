@@ -593,72 +593,78 @@ export default function CommunityScreen() {
   const isLoginRequired = (selectedTab === 'school' || selectedTab === 'regional') && !user;
 
   return (
-    <SafeScreenContainer scrollable={true}>
-      {renderTabs()}
-      {selectedTab === 'school' && (
-        <SchoolSelector 
-          style={styles.schoolSelector}
-          onSchoolChange={async (school: any) => {
-            // 학교 변경 시 URL 업데이트
-            console.log('학교 변경됨:', school);
-            const schoolId = school?.id || school;
-            router.push(`/(tabs)/community?tab=school/${schoolId}`);
-            // 게시글 다시 로드
-            loadBoards();
-            loadPosts();
-          }}
+    <View style={styles.container}>
+      <SafeScreenContainer scrollable={true}>
+        {renderTabs()}
+        {selectedTab === 'school' && (
+          <SchoolSelector 
+            style={styles.schoolSelector}
+            onSchoolChange={async (school: any) => {
+              // 학교 변경 시 URL 업데이트
+              console.log('학교 변경됨:', school);
+              const schoolId = school?.id || school;
+              router.push(`/(tabs)/community?tab=school/${schoolId}`);
+              // 게시글 다시 로드
+              loadBoards();
+              loadPosts();
+            }}
+          />
+        )}
+        
+        {/* 로그인이 필요한 탭에서는 로그인 안내 화면 표시 */}
+        {isLoginRequired ? (
+          renderLoginRequired()
+        ) : (
+          <>
+            {renderCategoryFilter()}
+            {renderSortHeader()}
+
+            {isLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#10B981" />
+              </View>
+            ) : (
+              <View style={styles.postsContainer}>
+                {posts.length > 0 ? (
+                  posts.map((post) => (
+                    <View key={post.id}>
+                      {renderPostCard({ item: post })}
+                    </View>
+                  ))
+                ) : (
+                  renderEmptyState()
+                )}
+              </View>
+            )}
+          </>
+        )}
+
+        {/* 게시판 선택 모달 */}
+        <BoardSelector
+          isVisible={showBoardSelector}
+          onClose={() => setShowBoardSelector(false)}
+          type={selectedTab}
         />
+
+        {/* 정렬 선택 모달 */}
+        {renderSortModal()}
+      </SafeScreenContainer>
+
+      {/* 글쓰기 버튼 - SafeScreenContainer 외부에 배치하여 고정 */}
+      {user && (
+        <TouchableOpacity style={styles.writeButton} onPress={handleWritePress}>
+          <Ionicons name="add" size={24} color="white" />
+        </TouchableOpacity>
       )}
-      
-      {/* 로그인이 필요한 탭에서는 로그인 안내 화면 표시 */}
-      {isLoginRequired ? (
-        renderLoginRequired()
-      ) : (
-        <>
-          {renderCategoryFilter()}
-          {renderSortHeader()}
-
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#10B981" />
-            </View>
-          ) : (
-            <View style={styles.postsContainer}>
-              {posts.length > 0 ? (
-                posts.map((post) => (
-                  <View key={post.id}>
-                    {renderPostCard({ item: post })}
-                  </View>
-                ))
-              ) : (
-                renderEmptyState()
-              )}
-            </View>
-          )}
-
-          {/* 글쓰기 버튼 - 로그인된 경우에만 표시 */}
-          {user && (
-            <TouchableOpacity style={styles.writeButton} onPress={handleWritePress}>
-              <Ionicons name="add" size={24} color="white" />
-            </TouchableOpacity>
-          )}
-        </>
-      )}
-
-      {/* 게시판 선택 모달 */}
-      <BoardSelector
-        isVisible={showBoardSelector}
-        onClose={() => setShowBoardSelector(false)}
-        type={selectedTab}
-      />
-
-      {/* 정렬 선택 모달 */}
-      {renderSortModal()}
-    </SafeScreenContainer>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    position: 'relative',
+  },
   postsContainer: {
     padding: 16,
   },
@@ -896,7 +902,7 @@ const styles = StyleSheet.create({
   },
   writeButton: {
     position: 'absolute',
-    bottom: 100,
+    bottom: 120,
     right: 16,
     width: 56,
     height: 56,
@@ -912,6 +918,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+    zIndex: 9999,
   },
   schoolSelector: {
     backgroundColor: 'white',
