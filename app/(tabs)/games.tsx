@@ -58,7 +58,7 @@ export default function GamesScreen() {
         '게임을 플레이하려면 로그인이 필요합니다.',
         [
           { text: '취소', style: 'cancel' },
-          { text: '로그인', onPress: () => router.push('/auth') }
+          { text: '로그인', onPress: () => router.push('/login') }
         ]
       );
       return;

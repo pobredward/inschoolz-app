@@ -305,7 +305,7 @@ export default function ProfileEditScreen() {
                       Alert.alert('완료', '계정이 완전히 삭제되었습니다.');
                       
                       // 계정 삭제 후 앱 재시작으로 안내
-                      router.replace('/auth');
+                      router.replace('/login');
                     } catch (error) {
                       console.error('계정 삭제 오류:', error);
                       if (error instanceof Error && error.message.includes('auth/wrong-password')) {

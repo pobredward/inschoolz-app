@@ -196,7 +196,7 @@ export default function RankingScreen() {
   };
 
   const navigateToLogin = () => {
-    router.push('/auth');
+    router.push('/login');
   };
 
   // 인증 로딩 중

@@ -159,7 +159,7 @@ export default function HomeScreen() {
   };
 
   const navigateToLogin = () => {
-    router.push('/auth' as any);
+    router.push('/login' as any);
   };
 
   // 인증 로딩 중

@@ -1,0 +1,823 @@
+import React, { useState, useRef } from 'react';
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  StyleSheet, 
+  Alert, 
+  KeyboardAvoidingView, 
+  Platform,
+  ScrollView
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuthStore } from '../store/authStore';
+import { registerWithEmail, authenticateWithPhoneNumber, checkUserNameAvailability, checkPhoneNumberExists, checkEmailExists } from '../lib/auth';
+import { router } from 'expo-router';
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
+import { PhoneAuthProvider } from 'firebase/auth';
+import { auth, firebaseConfig, recaptchaSiteKeys } from '../lib/firebase';
+
+export default function SignupScreen() {
+  const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
+  
+  // 이메일 폼 상태
+  const [emailForm, setEmailForm] = useState({
+    email: '',
+    password: '',
+    passwordConfirm: '',
+    userName: ''
+  });
+  
+  // 휴대폰 폼 상태
+  const [phoneForm, setPhoneForm] = useState({
+    phoneNumber: '',
+    verificationCode: '',
+    userName: ''
+  });
+  
+  // 휴대폰 인증 관련 상태
+  const [isCodeSent, setIsCodeSent] = useState(false);
+  const [verificationId, setVerificationId] = useState('');
+  const [countdown, setCountdown] = useState(0);
+  
+  // 중복 확인 상태
+  const [emailUserNameStatus, setEmailUserNameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [phoneUserNameStatus, setPhoneUserNameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [emailExists, setEmailExists] = useState<boolean>(false);
+  const [phoneNumberExists, setPhoneNumberExists] = useState<boolean>(false);
+  
+  const { setUser, setLoading, isLoading } = useAuthStore();
+  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
+
+  // 휴대폰 번호 포맷팅
+  const formatPhoneNumber = (value: string) => {
+    const numbers = value.replace(/[^\d]/g, '');
+    if (numbers.length <= 3) return numbers;
+    if (numbers.length <= 7) return `${numbers.slice(0, 3)}-${numbers.slice(3)}`;
+    return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7, 11)}`;
+  };
+
+  // 이메일 닉네임 중복 확인
+  const checkEmailUserName = async () => {
+    const userName = emailForm.userName?.trim();
+    
+    if (!userName || userName.length < 2) {
+      Alert.alert('오류', '닉네임은 최소 2자 이상이어야 합니다.');
+      return;
+    }
+
+    try {
+      setEmailUserNameStatus('checking');
+      const isAvailable = await checkUserNameAvailability(userName);
+      setEmailUserNameStatus(isAvailable ? 'available' : 'taken');
+      
+      if (isAvailable) {
+        Alert.alert('성공', '사용 가능한 닉네임입니다.');
+      } else {
+        Alert.alert('오류', '이미 사용 중인 닉네임입니다.');
+      }
+    } catch {
+      setEmailUserNameStatus('idle');
+      Alert.alert('오류', '중복 확인 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 휴대폰 닉네임 중복 확인
+  const checkPhoneUserName = async () => {
+    const userName = phoneForm.userName?.trim();
+    
+    if (!userName || userName.length < 2) {
+      Alert.alert('오류', '닉네임은 최소 2자 이상이어야 합니다.');
+      return;
+    }
+
+    try {
+      setPhoneUserNameStatus('checking');
+      const isAvailable = await checkUserNameAvailability(userName);
+      setPhoneUserNameStatus(isAvailable ? 'available' : 'taken');
+      
+      if (isAvailable) {
+        Alert.alert('성공', '사용 가능한 닉네임입니다.');
+      } else {
+        Alert.alert('오류', '이미 사용 중인 닉네임입니다.');
+      }
+    } catch {
+      setPhoneUserNameStatus('idle');
+      Alert.alert('오류', '중복 확인 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 카운트다운 타이머
+  const startCountdown = () => {
+    setCountdown(180); // 3분
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  // 이메일 회원가입
+  const handleEmailSignup = async () => {
+    if (!emailForm.email?.trim() || !emailForm.password?.trim() || !emailForm.passwordConfirm?.trim() || !emailForm.userName?.trim()) {
+      Alert.alert('오류', '모든 필드를 입력해주세요.');
+      return;
+    }
+
+    if (emailForm.password !== emailForm.passwordConfirm) {
+      Alert.alert('오류', '비밀번호가 일치하지 않습니다.');
+      return;
+    }
+
+    if (emailForm.password.length < 6) {
+      Alert.alert('오류', '비밀번호는 최소 6자 이상이어야 합니다.');
+      return;
+    }
+
+    if (emailForm.userName.trim().length < 2) {
+      Alert.alert('오류', '닉네임은 최소 2자 이상이어야 합니다.');
+      return;
+    }
+
+    if (emailUserNameStatus !== 'available') {
+      Alert.alert('오류', '닉네임 중복 확인을 해주세요.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // 이메일 중복 확인
+      const emailExistsResult = await checkEmailExists(emailForm.email);
+      if (emailExistsResult) {
+        setEmailExists(true);
+        Alert.alert('오류', '이미 가입된 이메일입니다. 로그인 화면에서 로그인 바랍니다.');
+        return;
+      }
+
+      // 최종 userName 중복 확인 (동시 가입 방지)
+      const isUserNameAvailable = await checkUserNameAvailability(emailForm.userName);
+      if (!isUserNameAvailable) {
+        Alert.alert('오류', '죄송합니다. 해당 닉네임이 방금 다른 사용자에 의해 사용되었습니다.');
+        setEmailUserNameStatus('taken');
+        return;
+      }
+
+      const user = await registerWithEmail(emailForm.email, emailForm.password, emailForm.userName.trim());
+      setUser(user);
+      
+      Alert.alert('성공', '회원가입이 완료되었습니다!', [
+        { text: '확인', onPress: () => router.replace('/(tabs)') }
+      ]);
+    } catch (error: any) {
+      console.error('이메일 회원가입 오류:', error);
+      Alert.alert('회원가입 실패', error.message || '회원가입 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 휴대폰 인증번호 발송
+  const sendPhoneVerification = async () => {
+    if (!phoneForm.phoneNumber?.trim()) {
+      Alert.alert('오류', '휴대폰 번호를 입력해주세요.');
+      return;
+    }
+
+    if (!phoneForm.userName?.trim() || phoneForm.userName.trim().length < 2) {
+      Alert.alert('오류', '닉네임을 2자 이상 입력해주세요.');
+      return;
+    }
+
+    if (phoneUserNameStatus !== 'available') {
+      Alert.alert('오류', '닉네임 중복 확인을 해주세요.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // 휴대폰 번호 중복 확인
+      const phoneExistsResult = await checkPhoneNumberExists(phoneForm.phoneNumber);
+      if (phoneExistsResult) {
+        setPhoneNumberExists(true);
+        Alert.alert('오류', '이미 가입된 휴대폰 번호입니다. 로그인 화면에서 로그인 바랍니다.');
+        return;
+      }
+
+      const phoneNumber = `+82${phoneForm.phoneNumber.replace(/[^\d]/g, '').substring(1)}`;
+      
+      const phoneProvider = new PhoneAuthProvider(auth);
+      const verificationId = await phoneProvider.verifyPhoneNumber(
+        phoneNumber,
+        recaptchaVerifier.current!
+      );
+      
+      setVerificationId(verificationId);
+      setIsCodeSent(true);
+      startCountdown();
+      
+      Alert.alert('성공', '인증번호가 발송되었습니다.');
+    } catch (error: any) {
+      console.error('인증번호 발송 오류:', error);
+      Alert.alert('오류', error.message || '인증번호 발송 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 휴대폰 회원가입
+  const handlePhoneSignup = async () => {
+    if (!phoneForm.verificationCode?.trim()) {
+      Alert.alert('오류', '인증번호를 입력해주세요.');
+      return;
+    }
+
+    if (phoneForm.verificationCode.length !== 6) {
+      Alert.alert('오류', '6자리 인증번호를 입력해주세요.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const user = await authenticateWithPhoneNumber(
+        verificationId, 
+        phoneForm.verificationCode,
+        phoneForm.userName.trim()
+      );
+      
+      setUser(user);
+      
+      Alert.alert('성공', '회원가입이 완료되었습니다!', [
+        { text: '확인', onPress: () => router.replace('/(tabs)') }
+      ]);
+    } catch (error: any) {
+      console.error('휴대폰 회원가입 오류:', error);
+      Alert.alert('회원가입 실패', error.message || '회원가입 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+        <View style={styles.header}>
+          <View style={styles.logoContainer}>
+            <View style={styles.logo}>
+              <Text style={styles.logoText}>인</Text>
+            </View>
+          </View>
+          <Text style={styles.title}>인스쿨즈</Text>
+          <Text style={styles.subtitle}>학생들을 위한 스마트한 커뮤니티</Text>
+        </View>
+
+        {/* 메인 카드 */}
+        <View style={styles.card}>
+          {/* 헤더 */}
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>회원가입</Text>
+          </View>
+          
+          {/* 인증 방법 선택 */}
+          <View style={styles.methodSelector}>
+            <TouchableOpacity
+              style={[styles.methodButton, authMethod === 'email' && styles.methodButtonActive]}
+              onPress={() => {
+                setAuthMethod('email');
+                setIsCodeSent(false);
+              }}
+            >
+              <Ionicons name="mail" size={16} color={authMethod === 'email' ? '#059669' : '#6B7280'} />
+              <Text style={[styles.methodText, authMethod === 'email' && styles.methodTextActive]}>
+                이메일
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.methodButton, authMethod === 'phone' && styles.methodButtonActive]}
+              onPress={() => {
+                setAuthMethod('phone');
+                setIsCodeSent(false);
+              }}
+            >
+              <Ionicons name="call" size={16} color={authMethod === 'phone' ? '#059669' : '#6B7280'} />
+              <Text style={[styles.methodText, authMethod === 'phone' && styles.methodTextActive]}>
+                휴대폰
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 폼 */}
+          <View style={styles.form}>
+            {authMethod === 'email' ? (
+              <>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>이메일</Text>
+                  <TextInput
+                    style={[styles.input, emailExists && styles.inputError]}
+                    placeholder="name@example.com"
+                    value={emailForm.email}
+                    onChangeText={(text) => {
+                      setEmailForm(prev => ({ ...prev, email: text }));
+                      setEmailExists(false);
+                    }}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  {emailExists && (
+                    <Text style={styles.errorText}>이미 가입된 이메일입니다.</Text>
+                  )}
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>비밀번호</Text>
+                  <View style={styles.passwordContainer}>
+                    <TextInput
+                      style={styles.passwordInput}
+                      placeholder="비밀번호를 입력하세요 (최소 6자)"
+                      value={emailForm.password}
+                      onChangeText={(text) => setEmailForm(prev => ({ ...prev, password: text }))}
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    <TouchableOpacity
+                      style={styles.eyeButton}
+                      onPress={() => setShowPassword(!showPassword)}
+                    >
+                      <Ionicons 
+                        name={showPassword ? "eye-off" : "eye"} 
+                        size={20} 
+                        color="#6B7280" 
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>비밀번호 확인</Text>
+                  <View style={styles.passwordContainer}>
+                    <TextInput
+                      style={styles.passwordInput}
+                      placeholder="비밀번호를 다시 입력하세요"
+                      value={emailForm.passwordConfirm}
+                      onChangeText={(text) => setEmailForm(prev => ({ ...prev, passwordConfirm: text }))}
+                      secureTextEntry={!showPasswordConfirm}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    <TouchableOpacity
+                      style={styles.eyeButton}
+                      onPress={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                    >
+                      <Ionicons 
+                        name={showPasswordConfirm ? "eye-off" : "eye"} 
+                        size={20} 
+                        color="#6B7280" 
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>닉네임</Text>
+                  <View style={styles.userNameContainer}>
+                    <TextInput
+                      style={[styles.userNameInput, emailUserNameStatus === 'available' && styles.inputSuccess, emailUserNameStatus === 'taken' && styles.inputError]}
+                      placeholder="닉네임 (2자 이상)"
+                      value={emailForm.userName}
+                      onChangeText={(text) => {
+                        setEmailForm(prev => ({ ...prev, userName: text }));
+                        setEmailUserNameStatus('idle');
+                      }}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    <TouchableOpacity
+                      style={[
+                        styles.checkButton,
+                        (emailUserNameStatus === 'checking' || !emailForm.userName?.trim() || emailForm.userName.trim().length < 2) && styles.checkButtonDisabled
+                      ]}
+                      onPress={checkEmailUserName}
+                      disabled={emailUserNameStatus === 'checking' || !emailForm.userName?.trim() || emailForm.userName.trim().length < 2}
+                    >
+                      <Text style={styles.checkButtonText}>
+                        {emailUserNameStatus === 'checking' ? '확인중' : '중복확인'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  {emailUserNameStatus === 'available' && (
+                    <Text style={styles.successText}>사용 가능한 닉네임입니다.</Text>
+                  )}
+                  {emailUserNameStatus === 'taken' && (
+                    <Text style={styles.errorText}>이미 사용 중인 닉네임입니다.</Text>
+                  )}
+                </View>
+
+                <TouchableOpacity 
+                  style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
+                  onPress={handleEmailSignup}
+                  disabled={isLoading}
+                >
+                  <Text style={styles.submitButtonText}>
+                    {isLoading ? '가입 중...' : '회원가입'}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>휴대폰 번호</Text>
+                  <TextInput
+                    style={[styles.input, phoneNumberExists && styles.inputError]}
+                    placeholder="010-1234-5678"
+                    value={phoneForm.phoneNumber}
+                    onChangeText={(text) => {
+                      setPhoneForm(prev => ({ 
+                        ...prev, 
+                        phoneNumber: formatPhoneNumber(text)
+                      }));
+                      setPhoneNumberExists(false);
+                    }}
+                    keyboardType="phone-pad"
+                    maxLength={13}
+                  />
+                  {phoneNumberExists && (
+                    <Text style={styles.errorText}>이미 가입된 휴대폰 번호입니다.</Text>
+                  )}
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>닉네임</Text>
+                  <View style={styles.userNameContainer}>
+                    <TextInput
+                      style={[styles.userNameInput, phoneUserNameStatus === 'available' && styles.inputSuccess, phoneUserNameStatus === 'taken' && styles.inputError]}
+                      placeholder="닉네임 (2자 이상)"
+                      value={phoneForm.userName}
+                      onChangeText={(text) => {
+                        setPhoneForm(prev => ({ ...prev, userName: text }));
+                        setPhoneUserNameStatus('idle');
+                      }}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    <TouchableOpacity
+                      style={[
+                        styles.checkButton,
+                        (phoneUserNameStatus === 'checking' || !phoneForm.userName?.trim() || phoneForm.userName.trim().length < 2) && styles.checkButtonDisabled
+                      ]}
+                      onPress={checkPhoneUserName}
+                      disabled={phoneUserNameStatus === 'checking' || !phoneForm.userName?.trim() || phoneForm.userName.trim().length < 2}
+                    >
+                      <Text style={styles.checkButtonText}>
+                        {phoneUserNameStatus === 'checking' ? '확인중' : '중복확인'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  {phoneUserNameStatus === 'available' && (
+                    <Text style={styles.successText}>사용 가능한 닉네임입니다.</Text>
+                  )}
+                  {phoneUserNameStatus === 'taken' && (
+                    <Text style={styles.errorText}>이미 사용 중인 닉네임입니다.</Text>
+                  )}
+                </View>
+
+                {!isCodeSent ? (
+                  <TouchableOpacity 
+                    style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
+                    onPress={sendPhoneVerification}
+                    disabled={isLoading}
+                  >
+                    <Text style={styles.submitButtonText}>
+                      {isLoading ? '발송 중...' : '인증번호 발송'}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <>
+                    <View style={styles.inputGroup}>
+                      <View style={styles.labelContainer}>
+                        <Text style={styles.label}>인증번호</Text>
+                        {countdown > 0 && (
+                          <Text style={styles.countdownText}>{formatTime(countdown)}</Text>
+                        )}
+                      </View>
+                      <TextInput
+                        style={[styles.input, styles.codeInput]}
+                        placeholder="6자리 인증번호"
+                        value={phoneForm.verificationCode}
+                        onChangeText={(text) => setPhoneForm(prev => ({ 
+                          ...prev, 
+                          verificationCode: text.replace(/[^\d]/g, '').slice(0, 6)
+                        }))}
+                        keyboardType="number-pad"
+                        maxLength={6}
+                      />
+                    </View>
+
+                    <TouchableOpacity 
+                      style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
+                      onPress={handlePhoneSignup}
+                      disabled={isLoading}
+                    >
+                      <Text style={styles.submitButtonText}>
+                        {isLoading ? '가입 중...' : '회원가입'}
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </>
+            )}
+          </View>
+        </View>
+
+        {/* 로그인 링크 */}
+        <View style={styles.linkContainer}>
+          <Text style={styles.linkText}>
+            이미 계정이 있으신가요?{' '}
+          </Text>
+          <TouchableOpacity onPress={() => router.push('/login')}>
+            <Text style={styles.linkButton}>로그인하기</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 푸터 */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            계속 진행하면{' '}
+            <Text style={styles.footerLink}>서비스 약관</Text>과{' '}
+            <Text style={styles.footerLink}>개인정보 처리방침</Text>에 동의하는 것으로 간주됩니다.
+          </Text>
+        </View>
+      </ScrollView>
+
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={firebaseConfig}
+        androidHardwareAccelerationDisabled={true}
+        attemptInvisibleVerification={false}
+        title="reCAPTCHA 인증"
+        cancelLabel="취소"
+      />
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F0FDF4',
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 20,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  logoContainer: {
+    marginBottom: 16,
+  },
+  logo: {
+    width: 48,
+    height: 48,
+    backgroundColor: '#059669',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoText: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#059669',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#6B7280',
+  },
+  card: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 0,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+    marginBottom: 24,
+  },
+  cardHeader: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  methodSelector: {
+    flexDirection: 'row',
+    margin: 16,
+    backgroundColor: '#DCFCE7',
+    borderRadius: 8,
+    padding: 4,
+  },
+  methodButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    gap: 8,
+  },
+  methodButtonActive: {
+    backgroundColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  methodText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  methodTextActive: {
+    color: '#059669',
+  },
+  form: {
+    padding: 24,
+    gap: 16,
+  },
+  inputGroup: {
+    gap: 8,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  labelContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  countdownText: {
+    fontSize: 14,
+    color: '#059669',
+    fontWeight: '500',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: 'white',
+  },
+  inputError: {
+    borderColor: '#EF4444',
+  },
+  inputSuccess: {
+    borderColor: '#10B981',
+  },
+  passwordContainer: {
+    position: 'relative',
+  },
+  passwordInput: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    paddingRight: 48,
+    fontSize: 16,
+    backgroundColor: 'white',
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+    padding: 4,
+  },
+  userNameContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  userNameInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: 'white',
+  },
+  checkButton: {
+    backgroundColor: '#059669',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkButtonDisabled: {
+    backgroundColor: '#9CA3AF',
+  },
+  checkButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  codeInput: {
+    textAlign: 'center',
+    letterSpacing: 4,
+    fontSize: 18,
+  },
+  submitButton: {
+    backgroundColor: '#059669',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+  submitButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  successText: {
+    fontSize: 12,
+    color: '#10B981',
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#EF4444',
+  },
+  linkContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  linkText: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  linkButton: {
+    fontSize: 14,
+    color: '#059669',
+    fontWeight: '500',
+  },
+  footer: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  footerText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  footerLink: {
+    color: '#059669',
+  },
+});

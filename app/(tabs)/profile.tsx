@@ -187,7 +187,7 @@ export default function ProfileScreen() {
           onPress: async () => {
             try {
               await clearAuth();
-              router.replace('/auth');
+              router.replace('/login');
             } catch (error) {
               console.error('로그아웃 오류:', error);
               Alert.alert(
@@ -245,7 +245,7 @@ export default function ProfileScreen() {
                       
                       // 상태 초기화 및 로그인 화면으로 이동
                       clearAuth();
-                      router.replace('/auth');
+                      router.replace('/login');
                     } catch (error: any) {
                       console.error('계정 삭제 오류:', error);
                       Alert.alert('오류', error.message || '계정 삭제 중 오류가 발생했습니다.');
@@ -300,7 +300,7 @@ export default function ProfileScreen() {
           </Text>
           <TouchableOpacity 
             style={styles.loginButton}
-            onPress={() => router.push('/auth')}
+            onPress={() => router.push('/login')}
           >
             <Text style={styles.loginButtonText}>로그인하기</Text>
           </TouchableOpacity>

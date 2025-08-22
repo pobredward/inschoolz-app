@@ -319,7 +319,7 @@ export default function ReactionGameScreen() {
           </Text>
           <TouchableOpacity
             style={styles.loginButton}
-            onPress={() => router.push('/auth')}
+            onPress={() => router.push('/login')}
           >
             <Text style={styles.loginButtonText}>로그인하기</Text>
           </TouchableOpacity>
