@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
 import { registerWithEmail, authenticateWithPhoneNumber, checkUserNameAvailability, checkPhoneNumberExists, checkEmailExists, loginWithKakao } from '../lib/auth';
 import { router } from 'expo-router';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
+// import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha'; // 임시 비활성화
 import { PhoneAuthProvider } from 'firebase/auth';
 import { auth, firebaseConfig, recaptchaSiteKeys } from '../lib/firebase';
 
@@ -51,7 +51,7 @@ export default function SignupScreen() {
   const [phoneNumberExists, setPhoneNumberExists] = useState<boolean>(false);
   
   const { setUser, setLoading, isLoading } = useAuthStore();
-  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
+  // const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null); // 임시 비활성화
 
   // 휴대폰 번호 포맷팅
   const formatPhoneNumber = (value: string) => {
@@ -218,7 +218,7 @@ export default function SignupScreen() {
       const phoneProvider = new PhoneAuthProvider(auth);
       const verificationId = await phoneProvider.verifyPhoneNumber(
         phoneNumber,
-        recaptchaVerifier.current!
+        null! // 임시 비활성화
       );
       
       setVerificationId(verificationId);
@@ -603,6 +603,7 @@ export default function SignupScreen() {
         </View>
       </ScrollView>
 
+      {/* 임시 비활성화: RecaptchaV2
       <FirebaseRecaptchaVerifierModal
         ref={recaptchaVerifier}
         firebaseConfig={firebaseConfig}
@@ -611,6 +612,7 @@ export default function SignupScreen() {
         title="reCAPTCHA 인증"
         cancelLabel="취소"
       />
+      */}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
