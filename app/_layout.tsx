@@ -5,7 +5,6 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { initializeKakaoSDK } from '@react-native-seoul/kakao-login';
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -17,9 +16,6 @@ export default function RootLayout() {
   const initializeAuth = useAuthStore((state) => state.initializeAuth);
 
   useEffect(() => {
-    // 카카오 SDK 초기화
-    initializeKakaoSDK('i9EgiW0NFfj83ebTDpmydzYM1m8');
-    
     // 앱 시작 시 인증 상태 초기화
     initializeAuth();
   }, [initializeAuth]);

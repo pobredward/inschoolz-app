@@ -68,6 +68,13 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
+      ],
+      [
+        "@react-native-seoul/kakao-login",
+        {
+          "nativeAppKey": "i9EgiW0NFfj83ebTDpmydzYM1m8",
+          "displayName": "인스쿨즈"
+        }
       ]
     ],
     "experiments": {
