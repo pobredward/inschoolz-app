@@ -156,6 +156,13 @@ export default function PostDetailScreen() {
   const [newComment, setNewComment] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [likeCount, setLikeCount] = useState(0);
+  // 개별 댓글별 답글 입력 상태 관리
+  const [replyingToComments, setReplyingToComments] = useState<Record<string, {
+    content: string;
+    isAnonymous: boolean;
+  }>>({});
+  
+  // 기존 전역 답글 상태는 유지 (호환성을 위해)
   const [replyingTo, setReplyingTo] = useState<{
     id: string;
     author: string;
@@ -617,6 +624,26 @@ export default function PostDetailScreen() {
 
       setComments(commentsData);
       
+      // 실제 로드된 댓글 수로 게시글 카운트 동기화 (표시된 댓글만 카운트)
+      const actualCommentCount = commentsData.reduce((count, comment) => {
+        let total = 1; // 부모 댓글
+        if (comment.replies && comment.replies.length > 0) {
+          total += comment.replies.length; // 대댓글들
+        }
+        return count + total;
+      }, 0);
+      
+      // 게시글의 댓글 카운트와 실제 로드된 댓글 수가 다르면 조정
+      if (post && post.stats.commentCount !== actualCommentCount) {
+        setPost(prev => prev ? {
+          ...prev,
+          stats: {
+            ...prev.stats,
+            commentCount: actualCommentCount
+          }
+        } : null);
+      }
+      
       // 로그인한 사용자인 경우 댓글 좋아요 상태 확인
       if (user?.uid && commentsData.length > 0) {
         const allCommentIds: string[] = [];
@@ -868,6 +895,101 @@ export default function PostDetailScreen() {
     setExperienceData(null);
   };
 
+  // 개별 댓글 답글 입력 상태 관리 함수들
+  const startReplyToComment = (commentId: string) => {
+    setReplyingToComments(prev => ({
+      ...prev,
+      [commentId]: {
+        content: '',
+        isAnonymous: false
+      }
+    }));
+  };
+
+  const updateReplyContent = (commentId: string, content: string) => {
+    setReplyingToComments(prev => ({
+      ...prev,
+      [commentId]: {
+        ...prev[commentId],
+        content
+      }
+    }));
+  };
+
+  const toggleReplyAnonymous = (commentId: string) => {
+    setReplyingToComments(prev => ({
+      ...prev,
+      [commentId]: {
+        ...prev[commentId],
+        isAnonymous: !prev[commentId]?.isAnonymous
+      }
+    }));
+  };
+
+  const cancelReply = (commentId: string) => {
+    setReplyingToComments(prev => {
+      const newState = { ...prev };
+      delete newState[commentId];
+      return newState;
+    });
+  };
+
+  const submitReply = async (commentId: string, authorName: string) => {
+    const replyState = replyingToComments[commentId];
+    if (!replyState || !replyState.content.trim() || !user) return;
+
+    try {
+      const { createComment } = await import('../../../../lib/boards');
+      await createComment(post!.id, replyState.content, user.uid, replyState.isAnonymous, commentId);
+
+      // 로컬 게시글 댓글 수 업데이트
+      setPost(prev => prev ? {
+        ...prev,
+        stats: {
+          ...prev.stats,
+          commentCount: prev.stats.commentCount + 1
+        }
+      } : null);
+
+      // 답글 상태 초기화
+      cancelReply(commentId);
+
+      // 댓글 목록 새로고침
+      if (post) {
+        await loadComments(post.id);
+      }
+
+      // 경험치 지급 (익명이 아닌 경우만)
+      if (!replyState.isAnonymous) {
+        try {
+          const expResult = await awardCommentExperience(user.uid);
+          if (expResult.success) {
+            setExperienceData({
+              expGained: expResult.expGained,
+              activityType: 'comment',
+              leveledUp: expResult.leveledUp,
+              oldLevel: expResult.oldLevel,
+              newLevel: expResult.newLevel,
+              currentExp: expResult.currentExp,
+              expToNextLevel: expResult.expToNextLevel,
+              remainingCount: expResult.remainingCount,
+              totalDailyLimit: expResult.totalDailyLimit,
+              reason: expResult.reason
+            });
+            setShowExperienceModal(true);
+          }
+        } catch (expError) {
+          console.error('경험치 부여 실패:', expError);
+        }
+      }
+
+      Alert.alert('성공', '답글이 작성되었습니다.');
+    } catch (error) {
+      console.error('답글 작성 실패:', error);
+      Alert.alert('오류', '답글 작성에 실패했습니다.');
+    }
+  };
+
   const handleCommentSubmit = async () => {
     if (!newComment.trim()) {
       Alert.alert('알림', '댓글을 입력해주세요.');
@@ -944,6 +1066,16 @@ export default function PostDetailScreen() {
   // 익명 댓글 성공 핸들러
   const handleAnonymousCommentSuccess = async () => {
     setShowAnonymousForm(false);
+    
+    // 로컬 게시글 댓글 수 업데이트
+    setPost(prev => prev ? {
+      ...prev,
+      stats: {
+        ...prev.stats,
+        commentCount: prev.stats.commentCount + 1
+      }
+    } : null);
+    
     if (post) {
       await loadComments(post.id);
     }
@@ -1214,7 +1346,19 @@ export default function PostDetailScreen() {
     if (!post) return;
 
     try {
-      await deleteAnonymousComment(post.id, commentId, password);
+      const result = await deleteAnonymousComment(post.id, commentId, password);
+      
+      // 로컬 게시글 댓글 수 업데이트 (대댓글이 없는 경우에만)
+      if (!result.hasReplies) {
+        setPost(prev => prev ? {
+          ...prev,
+          stats: {
+            ...prev.stats,
+            commentCount: Math.max(0, prev.stats.commentCount - 1)
+          }
+        } : null);
+      }
+      
       Alert.alert('성공', '댓글이 삭제되었습니다.');
       await loadComments(post.id);
     } catch (error) {
@@ -1483,11 +1627,8 @@ export default function PostDetailScreen() {
                   style={styles.actionButton}
                   onPress={() => {
                     if (user) {
-                      // 로그인 사용자는 기존 방식
-                      setReplyingTo({
-                        id: comment.id,
-                        author: authorName
-                      });
+                      // 로그인 사용자는 해당 댓글 아래에 답글 입력창 활성화
+                      startReplyToComment(comment.id);
                     } else {
                       // 비회원은 별도 답글 폼 표시
                       setGuestReplyingTo({
@@ -1505,6 +1646,74 @@ export default function PostDetailScreen() {
             </View>
           )}
         </View>
+
+        {/* 개별 답글 입력창 */}
+        {user && replyingToComments[comment.id] && (
+          <View style={styles.inlineReplyContainer}>
+            <View style={styles.inlineReplyHeader}>
+              <Text style={styles.inlineReplyTitle}>{authorName}님에게 답글 작성</Text>
+              <TouchableOpacity 
+                style={styles.inlineReplyCancelButton}
+                onPress={() => cancelReply(comment.id)}
+              >
+                <Ionicons name="close" size={16} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.inlineReplyInputWrapper}>
+              {!replyingToComments[comment.id]?.isAnonymous && renderProfileImage(
+                user?.profile?.profileImageUrl,
+                user?.profile?.userName,
+                false
+              )}
+              {replyingToComments[comment.id]?.isAnonymous && (
+                <View style={styles.anonymousAvatar}>
+                  <Ionicons name="person-outline" size={20} color="#6b7280" />
+                </View>
+              )}
+              <TextInput
+                style={styles.inlineReplyInput}
+                placeholder={`${authorName}님에게 답글...`}
+                value={replyingToComments[comment.id]?.content || ''}
+                onChangeText={(text) => updateReplyContent(comment.id, text)}
+                multiline
+                maxLength={1000}
+                autoFocus
+              />
+              <TouchableOpacity 
+                style={styles.inlineReplySubmitButton}
+                onPress={() => submitReply(comment.id, authorName)}
+                disabled={!replyingToComments[comment.id]?.content?.trim()}
+              >
+                <Ionicons 
+                  name="send" 
+                  size={18} 
+                  color={replyingToComments[comment.id]?.content?.trim() ? "#10b981" : "#9ca3af"} 
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* 익명 모드 토글 */}
+            <View style={styles.inlineReplyOptions}>
+              <TouchableOpacity
+                style={styles.anonymousToggle}
+                onPress={() => toggleReplyAnonymous(comment.id)}
+              >
+                <Ionicons 
+                  name={replyingToComments[comment.id]?.isAnonymous ? "checkbox" : "square-outline"} 
+                  size={16} 
+                  color={replyingToComments[comment.id]?.isAnonymous ? "#10b981" : "#6b7280"} 
+                />
+                <Text style={[
+                  styles.anonymousToggleText,
+                  replyingToComments[comment.id]?.isAnonymous && styles.anonymousToggleTextActive
+                ]}>
+                  익명으로 작성
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* 답글 목록 */}
         {comment.replies && comment.replies.length > 0 && (
@@ -2667,6 +2876,58 @@ const styles = StyleSheet.create({
   linkText: {
     color: '#2563eb',
     textDecorationLine: 'underline',
+  },
+  
+  // 인라인 답글 입력창 스타일
+  inlineReplyContainer: {
+    marginTop: 12,
+    marginLeft: 32, // 댓글 아바타 크기에 맞춰 들여쓰기
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  inlineReplyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  inlineReplyTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  inlineReplyCancelButton: {
+    padding: 4,
+  },
+  inlineReplyInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 8,
+  },
+  inlineReplyInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    lineHeight: 18,
+    maxHeight: 80,
+    backgroundColor: '#ffffff',
+  },
+  inlineReplySubmitButton: {
+    padding: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  inlineReplyOptions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   suspensionNotice: {
     backgroundColor: '#fef2f2',
