@@ -8,14 +8,13 @@ import {
   Alert, 
   KeyboardAvoidingView, 
   Platform,
-  ScrollView,
-  SafeAreaView
+  ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
-import { loginWithEmail, authenticateWithPhoneNumber, loginWithKakao } from '../lib/auth';
+import { loginWithEmail, authenticateWithPhoneNumber } from '../lib/auth';
 import { router } from 'expo-router';
-// import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha'; // 임시 비활성화
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { PhoneAuthProvider } from 'firebase/auth';
 import { auth, firebaseConfig, recaptchaSiteKeys } from '../lib/firebase';
 
@@ -41,7 +40,7 @@ export default function LoginScreen() {
   const [countdown, setCountdown] = useState(0);
   
   const { setUser, setLoading, isLoading } = useAuthStore();
-  // const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null); // 임시 비활성화
+  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
 
   // 휴대폰 번호 포맷팅
   const formatPhoneNumber = (value: string) => {
@@ -102,7 +101,7 @@ export default function LoginScreen() {
       const phoneProvider = new PhoneAuthProvider(auth);
       const verificationId = await phoneProvider.verifyPhoneNumber(
         phoneNumber,
-        null! // 임시 비활성화
+        recaptchaVerifier.current!
       );
       
       setVerificationId(verificationId);
@@ -141,24 +140,6 @@ export default function LoginScreen() {
     }
   };
 
-  // 카카오 로그인
-  const handleKakaoLogin = async () => {
-    try {
-      setLoading(true);
-      const user = await loginWithKakao();
-      setUser(user);
-      
-      Alert.alert('성공', '카카오 로그인이 완료되었습니다!', [
-        { text: '확인', onPress: () => router.replace('/(tabs)') }
-      ]);
-    } catch (error: any) {
-      console.error('카카오 로그인 오류:', error);
-      Alert.alert('카카오 로그인 실패', error.message || '카카오 로그인 중 오류가 발생했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -166,13 +147,8 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView style={styles.keyboardContainer} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView 
-          contentContainerStyle={styles.scrollContainer} 
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <View style={styles.logo}>
@@ -335,20 +311,6 @@ export default function LoginScreen() {
           </View>
         </View>
 
-        {/* 카카오 로그인 */}
-        <View style={styles.socialContainer}>
-          <Text style={styles.dividerText}>또는</Text>
-          <TouchableOpacity 
-            style={styles.kakaoButton}
-            onPress={handleKakaoLogin}
-            disabled={isLoading}
-          >
-            <View style={styles.kakaoButtonContent}>
-              <Text style={styles.kakaoButtonText}>카카오로 로그인</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
         {/* 회원가입 링크 */}
         <View style={styles.linkContainer}>
           <Text style={styles.linkText}>
@@ -369,7 +331,6 @@ export default function LoginScreen() {
         </View>
       </ScrollView>
 
-      {/* 임시 비활성화: RecaptchaV2
       <FirebaseRecaptchaVerifierModal
         ref={recaptchaVerifier}
         firebaseConfig={firebaseConfig}
@@ -378,9 +339,7 @@ export default function LoginScreen() {
         title="reCAPTCHA 인증"
         cancelLabel="취소"
       />
-      */}
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -389,14 +348,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F0FDF4',
   },
-  keyboardContainer: {
-    flex: 1,
-  },
   scrollContainer: {
     flexGrow: 1,
+    justifyContent: 'center',
     padding: 20,
-    paddingTop: 40,
-    paddingBottom: 40,
   },
   header: {
     alignItems: 'center',
@@ -556,32 +511,6 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  socialContainer: {
-    marginVertical: 20,
-    alignItems: 'center',
-  },
-  dividerText: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 16,
-  },
-  kakaoButton: {
-    backgroundColor: '#FEE500',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    width: '100%',
-    alignItems: 'center',
-  },
-  kakaoButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  kakaoButtonText: {
-    color: '#000000',
     fontSize: 16,
     fontWeight: '600',
   },
