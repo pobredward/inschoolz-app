@@ -20,7 +20,13 @@
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to let you select images for your profile and posts.",
         "NSMicrophoneUsageDescription": "This app may need microphone access for video features.",
         "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleDisplayName": "인스쿨즈"
+        "CFBundleDisplayName": "인스쿨즈",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "kakao-login",
+            "CFBundleURLSchemes": ["kakaoi9EgiW0NFfj83ebTDpmydzYM1m8"]
+          }
+        ]
       }
     },
     "android": {
@@ -32,7 +38,20 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "kakaoi9EgiW0NFfj83ebTDpmydzYM1m8",
+              "host": "oauth"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     }, 
     "web": {
       "bundler": "metro",
