@@ -8,7 +8,8 @@ import {
   Alert, 
   KeyboardAvoidingView, 
   Platform,
-  ScrollView
+  ScrollView,
+  SafeAreaView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
@@ -165,8 +166,13 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView style={styles.keyboardContainer} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContainer} 
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <View style={styles.logo}>
@@ -371,7 +377,8 @@ export default function LoginScreen() {
         title="reCAPTCHA 인증"
         cancelLabel="취소"
       />
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -380,10 +387,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F0FDF4',
   },
+  keyboardContainer: {
+    flex: 1,
+  },
   scrollContainer: {
     flexGrow: 1,
-    justifyContent: 'center',
     padding: 20,
+    paddingTop: 40,
+    paddingBottom: 40,
   },
   header: {
     alignItems: 'center',
