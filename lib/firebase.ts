@@ -39,12 +39,7 @@ export const firebaseConfig = {
   measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// reCAPTCHA Enterprise 사이트 키 설정
-export const recaptchaSiteKeys = {
-  android: process.env.EXPO_PUBLIC_RECAPTCHA_ANDROID_SITE_KEY || '6LdlSKwrAAAAAEcg9AiaKngSIWIUaRycF4-OHFXB',
-  ios: process.env.EXPO_PUBLIC_RECAPTCHA_IOS_SITE_KEY || '6Ldfh60rAAAAAGdNxY4qv2uUXpYdkZxEpMig5GYD',
-  web: process.env.EXPO_PUBLIC_RECAPTCHA_WEB_SITE_KEY || '6LfwZ60rAAAAABCOxuHmdobkjQVCsxzlH8xmaoyN'
-};
+
 
 // Firebase 앱 초기화
 let app;

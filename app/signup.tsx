@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { 
   View, 
   Text, 
@@ -12,14 +12,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
-import { registerWithEmail, authenticateWithPhoneNumber, checkUserNameAvailability, checkPhoneNumberExists, checkEmailExists } from '../lib/auth';
+import { registerWithEmail, checkUserNameAvailability, checkEmailExists } from '../lib/auth';
 import { router } from 'expo-router';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
-import { PhoneAuthProvider } from 'firebase/auth';
-import { auth, firebaseConfig, recaptchaSiteKeys } from '../lib/firebase';
 
 export default function SignupScreen() {
-  const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email');
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   
@@ -31,34 +27,11 @@ export default function SignupScreen() {
     userName: ''
   });
   
-  // 휴대폰 폼 상태
-  const [phoneForm, setPhoneForm] = useState({
-    phoneNumber: '',
-    verificationCode: '',
-    userName: ''
-  });
-  
-  // 휴대폰 인증 관련 상태
-  const [isCodeSent, setIsCodeSent] = useState(false);
-  const [verificationId, setVerificationId] = useState('');
-  const [countdown, setCountdown] = useState(0);
-  
   // 중복 확인 상태
   const [emailUserNameStatus, setEmailUserNameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
-  const [phoneUserNameStatus, setPhoneUserNameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [emailExists, setEmailExists] = useState<boolean>(false);
-  const [phoneNumberExists, setPhoneNumberExists] = useState<boolean>(false);
   
   const { setUser, setLoading, isLoading } = useAuthStore();
-  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
-
-  // 휴대폰 번호 포맷팅
-  const formatPhoneNumber = (value: string) => {
-    const numbers = value.replace(/[^\d]/g, '');
-    if (numbers.length <= 3) return numbers;
-    if (numbers.length <= 7) return `${numbers.slice(0, 3)}-${numbers.slice(3)}`;
-    return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7, 11)}`;
-  };
 
   // 이메일 닉네임 중복 확인
   const checkEmailUserName = async () => {
@@ -85,44 +58,7 @@ export default function SignupScreen() {
     }
   };
 
-  // 휴대폰 닉네임 중복 확인
-  const checkPhoneUserName = async () => {
-    const userName = phoneForm.userName?.trim();
-    
-    if (!userName || userName.length < 2) {
-      Alert.alert('오류', '닉네임은 최소 2자 이상이어야 합니다.');
-      return;
-    }
 
-    try {
-      setPhoneUserNameStatus('checking');
-      const isAvailable = await checkUserNameAvailability(userName);
-      setPhoneUserNameStatus(isAvailable ? 'available' : 'taken');
-      
-      if (isAvailable) {
-        Alert.alert('성공', '사용 가능한 닉네임입니다.');
-      } else {
-        Alert.alert('오류', '이미 사용 중인 닉네임입니다.');
-      }
-    } catch {
-      setPhoneUserNameStatus('idle');
-      Alert.alert('오류', '중복 확인 중 오류가 발생했습니다.');
-    }
-  };
-
-  // 카운트다운 타이머
-  const startCountdown = () => {
-    setCountdown(180); // 3분
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
 
   // 이메일 회원가입
   const handleEmailSignup = async () => {
@@ -184,95 +120,6 @@ export default function SignupScreen() {
     }
   };
 
-  // 휴대폰 인증번호 발송
-  const sendPhoneVerification = async () => {
-    if (!phoneForm.phoneNumber?.trim()) {
-      Alert.alert('오류', '휴대폰 번호를 입력해주세요.');
-      return;
-    }
-
-    if (!phoneForm.userName?.trim() || phoneForm.userName.trim().length < 2) {
-      Alert.alert('오류', '닉네임을 2자 이상 입력해주세요.');
-      return;
-    }
-
-    if (phoneUserNameStatus !== 'available') {
-      Alert.alert('오류', '닉네임 중복 확인을 해주세요.');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      
-      // 휴대폰 번호 중복 확인
-      const phoneExistsResult = await checkPhoneNumberExists(phoneForm.phoneNumber);
-      if (phoneExistsResult) {
-        setPhoneNumberExists(true);
-        Alert.alert('오류', '이미 가입된 휴대폰 번호입니다. 로그인 화면에서 로그인 바랍니다.');
-        return;
-      }
-
-      const phoneNumber = `+82${phoneForm.phoneNumber.replace(/[^\d]/g, '').substring(1)}`;
-      
-      const phoneProvider = new PhoneAuthProvider(auth);
-      const verificationId = await phoneProvider.verifyPhoneNumber(
-        phoneNumber,
-        recaptchaVerifier.current!
-      );
-      
-      setVerificationId(verificationId);
-      setIsCodeSent(true);
-      startCountdown();
-      
-      Alert.alert('성공', '인증번호가 발송되었습니다.');
-    } catch (error: any) {
-      console.error('인증번호 발송 오류:', error);
-      Alert.alert('오류', error.message || '인증번호 발송 중 오류가 발생했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 휴대폰 회원가입
-  const handlePhoneSignup = async () => {
-    if (!phoneForm.verificationCode?.trim()) {
-      Alert.alert('오류', '인증번호를 입력해주세요.');
-      return;
-    }
-
-    if (phoneForm.verificationCode.length !== 6) {
-      Alert.alert('오류', '6자리 인증번호를 입력해주세요.');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      
-      const user = await authenticateWithPhoneNumber(
-        verificationId, 
-        phoneForm.verificationCode,
-        phoneForm.userName.trim()
-      );
-      
-      setUser(user);
-      
-      Alert.alert('성공', '회원가입이 완료되었습니다!', [
-        { text: '확인', onPress: () => router.replace('/(tabs)') }
-      ]);
-    } catch (error: any) {
-      console.error('휴대폰 회원가입 오류:', error);
-      Alert.alert('회원가입 실패', error.message || '회원가입 중 오류가 발생했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
@@ -293,38 +140,8 @@ export default function SignupScreen() {
             <Text style={styles.cardTitle}>회원가입</Text>
           </View>
           
-          {/* 인증 방법 선택 */}
-          <View style={styles.methodSelector}>
-            <TouchableOpacity
-              style={[styles.methodButton, authMethod === 'email' && styles.methodButtonActive]}
-              onPress={() => {
-                setAuthMethod('email');
-                setIsCodeSent(false);
-              }}
-            >
-              <Ionicons name="mail" size={16} color={authMethod === 'email' ? '#059669' : '#6B7280'} />
-              <Text style={[styles.methodText, authMethod === 'email' && styles.methodTextActive]}>
-                이메일
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.methodButton, authMethod === 'phone' && styles.methodButtonActive]}
-              onPress={() => {
-                setAuthMethod('phone');
-                setIsCodeSent(false);
-              }}
-            >
-              <Ionicons name="call" size={16} color={authMethod === 'phone' ? '#059669' : '#6B7280'} />
-              <Text style={[styles.methodText, authMethod === 'phone' && styles.methodTextActive]}>
-                휴대폰
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           {/* 폼 */}
           <View style={styles.form}>
-            {authMethod === 'email' ? (
-              <>
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>이메일</Text>
                   <TextInput
@@ -438,110 +255,6 @@ export default function SignupScreen() {
                     {isLoading ? '가입 중...' : '회원가입'}
                   </Text>
                 </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>휴대폰 번호</Text>
-                  <TextInput
-                    style={[styles.input, phoneNumberExists && styles.inputError]}
-                    placeholder="010-1234-5678"
-                    value={phoneForm.phoneNumber}
-                    onChangeText={(text) => {
-                      setPhoneForm(prev => ({ 
-                        ...prev, 
-                        phoneNumber: formatPhoneNumber(text)
-                      }));
-                      setPhoneNumberExists(false);
-                    }}
-                    keyboardType="phone-pad"
-                    maxLength={13}
-                  />
-                  {phoneNumberExists && (
-                    <Text style={styles.errorText}>이미 가입된 휴대폰 번호입니다.</Text>
-                  )}
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>닉네임</Text>
-                  <View style={styles.userNameContainer}>
-                    <TextInput
-                      style={[styles.userNameInput, phoneUserNameStatus === 'available' && styles.inputSuccess, phoneUserNameStatus === 'taken' && styles.inputError]}
-                      placeholder="닉네임 (2자 이상)"
-                      value={phoneForm.userName}
-                      onChangeText={(text) => {
-                        setPhoneForm(prev => ({ ...prev, userName: text }));
-                        setPhoneUserNameStatus('idle');
-                      }}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                    <TouchableOpacity
-                      style={[
-                        styles.checkButton,
-                        (phoneUserNameStatus === 'checking' || !phoneForm.userName?.trim() || phoneForm.userName.trim().length < 2) && styles.checkButtonDisabled
-                      ]}
-                      onPress={checkPhoneUserName}
-                      disabled={phoneUserNameStatus === 'checking' || !phoneForm.userName?.trim() || phoneForm.userName.trim().length < 2}
-                    >
-                      <Text style={styles.checkButtonText}>
-                        {phoneUserNameStatus === 'checking' ? '확인중' : '중복확인'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                  {phoneUserNameStatus === 'available' && (
-                    <Text style={styles.successText}>사용 가능한 닉네임입니다.</Text>
-                  )}
-                  {phoneUserNameStatus === 'taken' && (
-                    <Text style={styles.errorText}>이미 사용 중인 닉네임입니다.</Text>
-                  )}
-                </View>
-
-                {!isCodeSent ? (
-                  <TouchableOpacity 
-                    style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
-                    onPress={sendPhoneVerification}
-                    disabled={isLoading}
-                  >
-                    <Text style={styles.submitButtonText}>
-                      {isLoading ? '발송 중...' : '인증번호 발송'}
-                    </Text>
-                  </TouchableOpacity>
-                ) : (
-                  <>
-                    <View style={styles.inputGroup}>
-                      <View style={styles.labelContainer}>
-                        <Text style={styles.label}>인증번호</Text>
-                        {countdown > 0 && (
-                          <Text style={styles.countdownText}>{formatTime(countdown)}</Text>
-                        )}
-                      </View>
-                      <TextInput
-                        style={[styles.input, styles.codeInput]}
-                        placeholder="6자리 인증번호"
-                        value={phoneForm.verificationCode}
-                        onChangeText={(text) => setPhoneForm(prev => ({ 
-                          ...prev, 
-                          verificationCode: text.replace(/[^\d]/g, '').slice(0, 6)
-                        }))}
-                        keyboardType="number-pad"
-                        maxLength={6}
-                      />
-                    </View>
-
-                    <TouchableOpacity 
-                      style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
-                      onPress={handlePhoneSignup}
-                      disabled={isLoading}
-                    >
-                      <Text style={styles.submitButtonText}>
-                        {isLoading ? '가입 중...' : '회원가입'}
-                      </Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </>
-            )}
           </View>
         </View>
 
@@ -564,15 +277,6 @@ export default function SignupScreen() {
           </Text>
         </View>
       </ScrollView>
-
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={firebaseConfig}
-        androidHardwareAccelerationDisabled={true}
-        attemptInvisibleVerification={false}
-        title="reCAPTCHA 인증"
-        cancelLabel="취소"
-      />
     </KeyboardAvoidingView>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { 
   View, 
   Text, 
@@ -12,14 +12,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
-import { loginWithEmail, authenticateWithPhoneNumber } from '../lib/auth';
+import { loginWithEmail } from '../lib/auth';
 import { router } from 'expo-router';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
-import { PhoneAuthProvider } from 'firebase/auth';
-import { auth, firebaseConfig, recaptchaSiteKeys } from '../lib/firebase';
 
 export default function LoginScreen() {
-  const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email');
   const [showPassword, setShowPassword] = useState(false);
   
   // 이메일 폼 상태
@@ -28,41 +24,7 @@ export default function LoginScreen() {
     password: ''
   });
   
-  // 휴대폰 폼 상태
-  const [phoneForm, setPhoneForm] = useState({
-    phoneNumber: '',
-    verificationCode: ''
-  });
-  
-  // 휴대폰 인증 관련 상태
-  const [isCodeSent, setIsCodeSent] = useState(false);
-  const [verificationId, setVerificationId] = useState('');
-  const [countdown, setCountdown] = useState(0);
-  
   const { setUser, setLoading, isLoading } = useAuthStore();
-  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
-
-  // 휴대폰 번호 포맷팅
-  const formatPhoneNumber = (value: string) => {
-    const numbers = value.replace(/[^\d]/g, '');
-    if (numbers.length <= 3) return numbers;
-    if (numbers.length <= 7) return `${numbers.slice(0, 3)}-${numbers.slice(3)}`;
-    return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7, 11)}`;
-  };
-
-  // 카운트다운 타이머
-  const startCountdown = () => {
-    setCountdown(180); // 3분
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
 
   // 이메일 로그인
   const handleEmailLogin = async () => {
@@ -87,65 +49,6 @@ export default function LoginScreen() {
     }
   };
 
-  // 휴대폰 인증번호 발송
-  const sendPhoneVerification = async () => {
-    if (!phoneForm.phoneNumber?.trim()) {
-      Alert.alert('오류', '휴대폰 번호를 입력해주세요.');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const phoneNumber = `+82${phoneForm.phoneNumber.replace(/[^\d]/g, '').substring(1)}`;
-      
-      const phoneProvider = new PhoneAuthProvider(auth);
-      const verificationId = await phoneProvider.verifyPhoneNumber(
-        phoneNumber,
-        recaptchaVerifier.current!
-      );
-      
-      setVerificationId(verificationId);
-      setIsCodeSent(true);
-      startCountdown();
-      
-      Alert.alert('성공', '인증번호가 발송되었습니다.');
-    } catch (error: any) {
-      console.error('인증번호 발송 오류:', error);
-      Alert.alert('오류', error.message || '인증번호 발송 중 오류가 발생했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 휴대폰 로그인
-  const handlePhoneLogin = async () => {
-    if (!phoneForm.verificationCode?.trim()) {
-      Alert.alert('오류', '인증번호를 입력해주세요.');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const user = await authenticateWithPhoneNumber(verificationId, phoneForm.verificationCode.trim());
-      setUser(user);
-      
-      Alert.alert('성공', '로그인되었습니다!', [
-        { text: '확인', onPress: () => router.replace('/(tabs)') }
-      ]);
-    } catch (error: any) {
-      console.error('휴대폰 로그인 오류:', error);
-      Alert.alert('로그인 실패', error.message || '로그인 중 오류가 발생했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
@@ -166,38 +69,8 @@ export default function LoginScreen() {
             <Text style={styles.cardTitle}>로그인</Text>
           </View>
           
-          {/* 인증 방법 선택 */}
-          <View style={styles.methodSelector}>
-            <TouchableOpacity
-              style={[styles.methodButton, authMethod === 'email' && styles.methodButtonActive]}
-              onPress={() => {
-                setAuthMethod('email');
-                setIsCodeSent(false);
-              }}
-            >
-              <Ionicons name="mail" size={16} color={authMethod === 'email' ? '#059669' : '#6B7280'} />
-              <Text style={[styles.methodText, authMethod === 'email' && styles.methodTextActive]}>
-                이메일
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.methodButton, authMethod === 'phone' && styles.methodButtonActive]}
-              onPress={() => {
-                setAuthMethod('phone');
-                setIsCodeSent(false);
-              }}
-            >
-              <Ionicons name="call" size={16} color={authMethod === 'phone' ? '#059669' : '#6B7280'} />
-              <Text style={[styles.methodText, authMethod === 'phone' && styles.methodTextActive]}>
-                휴대폰
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           {/* 폼 */}
           <View style={styles.form}>
-            {authMethod === 'email' ? (
-              <>
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>이메일</Text>
                   <TextInput
@@ -245,69 +118,6 @@ export default function LoginScreen() {
                     {isLoading ? '로그인 중...' : '로그인'}
                   </Text>
                 </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>휴대폰 번호</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="010-1234-5678"
-                    value={phoneForm.phoneNumber}
-                    onChangeText={(text) => setPhoneForm(prev => ({ 
-                      ...prev, 
-                      phoneNumber: formatPhoneNumber(text)
-                    }))}
-                    keyboardType="phone-pad"
-                    maxLength={13}
-                  />
-                </View>
-
-                {!isCodeSent ? (
-                  <TouchableOpacity 
-                    style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
-                    onPress={sendPhoneVerification}
-                    disabled={isLoading}
-                  >
-                    <Text style={styles.submitButtonText}>
-                      {isLoading ? '발송 중...' : '인증번호 발송'}
-                    </Text>
-                  </TouchableOpacity>
-                ) : (
-                  <>
-                    <View style={styles.inputGroup}>
-                      <View style={styles.labelContainer}>
-                        <Text style={styles.label}>인증번호</Text>
-                        {countdown > 0 && (
-                          <Text style={styles.countdownText}>{formatTime(countdown)}</Text>
-                        )}
-                      </View>
-                      <TextInput
-                        style={[styles.input, styles.codeInput]}
-                        placeholder="6자리 인증번호"
-                        value={phoneForm.verificationCode}
-                        onChangeText={(text) => setPhoneForm(prev => ({ 
-                          ...prev, 
-                          verificationCode: text.replace(/[^\d]/g, '').slice(0, 6)
-                        }))}
-                        keyboardType="number-pad"
-                        maxLength={6}
-                      />
-                    </View>
-
-                    <TouchableOpacity 
-                      style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
-                      onPress={handlePhoneLogin}
-                      disabled={isLoading}
-                    >
-                      <Text style={styles.submitButtonText}>
-                        {isLoading ? '로그인 중...' : '로그인'}
-                      </Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </>
-            )}
           </View>
         </View>
 
@@ -330,15 +140,6 @@ export default function LoginScreen() {
           </Text>
         </View>
       </ScrollView>
-
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={firebaseConfig}
-        androidHardwareAccelerationDisabled={true}
-        attemptInvisibleVerification={false}
-        title="reCAPTCHA 인증"
-        cancelLabel="취소"
-      />
     </KeyboardAvoidingView>
   );
 }
