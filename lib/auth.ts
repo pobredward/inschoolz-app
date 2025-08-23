@@ -756,17 +756,20 @@ export async function getFirebaseTokenFromKakao(accessToken: string): Promise<st
  * 카카오 사용자 정보를 Firebase User 형식으로 변환
  */
 function convertKakaoUserToFirebaseUser(kakaoUser: any, uid: string): User {
-  const profile = kakaoUser.profile;
-  const kakaoAccount = kakaoUser.kakaoAccount;
+  // 웹과 동일한 구조로 접근
+  const profile = kakaoUser.kakao_account?.profile;
+  const kakaoAccount = kakaoUser.kakao_account;
 
   return {
     uid,
     email: kakaoAccount?.email || '',
+    role: 'student', // 웹과 동일하게 기본 role 설정
+    isVerified: true, // 카카오 인증을 통한 가입이므로 verified 상태
     profile: {
       userName: profile?.nickname || `카카오사용자${kakaoUser.id}`,
       displayName: profile?.nickname || `카카오사용자${kakaoUser.id}`,
-      phoneNumber: kakaoAccount?.phoneNumber || '',
-      photoURL: profile?.profileImageUrl || null,
+      phoneNumber: kakaoAccount?.phone_number || '',
+      photoURL: profile?.profile_image_url || null,
       bio: null,
       region: null,
       mainSchool: null,
@@ -782,6 +785,22 @@ function convertKakaoUserToFirebaseUser(kakaoUser: any, uid: string): User {
         chat: true,
       },
       language: 'ko',
+    },
+    stats: {
+      level: 1,
+      currentExp: 0,
+      totalExperience: 0,
+      currentLevelRequiredXp: 10,
+      postCount: 0,
+      commentCount: 0,
+      likeCount: 0,
+      streak: 0
+    },
+    agreements: {
+      terms: true,
+      privacy: true,
+      location: false,
+      marketing: false
     },
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
@@ -804,8 +823,8 @@ export async function loginWithKakao(): Promise<User> {
     const kakaoUser = await getKakaoProfile();
     logger.info('카카오 사용자 정보 조회 성공:', {
       id: kakaoUser.id,
-      nickname: kakaoUser.profile?.nickname,
-      email: kakaoUser.kakaoAccount?.email
+      nickname: kakaoUser.kakao_account?.profile?.nickname,
+      email: kakaoUser.kakao_account?.email
     });
 
     // 3. 서버에서 Firebase 커스텀 토큰 받기
@@ -818,8 +837,8 @@ export async function loginWithKakao(): Promise<User> {
     // 5. Firebase Auth 프로필 업데이트
     try {
       await updateProfile(firebaseUser, {
-        displayName: kakaoUser.profile?.nickname || `카카오사용자${kakaoUser.id}`,
-        photoURL: kakaoUser.profile?.profileImageUrl || null,
+        displayName: kakaoUser.kakao_account?.profile?.nickname || `카카오사용자${kakaoUser.id}`,
+        photoURL: kakaoUser.kakao_account?.profile?.profile_image_url || null,
       });
       logger.info('Firebase Auth 프로필 업데이트 성공');
     } catch (profileError) {
