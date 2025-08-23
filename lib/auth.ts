@@ -11,11 +11,13 @@ import {
   User as FirebaseUser,
   PhoneAuthProvider,
   signInWithCredential,
+  signInWithCustomToken,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { User } from '../types';
 import { logger } from '../utils/logger';
+import { login as kakaoLogin, getProfile as getKakaoProfile } from '@react-native-seoul/kakao-login';
 
 /**
  * 추천인 아이디 검증 함수
@@ -713,5 +715,152 @@ export const authenticateWithPhoneNumber = async (
     }
     
     throw new Error('휴대폰 인증에 실패했습니다.');
+  }
+};
+
+/**
+ * 카카오 액세스 토큰으로 Firebase 커스텀 토큰 받기
+ */
+export async function getFirebaseTokenFromKakao(accessToken: string): Promise<string> {
+  try {
+    // Web API 서버로 요청 (앱과 웹이 같은 서버 사용)
+    const response = await fetch('https://inschoolz.com/api/auth/kakao/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        accessToken: accessToken,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || '서버 오류가 발생했습니다.');
+    }
+
+    const data = await response.json();
+    
+    if (!data.success || !data.customToken) {
+      throw new Error('Firebase 토큰 생성에 실패했습니다.');
+    }
+
+    return data.customToken;
+  } catch (error) {
+    logger.error('Firebase 토큰 요청 실패:', error);
+    throw error;
+  }
+}
+
+/**
+ * 카카오 사용자 정보를 Firebase User 형식으로 변환
+ */
+function convertKakaoUserToFirebaseUser(kakaoUser: any, uid: string): User {
+  const profile = kakaoUser.profile;
+  const kakaoAccount = kakaoUser.kakaoAccount;
+
+  return {
+    uid,
+    email: kakaoAccount?.email || '',
+    profile: {
+      userName: profile?.nickname || `카카오사용자${kakaoUser.id}`,
+      displayName: profile?.nickname || `카카오사용자${kakaoUser.id}`,
+      phoneNumber: kakaoAccount?.phoneNumber || '',
+      photoURL: profile?.profileImageUrl || null,
+      bio: null,
+      region: null,
+      mainSchool: null,
+      favoriteSchools: [],
+      isPrivate: false,
+    },
+    preferences: {
+      theme: 'light',
+      notifications: {
+        push: true,
+        email: false,
+        community: true,
+        chat: true,
+      },
+      language: 'ko',
+    },
+    createdAt: serverTimestamp() as Timestamp,
+    updatedAt: serverTimestamp() as Timestamp,
+    lastLoginAt: serverTimestamp() as Timestamp,
+  };
+}
+
+/**
+ * 카카오 로그인
+ */
+export async function loginWithKakao(): Promise<User> {
+  try {
+    logger.info('카카오 로그인 시작');
+
+    // 1. 카카오 로그인
+    const kakaoTokens = await kakaoLogin();
+    logger.info('카카오 로그인 성공:', { accessToken: !!kakaoTokens.accessToken });
+
+    // 2. 카카오 사용자 정보 가져오기
+    const kakaoUser = await getKakaoProfile();
+    logger.info('카카오 사용자 정보 조회 성공:', {
+      id: kakaoUser.id,
+      nickname: kakaoUser.profile?.nickname,
+      email: kakaoUser.kakaoAccount?.email
+    });
+
+    // 3. 서버에서 Firebase 커스텀 토큰 받기
+    const customToken = await getFirebaseTokenFromKakao(kakaoTokens.accessToken);
+    
+    // 4. Firebase 로그인
+    const userCredential = await signInWithCustomToken(auth, customToken);
+    const firebaseUser = userCredential.user;
+    
+    // 5. Firebase Auth 프로필 업데이트
+    try {
+      await updateProfile(firebaseUser, {
+        displayName: kakaoUser.profile?.nickname || `카카오사용자${kakaoUser.id}`,
+        photoURL: kakaoUser.profile?.profileImageUrl || null,
+      });
+      logger.info('Firebase Auth 프로필 업데이트 성공');
+    } catch (profileError) {
+      logger.warn('Firebase Auth 프로필 업데이트 실패 (무시하고 계속):', profileError);
+    }
+    
+    // 6. Firestore에서 사용자 정보 확인/생성
+    const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+    
+    if (userDoc.exists()) {
+      // 기존 사용자: 마지막 로그인 시간 업데이트
+      await updateDoc(doc(db, 'users', firebaseUser.uid), {
+        lastLoginAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      
+      logger.info('기존 카카오 사용자 로그인 완료');
+      return userDoc.data() as User;
+    } else {
+      // 신규 사용자: Firestore에 정보 저장
+      const newUser = convertKakaoUserToFirebaseUser(kakaoUser, firebaseUser.uid);
+      await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+      
+      logger.info('신규 카카오 사용자 가입 완료');
+      return newUser;
+    }
+  } catch (error) {
+    logger.error('카카오 로그인 실패:', error);
+    
+    if (error instanceof Error) {
+      // 사용자가 취소한 경우
+      if (error.message.includes('cancelled') || error.message.includes('canceled')) {
+        throw new Error('로그인이 취소되었습니다.');
+      }
+      // 네트워크 오류
+      if (error.message.includes('network') || error.message.includes('internet')) {
+        throw new Error('네트워크 연결을 확인해주세요.');
+      }
+      throw error;
+    }
+    
+    throw new Error('카카오 로그인 중 오류가 발생했습니다.');
   }
 }; 

@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
-import { loginWithEmail, authenticateWithPhoneNumber } from '../lib/auth';
+import { loginWithEmail, authenticateWithPhoneNumber, loginWithKakao } from '../lib/auth';
 import { router } from 'expo-router';
 import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { PhoneAuthProvider } from 'firebase/auth';
@@ -135,6 +135,24 @@ export default function LoginScreen() {
     } catch (error: any) {
       console.error('휴대폰 로그인 오류:', error);
       Alert.alert('로그인 실패', error.message || '로그인 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 카카오 로그인
+  const handleKakaoLogin = async () => {
+    try {
+      setLoading(true);
+      const user = await loginWithKakao();
+      setUser(user);
+      
+      Alert.alert('성공', '카카오 로그인이 완료되었습니다!', [
+        { text: '확인', onPress: () => router.replace('/(tabs)') }
+      ]);
+    } catch (error: any) {
+      console.error('카카오 로그인 오류:', error);
+      Alert.alert('카카오 로그인 실패', error.message || '카카오 로그인 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -309,6 +327,20 @@ export default function LoginScreen() {
               </>
             )}
           </View>
+        </View>
+
+        {/* 카카오 로그인 */}
+        <View style={styles.socialContainer}>
+          <Text style={styles.dividerText}>또는</Text>
+          <TouchableOpacity 
+            style={styles.kakaoButton}
+            onPress={handleKakaoLogin}
+            disabled={isLoading}
+          >
+            <View style={styles.kakaoButtonContent}>
+              <Text style={styles.kakaoButtonText}>카카오로 로그인</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* 회원가입 링크 */}
@@ -511,6 +543,32 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  socialContainer: {
+    marginVertical: 20,
+    alignItems: 'center',
+  },
+  dividerText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 16,
+  },
+  kakaoButton: {
+    backgroundColor: '#FEE500',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    width: '100%',
+    alignItems: 'center',
+  },
+  kakaoButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  kakaoButtonText: {
+    color: '#000000',
     fontSize: 16,
     fontWeight: '600',
   },
