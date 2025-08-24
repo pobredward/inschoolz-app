@@ -3,12 +3,8 @@ import { doc, getDoc, setDoc, updateDoc, serverTimestamp, Timestamp } from 'fire
 import { signInWithCustomToken, updateProfile } from 'firebase/auth';
 import { db, auth } from './firebase';
 import { logger } from '../utils/logger';
-import { 
-  KakaoOAuthToken, 
-  login as kakaoLogin, 
-  logout as kakaoLogout, 
-  unlink as kakaoUnlink
-} from '@react-native-seoul/kakao-login';
+import { login, logout, unlink } from '@react-native-kakao/user';
+import getProfile from '@react-native-kakao/user';
 
 // 카카오 사용자 정보 인터페이스
 export interface KakaoUserInfo {
@@ -141,25 +137,42 @@ export const convertKakaoUserToFirebaseUser = (kakaoUser: KakaoUserInfo, uid: st
 };
 
 /**
- * 카카오 로그인 (앱용) - 최신 API
+ * 카카오 로그인 (앱용) - React Native Kakao
  */
 export const loginWithKakao = async (): Promise<User> => {
   try {
     logger.debug('카카오 로그인 시작');
 
-    // 1. 카카오 로그인 수행 (최신 API)
-    const token: KakaoOAuthToken = await kakaoLogin();
+    // 1. 카카오 로그인 수행 (@react-native-kakao/user)
+    const loginResult = await login();
     logger.debug('카카오 로그인 성공:', {
-      hasAccessToken: !!token.accessToken,
-      accessTokenLength: token.accessToken?.length || 0
+      hasAccessToken: !!loginResult.accessToken,
+      accessTokenLength: loginResult.accessToken?.length || 0
     });
 
-    // 2. 카카오 사용자 정보 가져오기
-    const kakaoUser = await getKakaoUserInfo(token.accessToken);
-    logger.debug('카카오 사용자 정보 조회 완료:', kakaoUser.kakao_account.profile?.nickname);
+    // 2. 카카오 사용자 정보 가져오기 (getProfile 사용)
+    const kakaoProfile = await getProfile();
+    logger.debug('카카오 사용자 정보 조회 완료:', kakaoProfile.nickname);
+    
+    // 기존 인터페이스와 호환성을 위한 변환
+    const kakaoUser: KakaoUserInfo = {
+      id: kakaoProfile.id,
+      kakao_account: {
+        email: kakaoProfile.email,
+        profile: {
+          nickname: kakaoProfile.nickname,
+          profile_image_url: kakaoProfile.profileImageUrl,
+          thumbnail_image_url: kakaoProfile.thumbnailImageUrl,
+        },
+        phone_number: kakaoProfile.phoneNumber,
+        birthday: kakaoProfile.birthday,
+        birthyear: kakaoProfile.birthyear,
+        gender: kakaoProfile.gender as 'female' | 'male',
+      },
+    };
 
     // 3. 서버에서 Firebase 커스텀 토큰 받기
-    const customToken = await getFirebaseTokenFromKakao(token.accessToken);
+    const customToken = await getFirebaseTokenFromKakao(loginResult.accessToken);
     logger.debug('Firebase 커스텀 토큰 생성 완료');
 
     // 4. Firebase 로그인
@@ -206,11 +219,11 @@ export const loginWithKakao = async (): Promise<User> => {
 };
 
 /**
- * 카카오 로그아웃 - 최신 API
+ * 카카오 로그아웃 - @react-native-kakao/user
  */
 export const logoutFromKakao = async (): Promise<void> => {
   try {
-    await kakaoLogout();
+    await logout();
     logger.debug('카카오 로그아웃 완료');
   } catch (error) {
     logger.error('카카오 로그아웃 오류:', error);
@@ -219,11 +232,11 @@ export const logoutFromKakao = async (): Promise<void> => {
 };
 
 /**
- * 카카오 연동 해제 - 최신 API
+ * 카카오 연동 해제 - @react-native-kakao/user
  */
 export const unlinkKakao = async (): Promise<void> => {
   try {
-    await kakaoUnlink();
+    await unlink();
     logger.debug('카카오 연동 해제 완료');
   } catch (error) {
     logger.error('카카오 연동 해제 실패:', error);
@@ -232,25 +245,42 @@ export const unlinkKakao = async (): Promise<void> => {
 };
 
 /**
- * 최적화된 카카오 로그인 (기본 login 사용) - 최신 API
+ * 최적화된 카카오 로그인 - @react-native-kakao/user
  */
 export const loginWithKakaoOptimized = async (): Promise<User> => {
   try {
     logger.debug('카카오 로그인 시작');
 
-    // 1. 카카오 로그인 수행 (SDK가 자동으로 카카오톡 앱 우선 시도)
-    const token: KakaoOAuthToken = await kakaoLogin();
+    // 1. 카카오 로그인 수행 (@react-native-kakao/user - 자동으로 최적 방식 선택)
+    const loginResult = await login();
     logger.debug('카카오 로그인 성공:', {
-      hasAccessToken: !!token.accessToken,
-      accessTokenLength: token.accessToken?.length || 0
+      hasAccessToken: !!loginResult.accessToken,
+      accessTokenLength: loginResult.accessToken?.length || 0
     });
 
-    // 2. 카카오 사용자 정보 가져오기
-    const kakaoUser = await getKakaoUserInfo(token.accessToken);
-    logger.debug('카카오 사용자 정보 조회 완료:', kakaoUser.kakao_account.profile?.nickname);
+    // 2. 카카오 사용자 정보 가져오기 (getProfile 사용)
+    const kakaoProfile = await getProfile();
+    logger.debug('카카오 사용자 정보 조회 완료:', kakaoProfile.nickname);
+    
+    // 기존 인터페이스와 호환성을 위한 변환
+    const kakaoUser: KakaoUserInfo = {
+      id: kakaoProfile.id,
+      kakao_account: {
+        email: kakaoProfile.email,
+        profile: {
+          nickname: kakaoProfile.nickname,
+          profile_image_url: kakaoProfile.profileImageUrl,
+          thumbnail_image_url: kakaoProfile.thumbnailImageUrl,
+        },
+        phone_number: kakaoProfile.phoneNumber,
+        birthday: kakaoProfile.birthday,
+        birthyear: kakaoProfile.birthyear,
+        gender: kakaoProfile.gender as 'female' | 'male',
+      },
+    };
 
     // 3. 서버에서 Firebase 커스텀 토큰 받기
-    const customToken = await getFirebaseTokenFromKakao(token.accessToken);
+    const customToken = await getFirebaseTokenFromKakao(loginResult.accessToken);
     logger.debug('Firebase 커스텀 토큰 생성 완료');
 
     // 4. Firebase 로그인

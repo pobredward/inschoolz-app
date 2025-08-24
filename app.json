@@ -12,10 +12,12 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.onmindlab.inschoolz",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "displayName": "인스쿨즈",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"],
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
         "NSCameraUsageDescription": "This app uses the camera to let you take photos for your profile and posts.",
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to let you select images for your profile and posts.",
         "NSMicrophoneUsageDescription": "This app may need microphone access for video features.",
@@ -24,15 +26,20 @@
         "CFBundleURLTypes": [
           {
             "CFBundleURLName": "kakao",
-            "CFBundleURLSchemes": ["kakao380177b185226c4935a7f293190afc46"]
+            "CFBundleURLSchemes": [
+              "kakao380177b185226c4935a7f293190afc46"
+            ]
           }
         ],
-        "LSApplicationQueriesSchemes": ["kakaokompassauth", "kakaolink"]
+        "LSApplicationQueriesSchemes": [
+          "kakaokompassauth",
+          "kakaolink"
+        ]
       }
     },
     "android": {
       "package": "com.onmindlab.inschoolz",
-      "versionCode": 3,
+      "versionCode": 4,
       "icon": "./assets/images/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
@@ -48,10 +55,13 @@
               "scheme": "kakao380177b185226c4935a7f293190afc46"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
-    }, 
+    },
     "web": {
       "bundler": "metro",
       "output": "static",
@@ -69,10 +79,25 @@
         }
       ],
       [
-        "@react-native-seoul/kakao-login",
+        "expo-build-properties",
         {
-          "kakaoAppKey": "380177b185226c4935a7f293190afc46",
-          "kakaoUrlScheme": "kakao380177b185226c4935a7f293190afc46"
+          "android": {
+            "extraMavenRepos": [
+              "https://devrepo.kakao.com/nexus/content/groups/public/"
+            ]
+          }
+        }
+      ],
+      [
+        "@react-native-kakao/core",
+        {
+          "nativeAppKey": "380177b185226c4935a7f293190afc46",
+          "android": {
+            "authCodeHandlerActivity": true
+          },
+          "ios": {
+            "handleKakaoOpenUrl": true
+          }
         }
       ]
     ],
