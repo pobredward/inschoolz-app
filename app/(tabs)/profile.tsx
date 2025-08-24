@@ -12,6 +12,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db, auth} from '../../lib/firebase';
 import { SafeScreenContainer } from '../../components/SafeScreenContainer';
 import FollowersModal from '../../components/FollowersModal';
+import { SafeProfileImage } from '../../components/SafeProfileImage';
 import { deleteAccount } from '../../lib/auth';
 
 export default function ProfileScreen() {
@@ -366,17 +367,11 @@ export default function ProfileScreen() {
       {/* 프로필 헤더 */}
       <View style={styles.profileHeader}>
         <View style={styles.profileImageContainer}>
-          {user.profile?.profileImageUrl ? (
-            <Image
-              source={{ uri: user.profile.profileImageUrl }}
-              style={styles.profileImage}
-              onError={() => {
-                console.warn('프로필 이미지 로드 실패, 기본 아이콘 표시');
-              }}
-            />
-          ) : (
-            <Ionicons name="person-circle" size={80} color="#10B981" />
-          )}
+          <SafeProfileImage
+            uri={user.profile?.profileImageUrl}
+            size={80}
+            style={styles.profileImage}
+          />
         </View>
         <Text style={styles.userName}>{user.profile?.userName || '익명'}</Text>
         <Text style={styles.userEmail}>{user.email}</Text>
@@ -719,14 +714,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    width: 80,
-    height: 80,
   },
   profileImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#F3F4F6',
+    // SafeProfileImage 컴포넌트가 크기를 관리하므로 여기서는 추가 스타일만
   },
   userName: {
     fontSize: 24,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Modal, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Modal } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/authStore';
@@ -18,6 +18,7 @@ import { getKoreanDateString } from '../../utils/timeUtils';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeScreenContainer } from '../../components/SafeScreenContainer';
 import FollowersModal from '../../components/FollowersModal';
+import { SafeProfileImage } from '../../components/SafeProfileImage';
 import { User } from '../../types';
 
 export default function UserProfileScreen() {
@@ -251,17 +252,11 @@ export default function UserProfileScreen() {
         {/* 0. 기본 정보 (프로필 이미지, 유저네임) */}
         <View style={styles.profileCard}>
           <View style={styles.profileImageContainer}>
-            {profileUser.profile?.profileImageUrl ? (
-              <Image
-                source={{ uri: profileUser.profile.profileImageUrl }}
-                style={styles.profileImage}
-                onError={() => {
-                  console.warn('프로필 이미지 로드 실패, 기본 아이콘 표시');
-                }}
-              />
-            ) : (
-              <Ionicons name="person-circle" size={100} color="#10B981" />
-            )}
+            <SafeProfileImage
+              uri={profileUser.profile?.profileImageUrl}
+              size={100}
+              style={styles.profileImage}
+            />
           </View>
           
           <Text style={styles.userName}>{profileUser.profile?.userName || '익명'}</Text>

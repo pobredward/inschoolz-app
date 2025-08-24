@@ -1,12 +1,13 @@
 import { Tabs } from 'expo-router';
 import React, { useState, useEffect } from 'react';
-import { Platform, View, Text, StyleSheet, TouchableOpacity, Modal, Alert, Dimensions, Image } from 'react-native';
+import { Platform, View, Text, StyleSheet, TouchableOpacity, Modal, Alert, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useSegments, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
+import { SafeProfileImage } from '../../components/SafeProfileImage';
 import { useAuthStore } from '../../store/authStore';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -184,18 +185,12 @@ function CustomHeader() {
               style={styles.profileButton}
               onPress={handleProfilePress}
             >
-              {user?.profile?.profileImageUrl ? (
-                <Image 
-                  source={{ uri: user.profile.profileImageUrl }} 
-                  style={styles.profileImage}
-                />
-              ) : (
-                <IconSymbol 
-                  name="person.circle.fill" 
-                  size={28} 
-                  color={pastelGreenColors[600]} 
-                />
-              )}
+              <SafeProfileImage
+                uri={user?.profile?.profileImageUrl}
+                size={28}
+                fallbackIcon="person-circle"
+                fallbackColor={pastelGreenColors[600]}
+              />
             </TouchableOpacity>
           </>
         )}

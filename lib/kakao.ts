@@ -112,6 +112,29 @@ export const convertKakaoUserToFirebaseUser = (kakaoUser: KakaoUserInfo, uid: st
   const profile = kakaoUser.kakao_account.profile;
   const birthday = kakaoUser.kakao_account.birthday;
   const birthyear = kakaoUser.kakao_account.birthyear;
+  
+  // 카카오 HTTP URL을 HTTPS로 변환
+  const convertKakaoUrlToHttps = (url?: string): string => {
+    if (!url) return '';
+    
+    // 카카오 CDN HTTP URL을 HTTPS로 변환
+    if (url.startsWith('http://k.kakaocdn.net/')) {
+      return url.replace('http://', 'https://');
+    }
+    
+    return url;
+  };
+
+  // 프로필 이미지 URL 로그 추가
+  const originalImageUrl = profile?.profile_image_url || '';
+  const profileImageUrl = convertKakaoUrlToHttps(originalImageUrl);
+  
+  logger.debug('🖼️ 프로필 이미지 URL 설정:', {
+    original: originalImageUrl,
+    thumbnail: profile?.thumbnail_image_url,
+    converted: profileImageUrl,
+    wasConverted: originalImageUrl !== profileImageUrl
+  });
 
   return {
     uid,
@@ -128,7 +151,7 @@ export const convertKakaoUserToFirebaseUser = (kakaoUser: KakaoUserInfo, uid: st
       birthMonth: birthday ? parseInt(birthday.substring(0, 2)) : 0,
       birthDay: birthday ? parseInt(birthday.substring(2, 4)) : 0,
       phoneNumber: kakaoUser.kakao_account.phone_number || '',
-      profileImageUrl: profile?.profile_image_url || '',
+      profileImageUrl: profileImageUrl,
       createdAt: Timestamp.now(),
       isAdmin: false
     },
@@ -260,7 +283,11 @@ export const loginWithKakaoOptimized = async (): Promise<User> => {
 
     // 2. 카카오 사용자 정보 가져오기 (getProfile 사용)
     const kakaoUser = await getKakaoUserInfo(loginResult.accessToken);
-    logger.debug('카카오 사용자 정보 조회 완료:', kakaoUser.kakao_account.profile?.nickname);
+    logger.debug('카카오 사용자 정보 조회 완료:', {
+      nickname: kakaoUser.kakao_account.profile?.nickname,
+      profile_image_url: kakaoUser.kakao_account.profile?.profile_image_url,
+      thumbnail_image_url: kakaoUser.kakao_account.profile?.thumbnail_image_url
+    });
 
     // 3. 서버에서 Firebase 커스텀 토큰 받기
     const customToken = await getFirebaseTokenFromKakao(loginResult.accessToken);
@@ -286,14 +313,48 @@ export const loginWithKakaoOptimized = async (): Promise<User> => {
     const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
 
     if (userDoc.exists()) {
-      // 기존 사용자: 마지막 로그인 시간 업데이트
-      await updateDoc(doc(db, 'users', firebaseUser.uid), {
+      // 기존 사용자: 마지막 로그인 시간 및 프로필 이미지 업데이트
+      const updateData: any = {
         lastLoginAt: serverTimestamp(),
         updatedAt: serverTimestamp()
-      });
+      };
+      
+      // 카카오 프로필 이미지 HTTPS 변환 및 업데이트
+      const convertKakaoUrlToHttps = (url?: string): string => {
+        if (!url) return '';
+        if (url.startsWith('http://k.kakaocdn.net/')) {
+          return url.replace('http://', 'https://');
+        }
+        return url;
+      };
+
+      const originalKakaoImageUrl = kakaoUser.kakao_account.profile?.profile_image_url;
+      const kakaoProfileImageUrl = convertKakaoUrlToHttps(originalKakaoImageUrl);
+      const existingUserData = userDoc.data();
+      const existingProfileImageUrl = existingUserData?.profile?.profileImageUrl;
+      
+      if (kakaoProfileImageUrl && 
+          (!existingProfileImageUrl || existingProfileImageUrl !== kakaoProfileImageUrl)) {
+        updateData['profile.profileImageUrl'] = kakaoProfileImageUrl;
+        logger.debug('🖼️ 기존 사용자 프로필 이미지 업데이트:', {
+          old: existingProfileImageUrl,
+          new: kakaoProfileImageUrl,
+          original: originalKakaoImageUrl,
+          wasConverted: originalKakaoImageUrl !== kakaoProfileImageUrl
+        });
+      }
+      
+      await updateDoc(doc(db, 'users', firebaseUser.uid), updateData);
 
       const userData = userDoc.data() as User;
       userData.uid = firebaseUser.uid;
+      
+      // 업데이트된 프로필 이미지 URL 반영
+      if (kakaoProfileImageUrl && updateData['profile.profileImageUrl']) {
+        userData.profile = userData.profile || {};
+        userData.profile.profileImageUrl = kakaoProfileImageUrl;
+      }
+      
       logger.debug('기존 사용자 로그인 완료:', userData.profile?.userName);
       return userData;
     } else {
