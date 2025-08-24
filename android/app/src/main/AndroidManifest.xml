@@ -11,7 +11,6 @@
       <category android:name="android.intent.category.BROWSABLE"/>
       <data android:scheme="https"/>
     </intent>
-    <!-- 카카오톡 앱 확인을 위한 쿼리 -->
     <package android:name="com.kakao.talk"/>
   </queries>
   <application android:name=".MainApplication" android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="true" android:theme="@style/AppTheme" android:supportsRtl="true">
@@ -29,7 +28,6 @@
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="inschoolzapp"/>
       </intent-filter>
-      <!-- 카카오 로그인 리다이렉트 처리 -->
       <intent-filter>
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
