@@ -55,6 +55,8 @@ import { Board, BoardType, Post } from '../../types';
 import BoardSelector from '@/components/board/BoardSelector';
 import SchoolSelector from '@/components/board/SchoolSelector';
 import { SafeScreenContainer } from '../../components/SafeScreenContainer';
+import RegionSetupModal from '../../components/RegionSetupModal';
+import SchoolSetupModal from '../../components/SchoolSetupModal';
 
 interface CommunityPost extends Post {
   boardName: string;
@@ -87,6 +89,8 @@ export default function CommunityScreen() {
   const [showSortSelector, setShowSortSelector] = useState(false); // 정렬 선택 모달 상태 추가
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false); // 카테고리 드롭다운 상태 추가
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
+  const [showRegionSetupModal, setShowRegionSetupModal] = useState(false);
+  const [showSchoolSetupModal, setShowSchoolSetupModal] = useState(false);
 
   // 차단된 사용자 목록 로드
   const loadBlockedUsers = useCallback(async () => {
@@ -332,9 +336,8 @@ export default function CommunityScreen() {
           console.log('Redirecting to school:', latestUser.school.id);
           router.push(`/(tabs)/community?tab=school/${latestUser.school.id}`);
         } else {
-          console.log('No school info, redirecting to profile edit');
-          Alert.alert('알림', '학교 정보를 먼저 설정해주세요.');
-          router.push('/profile-edit');
+          console.log('No school info, showing school setup modal');
+          setShowSchoolSetupModal(true);
         }
       } catch (error) {
         console.error('Failed to fetch user info:', error);
@@ -343,9 +346,8 @@ export default function CommunityScreen() {
           console.log('Fallback to cached school:', user.school.id);
           router.push(`/(tabs)/community?tab=school/${user.school.id}`);
         } else {
-          console.log('No cached school info, redirecting to profile edit');
-          Alert.alert('알림', '학교 정보를 먼저 설정해주세요.');
-          router.push('/profile-edit');
+          console.log('No cached school info, showing school setup modal');
+          setShowSchoolSetupModal(true);
         }
       }
     } else if (newTab === 'regional') {
@@ -369,9 +371,8 @@ export default function CommunityScreen() {
           console.log('Redirecting to region:', latestUser.regions.sido, latestUser.regions.sigungu);
           router.push(`/(tabs)/community?tab=regional/${encodeURIComponent(latestUser.regions.sido)}/${encodeURIComponent(latestUser.regions.sigungu)}`);
         } else {
-          console.log('No region info, redirecting to profile edit');
-          Alert.alert('알림', '지역 정보를 먼저 설정해주세요.');
-          router.push('/profile-edit');
+          console.log('No region info, showing region setup modal');
+          setShowRegionSetupModal(true);
         }
       } catch (error) {
         console.error('Failed to fetch user info:', error);
@@ -380,9 +381,8 @@ export default function CommunityScreen() {
           console.log('Fallback to cached region:', user.regions.sido, user.regions.sigungu);
           router.push(`/(tabs)/community?tab=regional/${encodeURIComponent(user.regions.sido)}/${encodeURIComponent(user.regions.sigungu)}`);
         } else {
-          console.log('No cached region info, redirecting to profile edit');
-          Alert.alert('알림', '지역 정보를 먼저 설정해주세요.');
-          router.push('/profile-edit');
+          console.log('No cached region info, showing region setup modal');
+          setShowRegionSetupModal(true);
         }
       }
     } else {
@@ -722,6 +722,60 @@ export default function CommunityScreen() {
           <Ionicons name="add" size={24} color="white" />
         </TouchableOpacity>
       )}
+
+      {/* 지역 설정 모달 */}
+      <RegionSetupModal
+        visible={showRegionSetupModal}
+        onClose={() => setShowRegionSetupModal(false)}
+        onComplete={async () => {
+          try {
+            setShowRegionSetupModal(false);
+            
+            // 최신 사용자 정보를 다시 가져와서 라우팅
+            const latestUser = await getUserById(user!.uid);
+            if (latestUser?.regions?.sido && latestUser?.regions?.sigungu) {
+              router.push(`/(tabs)/community?tab=regional/${encodeURIComponent(latestUser.regions.sido)}/${encodeURIComponent(latestUser.regions.sigungu)}`);
+              
+              // 강제로 게시글 새로고침
+              setTimeout(async () => {
+                console.log('지역 설정 완료 후 게시글 새로고침 시작');
+                await loadBoards();
+                await loadPosts();
+                console.log('지역 설정 완료 후 게시글 새로고침 완료');
+              }, 500);
+            }
+          } catch (error) {
+            console.error('지역 설정 완료 후 라우팅 실패:', error);
+          }
+        }}
+      />
+
+      {/* 학교 설정 모달 */}
+      <SchoolSetupModal
+        visible={showSchoolSetupModal}
+        onClose={() => setShowSchoolSetupModal(false)}
+        onComplete={async () => {
+          try {
+            setShowSchoolSetupModal(false);
+            
+            // 최신 사용자 정보를 다시 가져와서 라우팅
+            const latestUser = await getUserById(user!.uid);
+            if (latestUser?.school?.id) {
+              router.push(`/(tabs)/community?tab=school/${latestUser.school.id}`);
+              
+              // 강제로 게시글 새로고침
+              setTimeout(async () => {
+                console.log('학교 설정 완료 후 게시글 새로고침 시작');
+                await loadBoards();
+                await loadPosts();
+                console.log('학교 설정 완료 후 게시글 새로고침 완료');
+              }, 500);
+            }
+          } catch (error) {
+            console.error('학교 설정 완료 후 라우팅 실패:', error);
+          }
+        }}
+      />
     </View>
   );
 }
