@@ -5,7 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-// 카카오 SDK는 app.json 플러그인으로 자동 초기화됩니다
+import { initializeKakaoSDK } from '@react-native-kakao/core';
 import Constants from 'expo-constants';
 
 export default function RootLayout() {
@@ -21,11 +21,11 @@ export default function RootLayout() {
     // 카카오 SDK 초기화
     const initializeKakao = async () => {
       try {
-        const kakaoAppKey = Constants.expoConfig?.extra?.kakaoAppKey;
+        const kakaoAppKey = Constants.expoConfig?.extra?.kakaoAppKey || '380177b185226c4935a7f293190afc46';
         if (kakaoAppKey) {
-          // @react-native-seoul/kakao-login v5.x에서는 별도 초기화가 필요하지 않습니다.
-          // app.json의 plugins 설정으로 자동 초기화됩니다.
-          console.log('✅ 카카오 SDK 설정 완료 (앱 키:', kakaoAppKey?.substring(0, 8) + '...)');
+          // @react-native-kakao/core로 명시적 초기화
+          await initializeKakaoSDK(kakaoAppKey);
+          console.log('✅ 카카오 SDK 초기화 완료 (앱 키:', kakaoAppKey?.substring(0, 8) + '...)');
         } else {
           console.warn('⚠️ 카카오 앱 키가 설정되지 않았습니다.');
         }

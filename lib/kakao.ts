@@ -4,7 +4,6 @@ import { signInWithCustomToken, updateProfile } from 'firebase/auth';
 import { db, auth } from './firebase';
 import { logger } from '../utils/logger';
 import { login, logout, unlink } from '@react-native-kakao/user';
-import getProfile from '@react-native-kakao/user';
 
 // 카카오 사용자 정보 인터페이스
 export interface KakaoUserInfo {
@@ -66,8 +65,11 @@ export const getKakaoUserInfo = async (accessToken: string): Promise<KakaoUserIn
  */
 export const getFirebaseTokenFromKakao = async (accessToken: string): Promise<string> => {
   try {
-    // 웹 서버의 API 엔드포인트 호출
-    const response = await fetch('https://inschoolz.com/api/auth/kakao/token', {
+    logger.debug('🔗 Firebase 커스텀 토큰 요청 시작');
+    logger.debug('🔑 액세스 토큰 길이:', accessToken?.length || 0);
+    
+    // 웹 서버의 API 엔드포인트 호출 (www 포함)
+    const response = await fetch('https://www.inschoolz.com/api/auth/kakao/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -75,15 +77,30 @@ export const getFirebaseTokenFromKakao = async (accessToken: string): Promise<st
       body: JSON.stringify({ accessToken }),
     });
 
+    logger.debug('🌐 서버 응답 상태:', response.status);
+
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Firebase 토큰 생성 실패');
+      const errorText = await response.text();
+      logger.error('❌ 서버 응답 오류:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      });
+      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
     }
 
     const data = await response.json();
+    logger.debug('✅ 서버 응답 데이터 키:', Object.keys(data));
+    
+    if (!data.customToken) {
+      logger.error('❌ 커스텀 토큰이 응답에 없음:', data);
+      throw new Error('커스텀 토큰이 서버 응답에 포함되지 않음');
+    }
+    
+    logger.debug('🎟️ Firebase 커스텀 토큰 생성 완료');
     return data.customToken;
   } catch (error) {
-    logger.error('Firebase 토큰 생성 실패:', error);
+    logger.error('❌ Firebase 토큰 생성 실패:', error);
     throw error;
   }
 };
@@ -151,25 +168,8 @@ export const loginWithKakao = async (): Promise<User> => {
     });
 
     // 2. 카카오 사용자 정보 가져오기 (getProfile 사용)
-    const kakaoProfile = await getProfile();
-    logger.debug('카카오 사용자 정보 조회 완료:', kakaoProfile.nickname);
-    
-    // 기존 인터페이스와 호환성을 위한 변환
-    const kakaoUser: KakaoUserInfo = {
-      id: kakaoProfile.id,
-      kakao_account: {
-        email: kakaoProfile.email,
-        profile: {
-          nickname: kakaoProfile.nickname,
-          profile_image_url: kakaoProfile.profileImageUrl,
-          thumbnail_image_url: kakaoProfile.thumbnailImageUrl,
-        },
-        phone_number: kakaoProfile.phoneNumber,
-        birthday: kakaoProfile.birthday,
-        birthyear: kakaoProfile.birthyear,
-        gender: kakaoProfile.gender as 'female' | 'male',
-      },
-    };
+    const kakaoUser = await getKakaoUserInfo(loginResult.accessToken);
+    logger.debug('카카오 사용자 정보 조회 완료:', kakaoUser.kakao_account.profile?.nickname);
 
     // 3. 서버에서 Firebase 커스텀 토큰 받기
     const customToken = await getFirebaseTokenFromKakao(loginResult.accessToken);
@@ -259,25 +259,8 @@ export const loginWithKakaoOptimized = async (): Promise<User> => {
     });
 
     // 2. 카카오 사용자 정보 가져오기 (getProfile 사용)
-    const kakaoProfile = await getProfile();
-    logger.debug('카카오 사용자 정보 조회 완료:', kakaoProfile.nickname);
-    
-    // 기존 인터페이스와 호환성을 위한 변환
-    const kakaoUser: KakaoUserInfo = {
-      id: kakaoProfile.id,
-      kakao_account: {
-        email: kakaoProfile.email,
-        profile: {
-          nickname: kakaoProfile.nickname,
-          profile_image_url: kakaoProfile.profileImageUrl,
-          thumbnail_image_url: kakaoProfile.thumbnailImageUrl,
-        },
-        phone_number: kakaoProfile.phoneNumber,
-        birthday: kakaoProfile.birthday,
-        birthyear: kakaoProfile.birthyear,
-        gender: kakaoProfile.gender as 'female' | 'male',
-      },
-    };
+    const kakaoUser = await getKakaoUserInfo(loginResult.accessToken);
+    logger.debug('카카오 사용자 정보 조회 완료:', kakaoUser.kakao_account.profile?.nickname);
 
     // 3. 서버에서 Firebase 커스텀 토큰 받기
     const customToken = await getFirebaseTokenFromKakao(loginResult.accessToken);
