@@ -8,6 +8,7 @@ import {
   deleteUser,
   EmailAuthProvider,
   reauthenticateWithCredential,
+  signInWithCustomToken,
   User as FirebaseUser,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
@@ -573,6 +574,50 @@ export const checkEmailExists = async (email: string): Promise<boolean> => {
   } catch (error) {
     logger.error('이메일 중복 확인 오류:', error);
     return false;
+  }
+};
+
+/**
+ * 카카오 커스텀 토큰으로 로그인
+ */
+export const loginWithKakaoToken = async (customToken: string): Promise<User> => {
+  try {
+    logger.debug('카카오 커스텀 토큰 로그인 시작');
+    
+    // Firebase 커스텀 토큰으로 로그인
+    const userCredential = await signInWithCustomToken(auth, customToken);
+    const firebaseUser = userCredential.user;
+    
+    // Firestore에서 사용자 정보 확인
+    const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+    
+    if (userDoc.exists()) {
+      // 기존 사용자: 마지막 로그인 시간 업데이트
+      await updateDoc(doc(db, 'users', firebaseUser.uid), {
+        lastLoginAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      
+      const userData = userDoc.data() as User;
+      userData.uid = firebaseUser.uid;
+      return userData;
+    } else {
+      // 신규 사용자의 경우 별도로 사용자 정보를 생성해야 함
+      throw new Error('사용자 정보를 찾을 수 없습니다. 회원가입을 진행해주세요.');
+    }
+  } catch (error) {
+    logger.error('카카오 로그인 오류:', error);
+    
+    if (error instanceof Error && 'code' in error) {
+      const firebaseError = error as { code: string };
+      if (firebaseError.code === 'auth/invalid-custom-token') {
+        throw new Error('유효하지 않은 인증 토큰입니다.');
+      } else if (firebaseError.code === 'auth/custom-token-mismatch') {
+        throw new Error('인증 토큰이 일치하지 않습니다.');
+      }
+    }
+    
+    throw new Error('카카오 로그인 중 오류가 발생했습니다.');
   }
 };
 

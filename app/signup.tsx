@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
 import { registerWithEmail, checkUserNameAvailability, checkEmailExists } from '../lib/auth';
+import { loginWithKakaoOptimized } from '../lib/kakao';
 import { router } from 'expo-router';
 
 export default function SignupScreen() {
@@ -32,6 +33,24 @@ export default function SignupScreen() {
   const [emailExists, setEmailExists] = useState<boolean>(false);
   
   const { setUser, setLoading, isLoading } = useAuthStore();
+
+  // 카카오 로그인
+  const handleKakaoLogin = async () => {
+    try {
+      setLoading(true);
+      const user = await loginWithKakaoOptimized();
+      setUser(user);
+      
+      Alert.alert('성공', '카카오 로그인이 완료되었습니다!', [
+        { text: '확인', onPress: () => router.replace('/(tabs)') }
+      ]);
+    } catch (error: any) {
+      console.error('카카오 로그인 오류:', error);
+      Alert.alert('카카오 로그인 실패', error.message || '카카오 로그인 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // 이메일 닉네임 중복 확인
   const checkEmailUserName = async () => {
@@ -253,6 +272,25 @@ export default function SignupScreen() {
                 >
                   <Text style={styles.submitButtonText}>
                     {isLoading ? '가입 중...' : '회원가입'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 구분선 */}
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>또는</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                {/* 카카오 로그인 버튼 */}
+                <TouchableOpacity 
+                  style={[styles.kakaoButton, isLoading && styles.submitButtonDisabled]}
+                  onPress={handleKakaoLogin}
+                  disabled={isLoading}
+                >
+                  <Ionicons name="chatbubble" size={20} color="#000" style={styles.kakaoIcon} />
+                  <Text style={styles.kakaoButtonText}>
+                    카카오로 간편가입
                   </Text>
                 </TouchableOpacity>
           </View>
@@ -485,6 +523,37 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E5E7EB',
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  kakaoButton: {
+    backgroundColor: '#FEE500',
+    borderRadius: 8,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  kakaoIcon: {
+    marginRight: 8,
+  },
+  kakaoButtonText: {
+    color: '#000',
     fontSize: 16,
     fontWeight: '600',
   },

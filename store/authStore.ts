@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { onAuthStateChanged, Auth, signOut } from 'firebase/auth';
+import { logoutFromKakao } from '../lib/kakao';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 // @ts-ignore - Firebase auth 타입 이슈
 import { auth, db } from '../lib/firebase';
@@ -156,6 +157,13 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           const { realtimeListener } = get();
           if (realtimeListener) {
             realtimeListener();
+          }
+          
+          // 카카오 로그아웃 (에러가 발생해도 진행)
+          try {
+            await logoutFromKakao();
+          } catch (kakaoError) {
+            logger.warn('카카오 로그아웃 실패 (무시하고 계속):', kakaoError);
           }
           
           await signOut(auth);
