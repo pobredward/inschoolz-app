@@ -42,6 +42,7 @@ export default function ReactionGameScreen() {
   const [currentAttempt, setCurrentAttempt] = useState(1);
   const [remainingAttempts, setRemainingAttempts] = useState(5);
   const [result, setResult] = useState<GameResult | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [startTime, setStartTime] = useState(0);
   const [timeoutId, setTimeoutId] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [rankings, setRankings] = useState<RankingUser[]>([]);
@@ -212,14 +213,24 @@ export default function ReactionGameScreen() {
       // 게임 결과 저장
       finishGame(reactionTime);
     } else if (gameState === 'ready') {
-      // 너무 빨리 터치한 경우
+      // 너무 빨리 터치한 경우 - 기회 소모 및 게임 종료
       if (timeoutId) {
         clearTimeout(timeoutId);
         setTimeoutId(null);
       }
       
-      Alert.alert('너무 빨라요!', '초록색으로 변할 때까지 기다리세요.');
-      setGameState('waiting');
+      setErrorMessage('너무 빨라요! 😅\n초록색으로 변할 때까지 기다려야 해요.\n기회가 하나 차감됩니다. 다시 시도해주세요!');
+      setGameState('finished');
+      
+      // 실패한 게임으로 처리 (특별한 값으로 실패 표시)
+      const failedReactionTime = -1; // -1로 설정하여 실패 표시
+      setResult({
+        reactionTime: failedReactionTime,
+        round: currentAttempt
+      });
+      
+      // 기회 소모를 위해 게임 결과 저장 (실제로는 높은 값으로 저장하여 경험치 없음 처리)
+      finishGame(10000);
     }
   };
 
@@ -285,6 +296,7 @@ export default function ReactionGameScreen() {
     }
     setGameState('waiting');
     setResult(null);
+    setErrorMessage(null);
     
     // 남은 기회 새로고침
     loadRemainingAttempts();
@@ -295,7 +307,13 @@ export default function ReactionGameScreen() {
     if (gameState === 'waiting') return ['게임 시작', '(터치하세요!)'];
     if (gameState === 'ready') return ['초록색으로 변하면', '터치!'];
     if (gameState === 'active') return ['지금 터치!'];
-    if (gameState === 'finished') return ['게임 완료'];
+    if (gameState === 'finished') {
+      if (errorMessage) {
+        const lines = errorMessage.split('\n');
+        return lines;
+      }
+      return ['게임 완료'];
+    }
     return ['게임 시작'];
   };
 
@@ -377,7 +395,7 @@ export default function ReactionGameScreen() {
                 remainingAttempts <= 0 && styles.disabledButton,
               ]}
               onPress={handleGamePress}
-              disabled={remainingAttempts <= 0 || gameState === 'ready'}
+              disabled={remainingAttempts <= 0}
             >
               <View style={styles.gameButtonTextContainer}>
                 {getGameButtonText().map((text, index) => (
@@ -398,19 +416,11 @@ export default function ReactionGameScreen() {
             {result && (
               <View style={styles.resultContainer}>
                 <Text style={styles.resultTitle}>게임 결과</Text>
-                <View style={styles.resultGrid}>
-                  <View style={styles.resultItem}>
-                    <Text style={styles.resultValue}>
-                      {(result.reactionTime / 1000).toFixed(3)}초
-                    </Text>
-                    <Text style={styles.resultLabel}>반응 시간</Text>
-                  </View>
-                  <View style={styles.resultItem}>
-                    <Text style={styles.resultValue}>
-                      {Math.round(100000 / result.reactionTime)}점
-                    </Text>
-                    <Text style={styles.resultLabel}>점수</Text>
-                  </View>
+                <View style={styles.resultItem}>
+                  <Text style={styles.resultValue}>
+                    {result.reactionTime === -1 ? '-초' : `${(result.reactionTime / 1000).toFixed(3)}초`}
+                  </Text>
+                  <Text style={styles.resultLabel}>반응 시간</Text>
                 </View>
               </View>
             )}
