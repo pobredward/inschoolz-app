@@ -15,6 +15,7 @@ import { useAuthStore } from '../store/authStore';
 import { registerWithEmail, checkUserNameAvailability, checkEmailExists } from '../lib/auth';
 import { loginWithKakaoOptimized } from '../lib/kakao';
 import { router } from 'expo-router';
+import { ReferralSearch } from '../components/ReferralSearch';
 
 export default function SignupScreen() {
   const [showPassword, setShowPassword] = useState(false);
@@ -25,8 +26,12 @@ export default function SignupScreen() {
     email: '',
     password: '',
     passwordConfirm: '',
-    userName: ''
+    userName: '',
+    referral: ''
   });
+  
+  // 추천인 검색 상태
+  const [selectedReferralUser, setSelectedReferralUser] = useState<any>(null);
   
   // 중복 확인 상태
   const [emailUserNameStatus, setEmailUserNameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
@@ -125,7 +130,14 @@ export default function SignupScreen() {
         return;
       }
 
-      const user = await registerWithEmail(emailForm.email, emailForm.password, emailForm.userName.trim());
+      const user = await registerWithEmail(
+        emailForm.email, 
+        emailForm.password, 
+        emailForm.userName.trim(),
+        {
+          referral: selectedReferralUser?.userName || emailForm.referral.trim()
+        }
+      );
       setUser(user);
       
       Alert.alert('성공', '회원가입이 완료되었습니다!', [
@@ -263,6 +275,24 @@ export default function SignupScreen() {
                   {emailUserNameStatus === 'taken' && (
                     <Text style={styles.errorText}>이미 사용 중인 닉네임입니다.</Text>
                   )}
+                </View>
+
+                {/* 추천인 아이디 */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>추천인 아이디 (선택사항)</Text>
+                  <ReferralSearch
+                    value={emailForm.referral}
+                    onSelect={(user) => {
+                      setSelectedReferralUser(user);
+                      if (user) {
+                        setEmailForm(prev => ({ ...prev, referral: user.userName }));
+                      } else {
+                        setEmailForm(prev => ({ ...prev, referral: '' }));
+                      }
+                    }}
+                    placeholder="추천인 아이디를 검색하세요"
+                    style={{ marginBottom: 8 }}
+                  />
                 </View>
 
                 <TouchableOpacity 

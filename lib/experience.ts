@@ -1,4 +1,4 @@
-import { doc, getDoc, updateDoc, serverTimestamp, increment, collection, query, where, orderBy, limit, getDocs, FieldValue, getCountFromServer, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, increment, collection, query, where, orderBy, limit, getDocs, FieldValue, getCountFromServer } from 'firebase/firestore';
 import { db } from './firebase';
 import { User, SystemSettings } from '../types';
 import { getKoreanDateString } from '../utils/timeUtils';
@@ -88,29 +88,36 @@ export const getSystemSettings = async (): Promise<SystemSettings> => {
           postReward: firebaseSettings.community?.postXP || 10,
           commentReward: firebaseSettings.community?.commentXP || 5,
           likeReward: firebaseSettings.community?.likeXP || 1,
-          attendanceReward: firebaseSettings.attendance?.dailyXP || 5,
-          attendanceStreakReward: firebaseSettings.attendance?.streakBonus || 10,
-          referralReward: 50,
+          attendanceReward: firebaseSettings.attendance?.dailyXP || 10, // Firestore와 맞춤
+          attendanceStreakReward: firebaseSettings.attendance?.streakBonus || 5, // Firestore와 맞춤
+          referralReward: firebaseSettings.referral?.referrerXP || 30, // Firestore와 맞춤
           levelRequirements: LEVEL_REQUIREMENTS
         },
         dailyLimits: {
           postsForReward: firebaseSettings.community?.dailyPostLimit || 3,
           commentsForReward: firebaseSettings.community?.dailyCommentLimit || 5,
-          gamePlayCount: firebaseSettings.games?.reactionGame?.dailyLimit || 5
+          gamePlayCount: Math.max(
+            firebaseSettings.games?.reactionGame?.dailyLimit || 5,
+            firebaseSettings.games?.tileGame?.dailyLimit || 5
+          ) // 두 게임 중 더 높은 제한 사용
         },
         gameSettings: {
           reactionGame: {
-            rewardThreshold: 500, // 기본값 유지 (thresholds 배열로 대체됨)
-            rewardAmount: 15,
+            enabled: firebaseSettings.games?.reactionGame?.enabled ?? true,
+            dailyLimit: firebaseSettings.games?.reactionGame?.dailyLimit || 5,
+            rewardThreshold: 100, // 최소 점수 (Firestore thresholds의 최소값)
+            rewardAmount: 15, // 기본 보상
             thresholds: firebaseSettings.games?.reactionGame?.thresholds || [
-              { minScore: 200, xpReward: 15 },
-              { minScore: 300, xpReward: 10 },
-              { minScore: 400, xpReward: 5 }
+              { minScore: 100, xpReward: 15 },
+              { minScore: 200, xpReward: 10 },
+              { minScore: 300, xpReward: 5 }
             ]
           },
           tileGame: {
-            rewardThreshold: 800, // 기본값 유지 (thresholds 배열로 대체됨)
-            rewardAmount: 20,
+            enabled: firebaseSettings.games?.tileGame?.enabled ?? true,
+            dailyLimit: firebaseSettings.games?.tileGame?.dailyLimit || 5,
+            rewardThreshold: 50, // 최소 점수 (Firestore thresholds의 최소값)
+            rewardAmount: 15, // 기본 보상
             thresholds: firebaseSettings.games?.tileGame?.thresholds || [
               { minScore: 50, xpReward: 5 },
               { minScore: 100, xpReward: 10 },
@@ -152,15 +159,15 @@ export const getSystemSettings = async (): Promise<SystemSettings> => {
     console.error('getSystemSettings - Error loading Firebase settings:', error);
   }
   
-  // 기본값 반환
+  // 기본값 반환 (Firestore 설정과 동일하게)
   return {
     experience: {
       postReward: 10,
       commentReward: 5,
       likeReward: 1,
-      attendanceReward: 5,
-      attendanceStreakReward: 10,
-      referralReward: 50,
+      attendanceReward: 10,
+      attendanceStreakReward: 5,
+      referralReward: 30,
       levelRequirements: LEVEL_REQUIREMENTS
     },
     dailyLimits: {
@@ -170,7 +177,9 @@ export const getSystemSettings = async (): Promise<SystemSettings> => {
     },
     gameSettings: {
       reactionGame: {
-        rewardThreshold: 500,
+        enabled: true,
+        dailyLimit: 5,
+        rewardThreshold: 100,
         rewardAmount: 15,
         thresholds: [
           { minScore: 100, xpReward: 15 },
@@ -179,8 +188,10 @@ export const getSystemSettings = async (): Promise<SystemSettings> => {
         ]
       },
       tileGame: {
-        rewardThreshold: 800,
-        rewardAmount: 20,
+        enabled: true,
+        dailyLimit: 5,
+        rewardThreshold: 50,
+        rewardAmount: 15,
         thresholds: [
           { minScore: 50, xpReward: 5 },
           { minScore: 100, xpReward: 10 },
@@ -655,7 +666,7 @@ export const getRankingData = async (
   sido?: string,
   sigungu?: string,
   limitCount: number = 100
-): Promise<Array<{
+): Promise<{
   rank: number;
   userId: string;
   displayName: string;
@@ -663,7 +674,7 @@ export const getRankingData = async (
   level: number;
   totalExperience: number;
   profileImageUrl?: string;
-}>> => {
+}[]> => {
   try {
     let usersQuery;
     
@@ -701,7 +712,7 @@ export const getRankingData = async (
     }
     
     const querySnapshot = await getDocs(usersQuery);
-    const rankingData: Array<{
+    const rankingData: {
       rank: number;
       userId: string;
       displayName: string;
@@ -709,7 +720,7 @@ export const getRankingData = async (
       level: number;
       totalExperience: number;
       profileImageUrl?: string;
-    }> = [];
+    }[] = [];
     
     querySnapshot.docs.forEach((doc, index) => {
       const userData = doc.data() as User;
@@ -806,18 +817,18 @@ export interface ExperienceSettings {
     reactionGame: {
       enabled: boolean;
       dailyLimit: number;
-      thresholds: Array<{
+      thresholds: {
         minScore: number;
         xpReward: number;
-      }>;
+      }[];
     };
     tileGame: {
       enabled: boolean;
       dailyLimit: number;
-      thresholds: Array<{
+      thresholds: {
         minScore: number;
         xpReward: number;
-      }>;
+      }[];
     };
   };
 
@@ -911,9 +922,7 @@ export const updateExperienceSettings = async (settings: ExperienceSettings): Pr
       ...settings,
       updatedAt: serverTimestamp(),
     });
-    
-    // 캐시 무효화
-    cachedSystemSettings = null;
+    invalidateSystemSettingsCache(); // 캐시 무효화
   } catch (error) {
     console.error('경험치 설정 업데이트 오류:', error);
     throw new Error('경험치 설정 업데이트 중 오류가 발생했습니다.');
@@ -994,7 +1003,15 @@ export const getAdminStats = async (): Promise<{
 /**
  * 게임 랭킹 데이터 조회
  */
-export const getGameRankings = async (gameType: 'reactionGame' | 'tileGame' | 'flappyBird', period: 'daily' | 'weekly' | 'all' = 'all'): Promise<any[]> => {
+export const getGameRankings = async (gameType: 'reactionGame' | 'tileGame' | 'flappyBird', period: 'daily' | 'weekly' | 'all' = 'all'): Promise<{
+  id: string;
+  gameType: string;
+  period: string;
+  score: number;
+  userId: string;
+  userName: string;
+  createdAt: unknown;
+}[]> => {
   try {
     const rankingRef = collection(db, 'gameRankings');
     const rankingQuery = query(
@@ -1006,7 +1023,18 @@ export const getGameRankings = async (gameType: 'reactionGame' | 'tileGame' | 'f
     );
     
     const snapshot = await getDocs(rankingQuery);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => ({ 
+      id: doc.id, 
+      ...doc.data() 
+    } as {
+      id: string;
+      gameType: string;
+      period: string;
+      score: number;
+      userId: string;
+      userName: string;
+      createdAt: unknown;
+    }));
   } catch (error) {
     console.error('게임 랭킹 조회 오류:', error);
     return [];
@@ -1173,7 +1201,7 @@ export const fixUserExperienceData = async (userId: string): Promise<void> => {
     const userData = userDoc.data() as User;
     
     // totalExperience를 기준으로 정확한 레벨과 현재 경험치 계산
-    const totalExp = userData.stats?.totalExperience || (userData.stats as any)?.experience || 0;
+    const totalExp = userData.stats?.totalExperience || (userData.stats as unknown as { experience?: number })?.experience || 0;
     const progress = calculateCurrentLevelProgress(totalExp);
     
     // 데이터 동기화
