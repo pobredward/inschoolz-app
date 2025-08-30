@@ -189,6 +189,33 @@ export interface User {
     }
   };
   
+  // 푸시 알림 토큰
+  pushTokens?: {
+    [platform: string]: {
+      token: string;
+      platform: string;
+      deviceId?: string;
+      updatedAt?: FirebaseTimestamp;
+    };
+  };
+  
+  // 알림 설정
+  notificationSettings?: {
+    post_comment: boolean;
+    comment_reply: boolean;
+    system: boolean;
+    referral: boolean;
+    warning: boolean;
+    suspension: boolean;
+    report_received: boolean;
+    report_resolved: boolean;
+    quietHours?: {
+      enabled: boolean;
+      startTime: string; // HH:mm
+      endTime: string; // HH:mm
+    };
+  };
+  
   // 시스템 정보
   createdAt: FirebaseTimestamp;
   updatedAt: FirebaseTimestamp;

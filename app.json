@@ -2,7 +2,7 @@
   "expo": {
     "name": "인스쿨즈",
     "slug": "inschoolz-app",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "inschoolzapp",
@@ -12,7 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.onmindlab.inschoolz",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "displayName": "인스쿨즈",
       "infoPlist": {
         "UIBackgroundModes": [
@@ -39,7 +39,7 @@
     },
     "android": {
       "package": "com.onmindlab.inschoolz",
-      "versionCode": 4,
+      "versionCode": 5,
       "icon": "./assets/images/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",

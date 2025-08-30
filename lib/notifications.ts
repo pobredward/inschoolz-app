@@ -17,6 +17,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Notification, NotificationType, FirebaseTimestampInput } from '../types';
+import { sendNotificationWithChecks } from './push-notification-sender';
 
 // 알림 생성
 export async function createNotification(data: {
@@ -57,6 +58,17 @@ export async function createNotification(data: {
     const docRef = await addDoc(collection(db, 'notifications'), notificationData);
     
     console.log('알림 생성 성공:', docRef.id);
+    
+    // 푸시 알림 발송 (비동기로 처리하여 에러가 발생해도 알림 생성은 성공)
+    sendNotificationWithChecks(
+      data.userId,
+      data.type,
+      data.title,
+      data.message,
+      data.data
+    ).catch(error => {
+      console.warn('푸시 알림 발송 실패 (무시하고 계속):', error);
+    });
     
     return {
       id: docRef.id,

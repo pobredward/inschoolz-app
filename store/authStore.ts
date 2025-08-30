@@ -9,6 +9,11 @@ import { auth, db } from '../lib/firebase';
 import { User } from '../types';
 import { calculateCurrentLevelProgress, resetDailyActivityLimits } from '../lib/experience';
 import { logger } from '../utils/logger';
+import { 
+  registerForPushNotificationsAsync, 
+  savePushTokenToUser, 
+  removePushTokenFromUser 
+} from '../lib/push-notifications';
 
 // AuthStore 타입 정의
 interface AuthState {
@@ -37,6 +42,10 @@ interface AuthActions {
   setupRealtimeUserListener: (userId: string) => () => void;
   updateUnreadNotificationCount: (count: number) => void; // 알림 개수 업데이트 함수 추가
   decrementUnreadNotificationCount: (amount?: number) => void; // 알림 개수 감소 함수 추가
+  // 푸시 알림 관련 액션 추가
+  initializePushNotifications: () => Promise<void>;
+  updatePushToken: (token: string) => Promise<void>;
+  removePushToken: () => Promise<void>;
 }
 
 // 초기 상태
@@ -153,6 +162,16 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         try {
           logger.auth('로그아웃 시작');
           
+          // 푸시 토큰 제거
+          const { user } = get();
+          if (user) {
+            try {
+              await removePushTokenFromUser(user.uid);
+            } catch (pushError) {
+              logger.warn('푸시 토큰 제거 실패 (무시하고 계속):', pushError);
+            }
+          }
+          
           // 실시간 리스너 정리
           const { realtimeListener } = get();
           if (realtimeListener) {
@@ -177,6 +196,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             isLoading: false,
             error: null,
             realtimeListener: null,
+            unreadNotificationCount: 0,
           });
         } catch (error) {
           logger.error('로그아웃 오류:', error);
@@ -187,6 +207,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             isLoading: false,
             error: '로그아웃 중 오류가 발생했습니다.',
             realtimeListener: null,
+            unreadNotificationCount: 0,
           });
           throw error;
         }
@@ -340,6 +361,62 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       decrementUnreadNotificationCount: (amount = 1) => {
         const { unreadNotificationCount } = get();
         set({ unreadNotificationCount: Math.max(0, unreadNotificationCount - amount) });
+      },
+
+      // 푸시 알림 초기화
+      initializePushNotifications: async () => {
+        try {
+          const { user } = get();
+          if (!user) {
+            console.warn('사용자가 로그인되지 않아 푸시 알림을 초기화할 수 없습니다.');
+            return;
+          }
+
+          logger.debug('푸시 알림 초기화 시작:', user.uid);
+          
+          const token = await registerForPushNotificationsAsync();
+          if (token) {
+            await savePushTokenToUser(user.uid, token);
+            logger.auth('푸시 토큰 등록 완료:', token.substring(0, 20) + '...');
+          }
+        } catch (error) {
+          logger.error('푸시 알림 초기화 실패:', error);
+          throw error;
+        }
+      },
+
+      // 푸시 토큰 업데이트
+      updatePushToken: async (token: string) => {
+        try {
+          const { user } = get();
+          if (!user) {
+            console.warn('사용자가 로그인되지 않아 푸시 토큰을 업데이트할 수 없습니다.');
+            return;
+          }
+
+          await savePushTokenToUser(user.uid, token);
+          logger.auth('푸시 토큰 업데이트 완료:', user.uid);
+        } catch (error) {
+          logger.error('푸시 토큰 업데이트 실패:', error);
+          throw error;
+        }
+      },
+
+      // 푸시 토큰 제거
+      removePushToken: async () => {
+        try {
+          const { user } = get();
+          if (!user) {
+            console.warn('사용자가 로그인되지 않아 푸시 토큰을 제거할 수 없습니다.');
+            return;
+          }
+
+          await removePushTokenFromUser(user.uid);
+          logger.auth('푸시 토큰 제거 완료:', user.uid);
+        } catch (error) {
+          logger.error('푸시 토큰 제거 실패:', error);
+          throw error;
+        }
       },
     }),
     {

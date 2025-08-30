@@ -20,6 +20,7 @@ import {
   deleteNotification,
   getUnreadNotificationCount
 } from '../lib/notifications';
+import { updateNotificationBadge } from '../lib/notification-handlers';
 import { Notification, NotificationType } from '../types';
 import { useRouter } from 'expo-router';
 import { Timestamp } from 'firebase/firestore';
@@ -215,6 +216,9 @@ export default function NotificationsScreen() {
 
       setNotifications(notificationsData);
       updateUnreadNotificationCount(unreadCountData); // AuthStore 업데이트
+      
+      // 푸시 알림 뱃지도 업데이트
+      await updateNotificationBadge();
     } catch (error) {
       console.error('알림 조회 실패:', error);
       Alert.alert('오류', '알림을 불러오는데 실패했습니다.');

@@ -3,10 +3,26 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { initializeKakaoSDK } from '@react-native-kakao/core';
 import Constants from 'expo-constants';
+import * as Notifications from 'expo-notifications';
+import { router } from 'expo-router';
+import {
+  registerForPushNotificationsAsync,
+  savePushTokenToUser,
+  addNotificationReceivedListener,
+  addNotificationResponseReceivedListener,
+  setBadgeCount,
+  getLastNotificationResponse,
+} from '../lib/push-notifications';
+import { getUnreadNotificationCount } from '../lib/notifications';
+import {
+  handleForegroundNotification,
+  handleNotificationResponse,
+  updateNotificationBadge,
+} from '../lib/notification-handlers';
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -15,7 +31,14 @@ export default function RootLayout() {
     JamminStyle: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
-  const initializeAuth = useAuthStore((state) => state.initializeAuth);
+  const { 
+    initializeAuth, 
+    initializePushNotifications, 
+    updateUnreadNotificationCount,
+    user: currentUser 
+  } = useAuthStore();
+  const notificationListener = useRef<Notifications.Subscription>();
+  const responseListener = useRef<Notifications.Subscription>();
 
   useEffect(() => {
     // 카카오 SDK 초기화
@@ -34,10 +57,57 @@ export default function RootLayout() {
       }
     };
 
+    // 푸시 알림 및 뱃지 초기화
+    const setupNotifications = async () => {
+      try {
+        // 앱이 백그라운드에서 알림으로 열렸는지 확인
+        const lastResponse = await getLastNotificationResponse();
+        if (lastResponse) {
+          console.log('앱이 알림으로 열림:', lastResponse.notification.request.content);
+          handleNotificationResponse(lastResponse);
+        }
+
+        // 읽지 않은 알림 개수로 뱃지 업데이트
+        await updateNotificationBadge();
+      } catch (error) {
+        console.error('❌ 알림 설정 실패:', error);
+      }
+    };
+
     // 앱 시작 시 카카오 SDK 및 인증 상태 초기화
     initializeKakao();
     initializeAuth();
-  }, [initializeAuth]);
+    setupNotifications();
+  }, [initializeAuth, updateUnreadNotificationCount]);
+
+  // 사용자 로그인 후 푸시 알림 초기화
+  useEffect(() => {
+    if (currentUser) {
+      initializePushNotifications().catch(error => {
+        console.error('푸시 알림 초기화 실패:', error);
+      });
+    }
+  }, [currentUser, initializePushNotifications]);
+
+  // 알림 수신 핸들러 설정
+  useEffect(() => {
+    // 앱이 포그라운드에 있을 때 알림 수신
+    notificationListener.current = addNotificationReceivedListener(handleForegroundNotification);
+
+    // 사용자가 알림을 탭했을 때
+    responseListener.current = addNotificationResponseReceivedListener(handleNotificationResponse);
+
+    return () => {
+      if (notificationListener.current) {
+        Notifications.removeNotificationSubscription(notificationListener.current);
+      }
+      if (responseListener.current) {
+        Notifications.removeNotificationSubscription(responseListener.current);
+      }
+    };
+  }, []);
+
+
 
   if (!loaded) {
     // Async font loading only occurs in development.
