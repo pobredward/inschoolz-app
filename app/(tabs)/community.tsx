@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -51,9 +51,10 @@ import { getBoardsByType, getPostsByBoardType, getAllPostsByType, getAllPostsByS
 import { getUserById, getBlockedUserIds } from '@/lib/users';
 import { BlockedUserContent } from '../../components/ui/BlockedUserContent';
 import { useAuthStore } from '../../store/authStore';
+import { useScrollStore } from '../../store/scrollStore';
 import { Board, BoardType, Post } from '../../types';
 import BoardSelector from '@/components/board/BoardSelector';
-import SchoolSelector from '@/components/board/SchoolSelector';
+import SchoolSelector, { SchoolSelectorRef } from '@/components/board/SchoolSelector';
 import { SafeScreenContainer } from '../../components/SafeScreenContainer';
 import RegionSetupModal from '../../components/RegionSetupModal';
 import SchoolSetupModal from '../../components/SchoolSetupModal';
@@ -78,6 +79,7 @@ export default function CommunityScreen() {
   const router = useRouter();
   const { tab } = useLocalSearchParams();
   const { user } = useAuthStore();
+  const { saveScrollPosition, getScrollPosition } = useScrollStore();
   const [selectedTab, setSelectedTab] = useState<BoardType>('national');
   const [boards, setBoards] = useState<Board[]>([]);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
@@ -91,6 +93,75 @@ export default function CommunityScreen() {
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
   const [showRegionSetupModal, setShowRegionSetupModal] = useState(false);
   const [showSchoolSetupModal, setShowSchoolSetupModal] = useState(false);
+  
+  // 스크롤 위치 관리를 위한 ref와 상태
+  const scrollViewRef = useRef<ScrollView>(null);
+  const schoolSelectorRef = useRef<SchoolSelectorRef>(null);
+  const [shouldRestoreScroll, setShouldRestoreScroll] = useState(false);
+  const [isRestoringScroll, setIsRestoringScroll] = useState(false);
+  const [isLayoutReady, setIsLayoutReady] = useState(false);
+  
+  // 스크롤 키 생성 (탭, 게시판, 정렬 기준으로 구분)
+  const getScrollKey = () => {
+    return `community-${selectedTab}-${selectedBoard}-${sortBy}`;
+  };
+  
+  // 스크롤 위치 저장
+  const handleScroll = useCallback((event: any) => {
+    const { y } = event.nativeEvent.contentOffset;
+    const scrollKey = getScrollKey();
+    saveScrollPosition(scrollKey, y);
+  }, [selectedTab, selectedBoard, sortBy, saveScrollPosition]);
+  
+  // 스크롤 위치 복원
+  const restoreScrollPosition = useCallback(() => {
+    if (!shouldRestoreScroll) return;
+    
+    const scrollKey = getScrollKey();
+    const savedPosition = getScrollPosition(scrollKey);
+    
+    if (savedPosition > 0 && scrollViewRef.current) {
+      setIsRestoringScroll(true);
+      
+      // 약간의 지연을 두고 스크롤 위치 복원
+      // 여러 번 시도하여 안정성 향상
+      let attempts = 0;
+      const maxAttempts = 5;
+      
+      const tryRestore = () => {
+        attempts++;
+        if (scrollViewRef.current) {
+          scrollViewRef.current.scrollTo({
+            y: savedPosition,
+            animated: false,
+          });
+          
+          // 복원이 제대로 되었는지 확인
+          if (attempts < maxAttempts) {
+            setTimeout(() => {
+              if (scrollViewRef.current) {
+                scrollViewRef.current.scrollTo({
+                  y: savedPosition,
+                  animated: false,
+                });
+              }
+            }, 50 * attempts);
+          } else {
+            // 복원 완료
+            setTimeout(() => {
+              setIsRestoringScroll(false);
+            }, 100);
+          }
+        }
+      };
+      
+      setTimeout(tryRestore, 100);
+      setShouldRestoreScroll(false);
+    } else {
+      setShouldRestoreScroll(false);
+      setIsRestoringScroll(false);
+    }
+  }, [shouldRestoreScroll, selectedTab, selectedBoard, sortBy, getScrollPosition]);
 
   // 차단된 사용자 목록 로드
   const loadBlockedUsers = useCallback(async () => {
@@ -132,6 +203,12 @@ export default function CommunityScreen() {
 
   useEffect(() => {
     loadBoards();
+    // 학교 탭으로 변경될 때 SchoolSelector 새로고침
+    if (selectedTab === 'school' && schoolSelectorRef.current) {
+      setTimeout(() => {
+        schoolSelectorRef.current?.refresh();
+      }, 100);
+    }
   }, [selectedTab]);
 
   useEffect(() => {
@@ -145,6 +222,18 @@ export default function CommunityScreen() {
     }
   }, [user?.uid, loadBlockedUsers]);
 
+  // 게시글 로딩이 완료되고 레이아웃이 준비된 후 스크롤 위치 복원
+  useEffect(() => {
+    if (!isLoading && !refreshing && posts.length > 0 && isLayoutReady) {
+      restoreScrollPosition();
+    }
+  }, [isLoading, refreshing, posts.length, isLayoutReady, restoreScrollPosition]);
+
+  // 레이아웃이 준비되었을 때 호출되는 핸들러
+  const handleLayout = useCallback(() => {
+    setIsLayoutReady(true);
+  }, []);
+
   // 화면이 포커스될 때마다 게시글 목록 및 차단 목록 새로고침
   useFocusEffect(
     useCallback(() => {
@@ -152,11 +241,18 @@ export default function CommunityScreen() {
       if (user?.uid) {
         loadBlockedUsers();
       }
+      
+      // SchoolSelector 새로고침 (즐겨찾기 학교 추가 후 즉시 반영)
+      if (selectedTab === 'school' && schoolSelectorRef.current) {
+        schoolSelectorRef.current.refresh();
+      }
+      
       // 초기 로드가 아닌 경우에만 게시글 새로고침 (뒤로가기 등으로 돌아온 경우)
       if (posts.length > 0) {
-        loadPosts();
+        // 뒤로가기로 돌아온 경우 스크롤 위치 복원을 준비
+        setShouldRestoreScroll(true);
       }
-    }, [posts.length, user?.uid, loadBlockedUsers])
+    }, [posts.length, user?.uid, selectedTab, loadBlockedUsers])
   );
 
   // 차단 해제 시 상태 업데이트
@@ -301,6 +397,7 @@ export default function CommunityScreen() {
   };
 
   const handlePostPress = (post: CommunityPost) => {
+    // onScroll에서 이미 스크롤 위치가 저장되므로 바로 이동
     router.push(`/board/${selectedTab}/${post.boardCode}/${post.id}` as any);
   };
 
@@ -314,6 +411,9 @@ export default function CommunityScreen() {
     console.log('새로운 탭:', newTab);
     console.log('현재 user 상태:', user);
     
+    // 탭 변경 시에는 스크롤 복원하지 않음
+    setShouldRestoreScroll(false);
+    setIsLayoutReady(false);
     setSelectedTab(newTab);
     
     // 새로운 라우팅 구조로 리다이렉트
@@ -432,7 +532,11 @@ export default function CommunityScreen() {
               styles.categoryButton,
               selectedBoard === 'all' && styles.activeCategoryButton
             ]}
-            onPress={() => setSelectedBoard('all')}
+            onPress={() => {
+              setSelectedBoard('all');
+              setShouldRestoreScroll(false);
+              setIsLayoutReady(false);
+            }}
           >
             <Text style={[
               styles.categoryText,
@@ -448,7 +552,11 @@ export default function CommunityScreen() {
                 styles.categoryButton,
                 selectedBoard === board.code && styles.activeCategoryButton
               ]}
-              onPress={() => setSelectedBoard(board.code)}
+              onPress={() => {
+                setSelectedBoard(board.code);
+                setShouldRestoreScroll(false);
+                setIsLayoutReady(false);
+              }}
             >
               <Text style={[
                 styles.categoryText,
@@ -485,6 +593,8 @@ export default function CommunityScreen() {
               onPress={() => {
                 setSelectedBoard('all');
                 setShowCategoryDropdown(false);
+                setShouldRestoreScroll(false);
+                setIsLayoutReady(false);
               }}
             >
               <Text style={[
@@ -504,6 +614,8 @@ export default function CommunityScreen() {
                 onPress={() => {
                   setSelectedBoard(board.code);
                   setShowCategoryDropdown(false);
+                  setShouldRestoreScroll(false);
+                  setIsLayoutReady(false);
                 }}
               >
                 <Text style={[
@@ -524,6 +636,9 @@ export default function CommunityScreen() {
   const handleSortChange = (newSortBy: SortOption) => {
     setSortBy(newSortBy);
     setShowSortSelector(false);
+    // 정렬 변경 시에는 스크롤 복원하지 않음
+    setShouldRestoreScroll(false);
+    setIsLayoutReady(false);
     // 정렬 변경 후 게시글 다시 로드 (이미 loadPosts의 useEffect에서 sortBy 변경 시 자동으로 실행됨)
   };
 
@@ -660,10 +775,17 @@ export default function CommunityScreen() {
 
   return (
     <View style={styles.container}>
-      <SafeScreenContainer scrollable={true}>
+      <SafeScreenContainer 
+        scrollable={true}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        scrollViewRef={scrollViewRef}
+        onLayout={handleLayout}
+      >
         {renderTabs()}
         {selectedTab === 'school' && (
           <SchoolSelector 
+            ref={schoolSelectorRef}
             style={styles.schoolSelector}
             onSchoolChange={async (school: any) => {
               // 학교 변경 시 URL 업데이트

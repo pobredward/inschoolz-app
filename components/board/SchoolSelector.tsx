@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
   Text,
@@ -22,9 +22,13 @@ interface SchoolSelectorProps {
   onSchoolChange?: (school: School) => void;
 }
 
+export interface SchoolSelectorRef {
+  refresh: () => void;
+}
+
 const { width } = Dimensions.get('window');
 
-export default function SchoolSelector({ style, onSchoolChange }: SchoolSelectorProps) {
+const SchoolSelector = forwardRef<SchoolSelectorRef, SchoolSelectorProps>(({ style, onSchoolChange }, ref) => {
   const { user, setUser } = useAuthStore();
   const [favoriteSchools, setFavoriteSchools] = useState<School[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -35,6 +39,11 @@ export default function SchoolSelector({ style, onSchoolChange }: SchoolSelector
       loadFavoriteSchools();
     }
   }, [user?.uid]);
+
+  // ref를 통해 외부에서 새로고침할 수 있도록 노출
+  useImperativeHandle(ref, () => ({
+    refresh: loadFavoriteSchools
+  }), []);
 
   const loadFavoriteSchools = async () => {
     if (!user?.uid) return;
@@ -186,7 +195,11 @@ export default function SchoolSelector({ style, onSchoolChange }: SchoolSelector
       </Modal>
     </View>
   );
-}
+});
+
+SchoolSelector.displayName = 'SchoolSelector';
+
+export default SchoolSelector;
 
 const styles = StyleSheet.create({
   container: {

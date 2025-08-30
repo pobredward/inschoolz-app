@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Platform, ScrollView, ViewStyle, RefreshControlProps } from 'react-native';
+import { View, StyleSheet, Platform, ScrollView, ViewStyle, RefreshControlProps, NativeScrollEvent, NativeSyntheticEvent, LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface SafeScreenContainerProps {
@@ -8,6 +8,10 @@ interface SafeScreenContainerProps {
   style?: ViewStyle;
   contentContainerStyle?: ViewStyle;
   refreshControl?: React.ReactElement<RefreshControlProps>;
+  onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  scrollEventThrottle?: number;
+  scrollViewRef?: React.RefObject<ScrollView>;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }
 
 export function SafeScreenContainer({ 
@@ -15,7 +19,11 @@ export function SafeScreenContainer({
   scrollable = false, 
   style,
   contentContainerStyle,
-  refreshControl 
+  refreshControl,
+  onScroll,
+  scrollEventThrottle = 16,
+  scrollViewRef,
+  onLayout
 }: SafeScreenContainerProps) {
   const insets = useSafeAreaInsets();
   
@@ -36,6 +44,7 @@ export function SafeScreenContainer({
   if (scrollable) {
     return (
       <ScrollView 
+        ref={scrollViewRef}
         style={[styles.container, style]}
         contentContainerStyle={[
           styles.scrollContent,
@@ -47,6 +56,9 @@ export function SafeScreenContainer({
         ]}
         showsVerticalScrollIndicator={false}
         refreshControl={refreshControl}
+        onScroll={onScroll}
+        scrollEventThrottle={scrollEventThrottle}
+        onLayout={onLayout}
       >
         {children}
       </ScrollView>
