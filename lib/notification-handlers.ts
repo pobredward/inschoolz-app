@@ -338,7 +338,7 @@ export function isQuietHours(settings: NotificationSettings): boolean {
 }
 
 /**
- * 테스트 알림 발송 (개발용)
+ * 테스트 알림 발송 (개발용) - 화면 꺼짐 상태 테스트 포함
  */
 export async function sendTestNotification(): Promise<void> {
   try {
@@ -348,23 +348,35 @@ export async function sendTestNotification(): Promise<void> {
       return;
     }
 
-    // 로컬 테스트 알림 스케줄링
+    // 로컬 테스트 알림 스케줄링 - 화면 꺼져있을 때도 소리와 미리보기 테스트
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: '테스트 알림 📱',
-        body: '인스쿨즈 푸시 알림이 정상적으로 작동합니다!',
+        title: '🔔 테스트 알림',
+        body: '화면이 꺼져있어도 소리가 나고 미리보기가 보여야 합니다!',
         data: {
           type: 'system',
           test: true,
           timestamp: Date.now(),
         },
         sound: 'default',
+        // Android 전용 설정
+        android: {
+          channelId: 'default',
+          sound: true,
+          priority: Notifications.AndroidNotificationPriority.MAX,
+          vibrate: [0, 250, 250, 250],
+          color: '#FF231F7C',
+        },
+        // iOS 전용 설정
+        ios: {
+          sound: true,
+        },
       },
       trigger: null, // 즉시 발송
     });
 
-    console.log('테스트 알림 발송 완료');
+    console.log('🎉 테스트 알림 발송 완료 - 화면 꺼져있을 때 소리와 미리보기 확인하세요!');
   } catch (error) {
-    console.error('테스트 알림 발송 실패:', error);
+    console.error('❌ 테스트 알림 발송 실패:', error);
   }
 }

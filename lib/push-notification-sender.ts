@@ -16,6 +16,20 @@ interface ExpoMessage {
   badge?: number;
   priority?: 'default' | 'normal' | 'high';
   channelId?: string;
+  // Android 특화 설정
+  android?: {
+    channelId?: string;
+    sound?: boolean | string;
+    priority?: 'min' | 'low' | 'default' | 'high' | 'max';
+    vibrate?: boolean | number[];
+    color?: string;
+  };
+  // iOS 특화 설정
+  ios?: {
+    sound?: boolean | string;
+    badge?: number;
+    _displayInForeground?: boolean;
+  };
 }
 
 /**
@@ -83,6 +97,7 @@ export async function sendPushNotificationToUser(
     
     Object.entries(pushTokens).forEach(([platform, tokenData]: [string, any]) => {
       if (tokenData?.token) {
+        const channelId = getChannelIdForNotificationType(notificationType);
         const message: ExpoMessage = {
           to: tokenData.token,
           title,
@@ -94,7 +109,20 @@ export async function sendPushNotificationToUser(
           },
           sound: 'default',
           priority: 'high',
-          channelId: getChannelIdForNotificationType(notificationType),
+          channelId,
+          // Android 특화 설정 - 화면 꺼져있을 때도 소리와 진동
+          android: {
+            channelId,
+            sound: true,
+            priority: 'high',
+            vibrate: true,
+            color: '#FF231F7C', // 인스쿨즈 브랜드 컬러
+          },
+          // iOS 특화 설정 - 백그라운드에서도 소리
+          ios: {
+            sound: true,
+            _displayInForeground: true,
+          },
         };
 
         sendPromises.push(sendExpoPushNotification(message));

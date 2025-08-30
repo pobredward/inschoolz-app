@@ -38,6 +38,10 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       enableVibrate: true,
       enableLights: true,
       showBadge: true,
+      // 화면 꺼져있을 때도 미리보기 표시
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      // 알림 우선순위 최대로 설정
+      bypassDnd: false, // 방해금지 모드 우회하지 않음 (사용자 선택 존중)
     });
 
     // 추가 알림 채널들
@@ -47,6 +51,10 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
       sound: 'default',
+      enableVibrate: true,
+      enableLights: true,
+      showBadge: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     });
 
     await Notifications.setNotificationChannelAsync('system', {
@@ -55,6 +63,10 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 500, 250, 500],
       sound: 'default',
+      enableVibrate: true,
+      enableLights: true,
+      showBadge: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     });
 
     await Notifications.setNotificationChannelAsync('referral', {
@@ -62,6 +74,10 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       description: '추천인 관련 알림',
       importance: Notifications.AndroidImportance.DEFAULT,
       sound: 'default',
+      enableVibrate: true,
+      enableLights: true,
+      showBadge: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     });
   }
 
@@ -238,6 +254,18 @@ export async function scheduleLocalNotification(
       body,
       data: data || {},
       sound: 'default',
+      // Android 설정 - 화면 꺼져있을 때도 표시
+      android: {
+        channelId: 'default',
+        sound: true,
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+        vibrate: [0, 250, 250, 250],
+        color: '#FF231F7C',
+      },
+      // iOS 설정
+      ios: {
+        sound: true,
+      },
     },
     trigger: trigger || null, // 즉시 발송
   });
