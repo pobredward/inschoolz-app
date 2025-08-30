@@ -325,7 +325,7 @@ export default function RankingScreen() {
             <Text style={styles.emptyText}>{getEmptyMessage()}</Text>
             <TouchableOpacity 
               style={styles.settingsButton}
-              onPress={() => router.push('/profile-edit')}
+              onPress={() => router.push('/favorite-schools')}
             >
               <Text style={styles.settingsButtonText}>설정하러 가기</Text>
             </TouchableOpacity>
