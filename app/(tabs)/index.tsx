@@ -37,9 +37,11 @@ export default function HomeScreen() {
   const [gameStats, setGameStats] = useState<{
     bestReactionTimes: { [key: string]: number | null };
     todayPlays: { [key: string]: number };
+    maxPlays?: number;
   }>({
     bestReactionTimes: { reactionGame: null, tileGame: null },
-    todayPlays: { reactionGame: 0, tileGame: 0 }
+    todayPlays: { reactionGame: 0, tileGame: 0 },
+    maxPlays: 5
   });
   const [popularPosts, setPopularPosts] = useState<Post[]>([]);
   const [rankingPreview, setRankingPreview] = useState<RankingPreview | null>(null);
@@ -72,13 +74,25 @@ export default function HomeScreen() {
         const attendanceInfo = await checkAttendance(user.uid);
         setAttendance(attendanceInfo);
         
+        // 게임 통계 로드
+        try {
+          const gameStatsResponse = await getUserGameStats(user.uid);
+          if (gameStatsResponse.success && gameStatsResponse.data) {
+            setGameStats({
+              bestReactionTimes: gameStatsResponse.data.bestReactionTimes,
+              todayPlays: gameStatsResponse.data.todayPlays,
+              maxPlays: gameStatsResponse.data.maxPlays
+            });
+          }
+        } catch (error) {
+          console.error('게임 통계 로드 실패:', error);
+        }
+        
         // TODO: 추후 다른 데이터들도 로드 구현
         // const mainSchoolInfo = await getMainSchool(user.uid);
-        // const gameStatsResponse = await getUserGameStats(user.uid);
         // const rankings = await getRankingPreview(user.uid, user.school?.id, user.regions?.sido, user.regions?.sigungu);
         // setMainSchool(mainSchoolInfo);
         // setRankingPreview(rankings);
-        // setGameStats(gameStatsResponse.data);
       }
       
       // 인기 게시글은 로그인 여부와 관계없이 로드
@@ -395,7 +409,7 @@ export default function HomeScreen() {
               }
             </Text>
             <Text style={styles.gamePlayCount}>
-              오늘 {gameStats.todayPlays.reactionGame || 0}/5 플레이
+              오늘 {gameStats.todayPlays.reactionGame || 0}/{gameStats.maxPlays || 5} 플레이
             </Text>
           </TouchableOpacity>
           

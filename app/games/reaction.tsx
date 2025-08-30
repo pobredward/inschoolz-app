@@ -258,20 +258,20 @@ export default function ReactionGameScreen() {
         if (result.leveledUp && result.oldLevel && result.newLevel) {
           Alert.alert(
             '🎉 레벨업!',
-            `축하합니다! 레벨 ${result.oldLevel}에서 레벨 ${result.newLevel}로 레벨업했습니다!\\n경험치 +${result.xpEarned} XP 획득!`,
+            `축하합니다! 레벨 ${result.oldLevel}에서 레벨 ${result.newLevel}로 레벨업했습니다!\n경험치 +${result.xpEarned} XP 획득!`,
             [{ text: '확인' }]
           );
         } else if (result.xpEarned && result.xpEarned > 0) {
           Alert.alert(
             '⭐ 경험치 획득!',
-            `반응속도 게임 완료!\\n${(reactionTime / 1000).toFixed(3)}초 기록\\n경험치 +${result.xpEarned} XP 획득!`,
+            `반응속도 게임 완료!\n${(reactionTime / 1000).toFixed(3)}초 기록\n경험치 +${result.xpEarned} XP 획득!`,
             [{ text: '확인' }]
           );
         } else {
           console.log('finishGame - 경험치를 얻지 못함:', result.xpEarned);
           Alert.alert(
             '게임 완료',
-            `반응속도: ${(reactionTime / 1000).toFixed(3)}초\\n경험치를 얻지 못했습니다.`,
+            `반응속도: ${(reactionTime / 1000).toFixed(3)}초\n경험치를 얻지 못했습니다.`,
             [{ text: '확인' }]
           );
         }
