@@ -135,3 +135,4 @@ eas build --platform all --profile production
 ---
 
 **Inschoolz** - 학생들을 위한 안전하고 재미있는 커뮤니티 플랫폼
+# Git sync test
