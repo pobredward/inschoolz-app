@@ -1,60 +1,89 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Dimensions, Platform } from 'react-native';
-import { 
-  BannerAd, 
-  BannerAdSize, 
-  InterstitialAd, 
-  AdEventType,
-  RewardedAd,
-  RewardedAdEventType,
-  MobileAds,
-  MaxAdContentRating,
-  TestIds
-} from 'react-native-google-mobile-ads';
+import { View, StyleSheet, Dimensions, Platform, Text } from 'react-native';
+import Constants from 'expo-constants';
+
+// Expo Go 환경 감지
+const isExpoGo = Constants.appOwnership === 'expo';
+
+// Expo Go가 아닌 경우에만 AdMob 모듈 import
+let BannerAd: any, BannerAdSize: any, InterstitialAd: any, AdEventType: any, 
+    RewardedAd: any, RewardedAdEventType: any, MobileAds: any, 
+    MaxAdContentRating: any, TestIds: any;
+
+if (!isExpoGo) {
+  const admobModule = require('react-native-google-mobile-ads');
+  BannerAd = admobModule.BannerAd;
+  BannerAdSize = admobModule.BannerAdSize;
+  InterstitialAd = admobModule.InterstitialAd;
+  AdEventType = admobModule.AdEventType;
+  RewardedAd = admobModule.RewardedAd;
+  RewardedAdEventType = admobModule.RewardedAdEventType;
+  MobileAds = admobModule.MobileAds;
+  MaxAdContentRating = admobModule.MaxAdContentRating;
+  TestIds = admobModule.TestIds;
+}
 
 // 실제 AdMob Unit ID 사용 (AdMob 콘솔에서 발급받은 실제 ID)
-const AD_UNIT_IDS = {
-  banner: __DEV__ ? TestIds.BANNER : Platform.select({
+const AD_UNIT_IDS = !isExpoGo ? {
+  banner: __DEV__ ? TestIds?.BANNER : Platform.select({
     ios: 'ca-app-pub-5100840159526765/2477197240',
     android: 'ca-app-pub-5100840159526765/5841727180',
   }),
-  interstitial: __DEV__ ? TestIds.INTERSTITIAL : Platform.select({
+  interstitial: __DEV__ ? TestIds?.INTERSTITIAL : Platform.select({
     ios: 'ca-app-pub-5100840159526765/2477197240', // 현재는 배너와 동일, 필요시 별도 전면광고 단위 생성
     android: 'ca-app-pub-5100840159526765/5841727180', // 현재는 배너와 동일, 필요시 별도 전면광고 단위 생성
   }),
-  rewarded: __DEV__ ? TestIds.REWARDED : Platform.select({
+  rewarded: __DEV__ ? TestIds?.REWARDED : Platform.select({
     ios: 'ca-app-pub-5100840159526765/2477197240', // 현재는 배너와 동일, 필요시 별도 리워드광고 단위 생성
     android: 'ca-app-pub-5100840159526765/5841727180', // 현재는 배너와 동일, 필요시 별도 리워드광고 단위 생성
   }),
-};
+} : {};
 
-// AdMob 초기화
-MobileAds()
-  .setRequestConfiguration({
-    // 최대 광고 콘텐츠 등급 설정 (청소년 앱에 적합)
-    maxAdContentRating: MaxAdContentRating.T,
-    
-    // 태그된 어린이 대상 처리 설정
-    tagForChildDirectedTreatment: true,
-    
-    // 연령 제한 광고 처리 설정
-    tagForUnderAgeOfConsent: false,
-  })
-  .then(() => {
-    // 초기화 완료
-    console.log('AdMob 초기화 완료');
-  });
+// AdMob 초기화 (Expo Go가 아닌 경우에만)
+if (!isExpoGo && MobileAds) {
+  MobileAds()
+    .setRequestConfiguration({
+      // 최대 광고 콘텐츠 등급 설정 (청소년 앱에 적합)
+      maxAdContentRating: MaxAdContentRating.T,
+      
+      // 태그된 어린이 대상 처리 설정
+      tagForChildDirectedTreatment: true,
+      
+      // 연령 제한 광고 처리 설정
+      tagForUnderAgeOfConsent: false,
+    })
+    .then(() => {
+      // 초기화 완료
+      console.log('AdMob 초기화 완료');
+    });
+}
 
 interface BannerAdComponentProps {
-  size?: BannerAdSize;
+  size?: any;
   style?: object;
 }
 
 // 배너 광고 컴포넌트
 export function BannerAdComponent({ 
-  size = BannerAdSize.BANNER, 
+  size = BannerAdSize?.BANNER, 
   style 
 }: BannerAdComponentProps) {
+  
+  // Expo Go 환경에서는 플레이스홀더 표시
+  if (isExpoGo) {
+    return (
+      <View style={[styles.bannerContainer, styles.placeholder, style]}>
+        <Text style={styles.placeholderText}>
+          📱 AdMob 광고 (Development Build에서 표시됨)
+        </Text>
+      </View>
+    );
+  }
+
+  // AdMob 모듈이 없는 경우 빈 뷰 반환
+  if (!BannerAd || !AD_UNIT_IDS.banner) {
+    return <View style={style} />;
+  }
 
   return (
     <View style={[styles.bannerContainer, style]}>
@@ -67,7 +96,7 @@ export function BannerAdComponent({
         onAdLoaded={() => {
           console.log('배너 광고 로드 완료');
         }}
-        onAdFailedToLoad={(error) => {
+        onAdFailedToLoad={(error: any) => {
           console.log('배너 광고 로드 실패:', error);
         }}
       />
@@ -109,7 +138,7 @@ export function SmartBannerAd({ style }: { style?: object }) {
 
 // 전면 광고 훅
 export function useInterstitialAd() {
-  const [interstitial, setInterstitial] = useState<InterstitialAd | null>(null);
+  const [interstitial, setInterstitial] = useState<any | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
@@ -122,7 +151,7 @@ export function useInterstitialAd() {
       console.log('전면 광고 로드 완료');
     });
 
-    const unsubscribeError = interstitialAd.addAdEventListener(AdEventType.ERROR, (error) => {
+    const unsubscribeError = interstitialAd.addAdEventListener(AdEventType.ERROR, (error: any) => {
       console.log('전면 광고 오류:', error);
       setIsLoaded(false);
     });
@@ -157,7 +186,7 @@ export function useInterstitialAd() {
 
 // 리워드 광고 훅
 export function useRewardedAd() {
-  const [rewarded, setRewarded] = useState<RewardedAd | null>(null);
+  const [rewarded, setRewarded] = useState<any | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
@@ -170,14 +199,14 @@ export function useRewardedAd() {
       console.log('리워드 광고 로드 완료');
     });
 
-    const unsubscribeError = rewardedAd.addAdEventListener(AdEventType.ERROR, (error) => {
+    const unsubscribeError = rewardedAd.addAdEventListener(AdEventType.ERROR, (error: any) => {
       console.log('리워드 광고 오류:', error);
       setIsLoaded(false);
     });
 
     const unsubscribeEarned = rewardedAd.addAdEventListener(
       RewardedAdEventType.EARNED_REWARD,
-      (reward) => {
+      (reward: any) => {
         console.log('리워드 획득:', reward);
         // 여기서 리워드 로직 처리 (경험치 추가 등)
       },
@@ -219,6 +248,19 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
     marginVertical: 8,
+  },
+  placeholder: {
+    justifyContent: 'center',
+    minHeight: 50,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderStyle: 'dashed',
+  },
+  placeholderText: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    paddingHorizontal: 8,
   },
   largeBanner: {
     height: 100,
