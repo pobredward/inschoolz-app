@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
-import { updateGameScore } from '../../lib/games';
+import { updateGameScore, getUserGameStats } from '../../lib/games';
 import { useAuthStore } from '../../store/authStore';
 
 type GameState = 'waiting' | 'playing' | 'finished';
@@ -27,6 +27,7 @@ const { width } = Dimensions.get('window');
 const tileSize = (width - 80) / 4; // 4x4 그리드
 
 export default function TileGameScreen() {
+  const { user } = useAuthStore();
   const [gameState, setGameState] = useState<GameState>('waiting');
   const [tiles, setTiles] = useState<Tile[]>([]);
   const [flippedTiles, setFlippedTiles] = useState<number[]>([]);
@@ -35,9 +36,34 @@ export default function TileGameScreen() {
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [finalScore, setFinalScore] = useState(0);
   const [gameStartTime, setGameStartTime] = useState<number>(0);
+  const [remainingAttempts, setRemainingAttempts] = useState(5);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
 
   const totalPairs = 8; // 4x4 grid with 8 pairs
   const maxTime = 120; // 2 minutes
+  const maxAttempts = 5;
+
+  // 남은 기회 실시간 조회
+  const loadRemainingAttempts = async () => {
+    if (!user?.uid) return;
+    
+    try {
+      setIsLoadingStats(true);
+      const statsResponse = await getUserGameStats(user.uid);
+      
+      if (statsResponse.success && statsResponse.data) {
+        const todayPlays = statsResponse.data.todayPlays.tileGame || 0;
+        const maxPlays = statsResponse.data.maxPlays || 5;
+        const remaining = Math.max(0, maxPlays - todayPlays);
+        
+        setRemainingAttempts(remaining);
+      }
+    } catch (error) {
+      console.error('게임 통계 로드 실패:', error);
+    } finally {
+      setIsLoadingStats(false);
+    }
+  };
   
   // 게임 초기화
   const initializeGame = useCallback(() => {
@@ -160,8 +186,14 @@ export default function TileGameScreen() {
     setGameState('finished');
 
     // Firebase에 점수 저장
+    const { user } = useAuthStore.getState();
+    if (!user?.uid) {
+      Alert.alert('오류', '로그인이 필요합니다.');
+      return;
+    }
+
     try {
-      const result = await updateGameScore('temp-user-id', 'tileGame', score);
+      const result = await updateGameScore(user.uid, 'tileGame', score);
       if (result.success) {
         let message = `점수: ${score}점`;
         
@@ -173,10 +205,10 @@ export default function TileGameScreen() {
           message += '\n🏆 새로운 최고 점수!';
         }
         
-        if (score >= 800) {
-          message += '\n⭐ 경험치 +20 XP 획득!';
+        if (result.xpEarned && result.xpEarned > 0) {
+          message += `\n⭐ 경험치 +${result.xpEarned} XP 획득!`;
         } else {
-          message += '\n💡 800점 이상 시 경험치를 획득할 수 있습니다.';
+          message += '\n💡 더 높은 점수로 경험치를 획득하세요.';
         }
         
         Alert.alert(
@@ -184,6 +216,9 @@ export default function TileGameScreen() {
           message,
           [{ text: '확인' }]
         );
+        
+        // 성공 시 남은 기회 업데이트
+        loadRemainingAttempts();
       } else {
         Alert.alert('오류', result.message);
       }
@@ -217,10 +252,13 @@ export default function TileGameScreen() {
     };
   }, [gameState, gameStartTime]);
 
-  // 게임 초기화 (컴포넌트 마운트 시)
+  // 게임 초기화 및 사용자 데이터 로드 (컴포넌트 마운트 시)
   useEffect(() => {
     initializeGame();
-  }, [initializeGame]);
+    if (user?.uid) {
+      loadRemainingAttempts();
+    }
+  }, [initializeGame, user?.uid]);
 
   const getEmojiForValue = (value: number) => {
     const emojis = ['🍎', '🍌', '🍇', '🍊', '🍓', '🥝', '🍑', '🥭'];
@@ -273,9 +311,37 @@ export default function TileGameScreen() {
                 같은 그림의 타일 두 개를 찾아 매칭하세요!{'\n'}
                 빠른 시간과 적은 움직임으로 높은 점수를 획득하세요.
               </Text>
-              <TouchableOpacity style={styles.startButton} onPress={startGame}>
-                <Text style={styles.startButtonText}>🎮 게임 시작</Text>
-              </TouchableOpacity>
+              
+              {/* 남은 기회 표시 */}
+              <View style={styles.attemptsContainer}>
+                {isLoadingStats ? (
+                  <Text style={styles.loadingText}>로딩중...</Text>
+                ) : (
+                  <Text style={styles.attemptsText}>
+                    오늘 남은 기회: {remainingAttempts}/{maxAttempts}
+                  </Text>
+                )}
+              </View>
+              
+              {!user ? (
+                <View style={styles.loginContainer}>
+                  <Text style={styles.loginText}>로그인이 필요합니다</Text>
+                  <TouchableOpacity style={styles.loginButton} onPress={() => router.push('/login')}>
+                    <Text style={styles.loginButtonText}>🎮 로그인하기</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : remainingAttempts <= 0 ? (
+                <View style={styles.noAttemptsContainer}>
+                  <Text style={styles.noAttemptsText}>오늘의 기회를 모두 사용했습니다</Text>
+                  <TouchableOpacity style={[styles.startButton, styles.disabledButton]} disabled>
+                    <Text style={[styles.startButtonText, styles.disabledButtonText]}>기회 소진</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity style={styles.startButton} onPress={startGame}>
+                  <Text style={styles.startButtonText}>🎮 게임 시작</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
@@ -320,11 +386,7 @@ export default function TileGameScreen() {
                 </View>
               </View>
 
-              {finalScore >= 800 && (
-                <View style={styles.xpBadge}>
-                  <Text style={styles.xpBadgeText}>⭐ 경험치 +20 XP 획득!</Text>
-                </View>
-              )}
+              {/* Firebase 설정에서 실제 경험치 계산됨 */}
 
               <View style={styles.finishedButtons}>
                 <TouchableOpacity style={styles.replayButton} onPress={resetGame}>
@@ -346,7 +408,7 @@ export default function TileGameScreen() {
               <Text style={styles.instructionSectionTitle}>목표</Text>
               <Text style={styles.instructionText}>• 4x4 격자에서 8쌍의 타일을 모두 매칭</Text>
               <Text style={styles.instructionText}>• 빠른 시간과 적은 움직임으로 고득점 달성</Text>
-              <Text style={styles.instructionText}>• 800점 이상 시 경험치 +20 XP 획득</Text>
+              <Text style={styles.instructionText}>• 800점 이상으로 경험치를 획득하세요!</Text>
             </View>
             <View style={styles.instructionSection}>
               <Text style={styles.instructionSectionTitle}>점수 계산</Text>
@@ -588,5 +650,53 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     lineHeight: 20,
+  },
+  attemptsContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  attemptsText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2563EB',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  loginContainer: {
+    alignItems: 'center',
+  },
+  loginText: {
+    fontSize: 16,
+    color: '#f59e0b',
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  loginButton: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 12,
+  },
+  loginButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  noAttemptsContainer: {
+    alignItems: 'center',
+  },
+  noAttemptsText: {
+    fontSize: 16,
+    color: '#dc2626',
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  disabledButton: {
+    backgroundColor: '#9ca3af',
+  },
+  disabledButtonText: {
+    color: '#6b7280',
   },
 }); 

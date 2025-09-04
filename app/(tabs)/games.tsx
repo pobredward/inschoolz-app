@@ -24,8 +24,8 @@ const games: Game[] = [
     id: 'tile',
     name: '타일 매칭',
     icon: '🧩',
-    description: '곧 출시 예정입니다',
-    isActive: false
+    description: '같은 그림을 찾아 매칭하고 경험치를 획득하세요!',
+    isActive: true
   },
   {
     id: 'calculation',
@@ -66,6 +66,8 @@ export default function GamesScreen() {
 
     if (game.id === 'reaction') {
       router.push('/games/reaction' as any);
+    } else if (game.id === 'tile') {
+      router.push('/games/tile' as any);
     }
   };
 

@@ -116,12 +116,13 @@ export const getSystemSettings = async (): Promise<SystemSettings> => {
           tileGame: {
             enabled: firebaseSettings.games?.tileGame?.enabled ?? true,
             dailyLimit: firebaseSettings.games?.tileGame?.dailyLimit || 5,
-            rewardThreshold: 50, // 최소 점수 (Firestore thresholds의 최소값)
-            rewardAmount: 15, // 기본 보상
+            rewardThreshold: 800, // 최소 점수 (Firestore thresholds의 최소값)
+            rewardAmount: 20, // 기본 보상
             thresholds: firebaseSettings.games?.tileGame?.thresholds || [
-              { minScore: 50, xpReward: 5 },
-              { minScore: 100, xpReward: 10 },
-              { minScore: 150, xpReward: 15 }
+              { minScore: 800, xpReward: 10 },
+              { minScore: 1200, xpReward: 15 },
+              { minScore: 1600, xpReward: 20 },
+              { minScore: 2000, xpReward: 25 }
             ]
           },
           flappyBird: {
@@ -190,12 +191,13 @@ export const getSystemSettings = async (): Promise<SystemSettings> => {
       tileGame: {
         enabled: true,
         dailyLimit: 5,
-        rewardThreshold: 50,
-        rewardAmount: 15,
+        rewardThreshold: 800,
+        rewardAmount: 20,
         thresholds: [
-          { minScore: 50, xpReward: 5 },
-          { minScore: 100, xpReward: 10 },
-          { minScore: 150, xpReward: 15 }
+          { minScore: 800, xpReward: 10 },
+          { minScore: 1200, xpReward: 15 },
+          { minScore: 1600, xpReward: 20 },
+          { minScore: 2000, xpReward: 25 }
         ]
       },
       flappyBird: {
