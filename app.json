@@ -99,6 +99,17 @@
             "handleKakaoOpenUrl": true
           }
         }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "android_app_id": "ca-app-pub-5100840159526765~7310829322",
+          "ios_app_id": "ca-app-pub-5100840159526765~4223832684",
+          "delay_app_measurement_init": true,
+          "optimize_initialization": true,
+          "optimize_ad_loading": true,
+          "user_tracking_usage_description": "This identifier will be used to deliver personalized ads to you."
+        }
       ]
     ],
     "experiments": {
