@@ -28,50 +28,51 @@ export interface GameStatsResponse {
   };
 }
 
-// 반응시간에 따른 경험치 계산 (Firebase 설정 기반)
-const calculateGameXP = async (gameType: GameType, reactionTime: number): Promise<number> => {
+// 게임 타입별 경험치 계산 (Firebase 설정 기반)
+const calculateGameXP = async (gameType: GameType, value: number): Promise<number> => {
   try {
-    const settings = await getSystemSettings();
+    console.log('calculateGameXP - gameType:', gameType, 'value:', value);
     
-    // 디버깅을 위한 로그 추가
-    console.log('calculateGameXP - gameType:', gameType, 'reactionTime:', reactionTime);
-    console.log('calculateGameXP - settings.gameSettings:', settings.gameSettings);
-    
-    // 게임 타입에 따라 적절한 설정 선택
-    if (gameType === 'reactionGame' && settings.gameSettings.reactionGame.thresholds) {
-      const thresholds = settings.gameSettings.reactionGame.thresholds;
-      console.log('calculateGameXP - reactionGame thresholds:', thresholds);
-      
-      // 반응속도 게임은 시간이 짧을수록 좋으므로 오름차순 정렬 (가장 빠른 시간부터)
-      const sortedThresholds = [...thresholds].sort((a, b) => a.minScore - b.minScore);
-      console.log('calculateGameXP - sorted thresholds:', sortedThresholds);
-      
-      // 반응시간이 임계값 이하인 첫 번째 임계값의 경험치 반환
-      for (const threshold of sortedThresholds) {
-        console.log(`calculateGameXP - checking: ${reactionTime} <= ${threshold.minScore} ? ${reactionTime <= threshold.minScore}`);
-        if (reactionTime <= threshold.minScore) {
-          console.log(`calculateGameXP - 경험치 ${threshold.xpReward} 지급! (${reactionTime}ms <= ${threshold.minScore}ms)`);
-          return threshold.xpReward;
+    // 게임 타입에 따라 적절한 경험치 계산
+    if (gameType === 'reactionGame') {
+      // 반응속도 게임은 기존 로직 유지 (반응시간 기반)
+      const settings = await getSystemSettings();
+      if (settings.gameSettings.reactionGame.thresholds) {
+        const thresholds = settings.gameSettings.reactionGame.thresholds;
+        const sortedThresholds = [...thresholds].sort((a, b) => a.minScore - b.minScore);
+        
+        for (const threshold of sortedThresholds) {
+          if (value <= threshold.minScore) {
+            console.log(`calculateGameXP - 반응속도 게임 경험치 ${threshold.xpReward} 지급! (${value}ms <= ${threshold.minScore}ms)`);
+            return threshold.xpReward;
+          }
         }
       }
-      console.log('calculateGameXP - 어떤 임계값도 만족하지 않음');
-    } else if (gameType === 'tileGame' && settings.gameSettings.tileGame.thresholds) {
-      // 타일 게임은 점수가 높을수록 좋으므로 내림차순 정렬
-      const sortedThresholds = [...settings.gameSettings.tileGame.thresholds].sort((a, b) => b.minScore - a.minScore);
+    } else if (gameType === 'tileGame') {
+      // 타일 게임은 움직임 횟수 기반으로 경험치 계산
+      console.log(`calculateGameXP - 타일 게임 움직임 횟수: ${value}번`);
       
-      // 점수가 임계값 이상인 첫 번째 임계값의 경험치 반환
-      for (const threshold of sortedThresholds) {
-        if (reactionTime >= threshold.minScore) {
-          return threshold.xpReward;
-        }
+      if (value <= 7) {
+        console.log('calculateGameXP - 타일 게임 15 XP 지급! (7번 이하)');
+        return 15;
+      } else if (value <= 10) {
+        console.log('calculateGameXP - 타일 게임 10 XP 지급! (8-10번)');
+        return 10;
+      } else if (value <= 13) {
+        console.log('calculateGameXP - 타일 게임 5 XP 지급! (11-13번)');
+        return 5;
+      } else {
+        console.log('calculateGameXP - 타일 게임 0 XP 지급! (14번 이상)');
+        return 0;
       }
     } else if (gameType === 'flappyBird') {
       // flappyBird는 기본 경험치 반환
+      const settings = await getSystemSettings();
       return settings.gameSettings.flappyBird.rewardAmount;
     }
     
     console.log('calculateGameXP - 0 XP 반환');
-    return 0; // 어떤 threshold도 만족하지 않으면 0 XP
+    return 0;
   } catch (error) {
     console.error('경험치 계산 중 오류:', error);
     return 0;

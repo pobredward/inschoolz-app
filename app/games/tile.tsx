@@ -24,7 +24,12 @@ interface Tile {
 }
 
 const { width } = Dimensions.get('window');
-const tileSize = (width - 80) / 4; // 4x4 그리드
+const tilesPerRow = 3; // 3x4 그리드
+const containerPadding = 40; // 좌우 패딩
+const tileGap = 8; // 타일 간격
+const totalGaps = (tilesPerRow - 1) * tileGap; // 총 간격
+const availableWidth = width - containerPadding - totalGaps;
+const tileSize = Math.floor(availableWidth / tilesPerRow);
 
 export default function TileGameScreen() {
   const { user } = useAuthStore();
@@ -36,12 +41,12 @@ export default function TileGameScreen() {
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [finalScore, setFinalScore] = useState(0);
   const [gameStartTime, setGameStartTime] = useState<number>(0);
-  const [remainingAttempts, setRemainingAttempts] = useState(5);
+  const [remainingAttempts, setRemainingAttempts] = useState(3);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
 
-  const totalPairs = 8; // 4x4 grid with 8 pairs
+  const totalPairs = 6; // 3x4 grid with 6 pairs
   const maxTime = 120; // 2 minutes
-  const maxAttempts = 5;
+  const maxAttempts = 3;
 
   // 남은 기회 실시간 조회
   const loadRemainingAttempts = async () => {
@@ -53,7 +58,7 @@ export default function TileGameScreen() {
       
       if (statsResponse.success && statsResponse.data) {
         const todayPlays = statsResponse.data.todayPlays.tileGame || 0;
-        const maxPlays = statsResponse.data.maxPlays || 5;
+        const maxPlays = 3; // 타일 게임은 3번으로 고정
         const remaining = Math.max(0, maxPlays - todayPlays);
         
         setRemainingAttempts(remaining);
@@ -121,7 +126,7 @@ export default function TileGameScreen() {
 
   // 타일 클릭 처리
   const handleTileClick = (tileId: number) => {
-    if (gameState !== 'playing') return;
+    if (gameState !== 'playing' || flippedTiles.length >= 2) return;
     
     const tile = tiles.find(t => t.id === tileId);
     if (!tile || tile.isFlipped || tile.isMatched) return;
@@ -149,13 +154,16 @@ export default function TileGameScreen() {
               ? { ...t, isMatched: true }
               : t
           ));
-          setMatches(prev => prev + 1);
+          setMatches(prev => {
+            const newMatches = prev + 1;
+            // 모든 매치 완료 체크
+            if (newMatches === totalPairs) {
+              // 약간의 지연을 두고 게임 완료
+              setTimeout(() => finishGame(), 500);
+            }
+            return newMatches;
+          });
           setFlippedTiles([]);
-          
-          // 모든 매치 완료 체크
-          if (matches + 1 === totalPairs) {
-            finishGame();
-          }
         }, 1000);
       } else {
         // 매치 실패
@@ -177,10 +185,10 @@ export default function TileGameScreen() {
     const totalTime = Math.floor((endTime - gameStartTime) / 1000);
     setTimeElapsed(totalTime);
     
-    // 점수 계산: 기본 점수 1000에서 시간과 움직임에 따라 감점
-    const timeBonus = Math.max(0, maxTime - totalTime) * 10;
-    const moveBonus = Math.max(0, (totalPairs * 2) - moves) * 20;
-    const score = Math.max(100, 1000 + timeBonus + moveBonus);
+    // 움직임 횟수 기반 점수 계산 (시간 제거)
+    const optimalMoves = totalPairs; // 최적 움직임 = 쌍의 개수 (6번)
+    const moveScore = Math.max(0, (optimalMoves * 2 - moves + optimalMoves) * 100); // 움직임이 적을수록 높은 점수
+    const score = Math.max(100, moveScore);
     
     setFinalScore(score);
     setGameState('finished');
@@ -193,7 +201,8 @@ export default function TileGameScreen() {
     }
 
     try {
-      const result = await updateGameScore(user.uid, 'tileGame', score);
+      // 움직임 횟수를 점수로 전달 (경험치 계산용)
+      const result = await updateGameScore(user.uid, 'tileGame', moves);
       if (result.success) {
         let message = `점수: ${score}점`;
         
@@ -234,9 +243,9 @@ export default function TileGameScreen() {
 
   // 타이머
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
+    let interval: ReturnType<typeof setInterval> | null = null;
     
-    if (gameState === 'playing') {
+    if (gameState === 'playing' && gameStartTime > 0) {
       interval = setInterval(() => {
         const elapsed = Math.floor((performance.now() - gameStartTime) / 1000);
         setTimeElapsed(elapsed);
@@ -248,9 +257,12 @@ export default function TileGameScreen() {
     }
     
     return () => {
-      if (interval) clearInterval(interval);
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
     };
-  }, [gameState, gameStartTime]);
+  }, [gameState, gameStartTime, maxTime]);
 
   // 게임 초기화 및 사용자 데이터 로드 (컴포넌트 마운트 시)
   useEffect(() => {
@@ -261,12 +273,18 @@ export default function TileGameScreen() {
   }, [initializeGame, user?.uid]);
 
   const getEmojiForValue = (value: number) => {
-    const emojis = ['🍎', '🍌', '🍇', '🍊', '🍓', '🥝', '🍑', '🥭'];
+    const emojis = ['🍎', '🍌', '🍇', '🍊', '🍓', '🥝'];
     return emojis[value - 1] || '❓';
   };
 
   const resetGame = () => {
     setGameState('waiting');
+    setFlippedTiles([]);
+    setMoves(0);
+    setMatches(0);
+    setTimeElapsed(0);
+    setFinalScore(0);
+    setGameStartTime(0);
     initializeGame();
   };
 
@@ -278,9 +296,22 @@ export default function TileGameScreen() {
         {/* 헤더 */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backButtonText}>← 뒤로</Text>
+            <Text style={styles.backButtonText}>← 게임 홈</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>🧩 타일 매칭 게임</Text>
+          <View style={styles.headerContent}>
+            <Text style={styles.title}>🧩 타일 매칭 게임</Text>
+            <Text style={styles.subtitle}>같은 그림의 타일을 찾아 매칭하세요!</Text>
+          </View>
+          <View style={styles.attemptsInfo}>
+            {isLoadingStats ? (
+              <Text style={styles.loadingText}>로딩중...</Text>
+            ) : (
+              <>
+                <Text style={styles.attemptsLabel}>오늘 남은 기회</Text>
+                <Text style={styles.attemptsValue}>{remainingAttempts}/{maxAttempts}</Text>
+              </>
+            )}
+          </View>
         </View>
 
         {/* 게임 상태 */}
@@ -305,42 +336,36 @@ export default function TileGameScreen() {
         <View style={styles.gameContainer}>
           {gameState === 'waiting' && (
             <View style={styles.waitingContainer}>
-              <Text style={styles.gameIcon}>🧩</Text>
-              <Text style={styles.gameTitle}>타일 매칭 게임</Text>
-              <Text style={styles.gameDescription}>
-                같은 그림의 타일 두 개를 찾아 매칭하세요!{'\n'}
-                빠른 시간과 적은 움직임으로 높은 점수를 획득하세요.
-              </Text>
-              
-              {/* 남은 기회 표시 */}
-              <View style={styles.attemptsContainer}>
-                {isLoadingStats ? (
-                  <Text style={styles.loadingText}>로딩중...</Text>
-                ) : (
-                  <Text style={styles.attemptsText}>
-                    오늘 남은 기회: {remainingAttempts}/{maxAttempts}
-                  </Text>
-                )}
-              </View>
-              
               {!user ? (
                 <View style={styles.loginContainer}>
+                  <Text style={styles.gameIcon}>🧩</Text>
                   <Text style={styles.loginText}>로그인이 필요합니다</Text>
+                  <Text style={styles.loginDescription}>타일 매칭 게임을 플레이하려면 로그인해주세요.</Text>
                   <TouchableOpacity style={styles.loginButton} onPress={() => router.push('/login')}>
-                    <Text style={styles.loginButtonText}>🎮 로그인하기</Text>
+                    <Text style={styles.loginButtonText}>로그인하기</Text>
                   </TouchableOpacity>
                 </View>
               ) : remainingAttempts <= 0 ? (
                 <View style={styles.noAttemptsContainer}>
-                  <Text style={styles.noAttemptsText}>오늘의 기회를 모두 사용했습니다</Text>
+                  <Text style={styles.gameIcon}>😴</Text>
+                  <Text style={styles.noAttemptsTitle}>오늘의 기회 소진</Text>
+                  <Text style={styles.noAttemptsText}>내일 다시 도전해보세요!</Text>
                   <TouchableOpacity style={[styles.startButton, styles.disabledButton]} disabled>
                     <Text style={[styles.startButtonText, styles.disabledButtonText]}>기회 소진</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
-                <TouchableOpacity style={styles.startButton} onPress={startGame}>
-                  <Text style={styles.startButtonText}>🎮 게임 시작</Text>
-                </TouchableOpacity>
+                <View style={styles.readyContainer}>
+                  <Text style={styles.gameIcon}>🧩</Text>
+                  <Text style={styles.readyTitle}>타일 매칭 게임</Text>
+                  <Text style={styles.readyDescription}>
+                    3x4 격자에서 6쌍의 타일을 모두 매칭하세요!{'\n'}
+                    적은 움직임으로 완료할수록 더 많은 경험치를 획득합니다.
+                  </Text>
+                  <TouchableOpacity style={styles.startButton} onPress={startGame}>
+                    <Text style={styles.startButtonText}>🎮 게임 시작 (클릭하세요!)</Text>
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
           )}
@@ -400,24 +425,39 @@ export default function TileGameScreen() {
           )}
         </View>
 
-        {/* 게임 설명 */}
-        <View style={styles.instructions}>
-          <Text style={styles.instructionsTitle}>🎯 게임 방법</Text>
-          <View style={styles.instructionsContent}>
-            <View style={styles.instructionSection}>
-              <Text style={styles.instructionSectionTitle}>목표</Text>
-              <Text style={styles.instructionText}>• 4x4 격자에서 8쌍의 타일을 모두 매칭</Text>
-              <Text style={styles.instructionText}>• 빠른 시간과 적은 움직임으로 고득점 달성</Text>
-              <Text style={styles.instructionText}>• 800점 이상으로 경험치를 획득하세요!</Text>
-            </View>
-            <View style={styles.instructionSection}>
-              <Text style={styles.instructionSectionTitle}>점수 계산</Text>
-              <Text style={styles.instructionText}>• 기본 점수: 1000점</Text>
-              <Text style={styles.instructionText}>• 시간 보너스: 남은 시간 × 10점</Text>
-              <Text style={styles.instructionText}>• 움직임 보너스: 최소 움직임 대비 × 20점</Text>
-              <Text style={styles.instructionText}>• 제한 시간: 2분</Text>
+        {/* 경험치 정보 */}
+        <View style={styles.xpContainer}>
+          <Text style={styles.xpTitle}>⭐ 경험치 정보</Text>
+          <Text style={styles.xpDescription}>
+            움직임 횟수가 적을수록 더 많은 경험치를 획득할 수 있습니다!
+          </Text>
+          <View style={styles.xpItem}>
+            <Text style={styles.xpText}>7번 이하</Text>
+            <View style={styles.xpBadge}>
+              <Text style={styles.xpBadgeText}>+15 XP</Text>
             </View>
           </View>
+          <View style={styles.xpItem}>
+            <Text style={styles.xpText}>8-10번</Text>
+            <View style={styles.xpBadge}>
+              <Text style={styles.xpBadgeText}>+10 XP</Text>
+            </View>
+          </View>
+          <View style={styles.xpItem}>
+            <Text style={styles.xpText}>11-13번</Text>
+            <View style={styles.xpBadge}>
+              <Text style={styles.xpBadgeText}>+5 XP</Text>
+            </View>
+          </View>
+          <View style={styles.xpItem}>
+            <Text style={styles.xpText}>14번 이상</Text>
+            <View style={styles.xpBadge}>
+              <Text style={styles.xpBadgeText}>+0 XP</Text>
+            </View>
+          </View>
+          <Text style={styles.xpTip}>
+            💡 팁: 최적 움직임은 6번입니다. 7번 이하로 완료하면 경험치를 획득할 수 있어요!
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -433,26 +473,51 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e5e5',
   },
   backButton: {
-    padding: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
   backButtonText: {
     fontSize: 16,
     color: '#3b82f6',
     fontWeight: '600',
   },
+  headerContent: {
+    flex: 1,
+    alignItems: 'center',
+  },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#1f2937',
-    flex: 1,
     textAlign: 'center',
-    marginRight: 40,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  attemptsInfo: {
+    alignItems: 'flex-end',
+  },
+  attemptsLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'right',
+  },
+  attemptsValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#3b82f6',
   },
   statusContainer: {
     flexDirection: 'row',
@@ -496,17 +561,50 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 40,
   },
+  loginContainer: {
+    alignItems: 'center',
+  },
+  noAttemptsContainer: {
+    alignItems: 'center',
+  },
+  readyContainer: {
+    alignItems: 'center',
+  },
   gameIcon: {
     fontSize: 60,
     marginBottom: 16,
   },
-  gameTitle: {
+  loginText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  loginDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  noAttemptsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  noAttemptsText: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  readyTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#1f2937',
     marginBottom: 12,
   },
-  gameDescription: {
+  readyDescription: {
     fontSize: 16,
     color: '#6b7280',
     textAlign: 'center',
@@ -528,7 +626,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 8,
+    paddingHorizontal: 20,
+    alignSelf: 'center',
   },
   tile: {
     width: tileSize,
@@ -539,7 +638,9 @@ const styles = StyleSheet.create({
     borderColor: '#d1d5db',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    margin: 4,
+    flexBasis: '30%', // 3개씩 배치를 위해 30% 설정
+    maxWidth: tileSize,
   },
   tileFlipped: {
     backgroundColor: '#dbeafe',
@@ -581,17 +682,6 @@ const styles = StyleSheet.create({
   resultValue: {
     fontSize: 20,
     fontWeight: 'bold',
-  },
-  xpBadge: {
-    backgroundColor: '#fef3c7',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginBottom: 20,
-  },
-  xpBadgeText: {
-    color: '#92400e',
-    fontWeight: '600',
   },
   finishedButtons: {
     flexDirection: 'row',
@@ -651,27 +741,10 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     lineHeight: 20,
   },
-  attemptsContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  attemptsText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2563EB',
-  },
   loadingText: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  loginContainer: {
-    alignItems: 'center',
-  },
-  loginText: {
-    fontSize: 16,
-    color: '#f59e0b',
-    fontWeight: '600',
-    marginBottom: 16,
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'right',
   },
   loginButton: {
     backgroundColor: '#3b82f6',
@@ -681,22 +754,73 @@ const styles = StyleSheet.create({
   },
   loginButtonText: {
     color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  noAttemptsContainer: {
-    alignItems: 'center',
-  },
-  noAttemptsText: {
     fontSize: 16,
-    color: '#dc2626',
     fontWeight: '600',
-    marginBottom: 16,
   },
   disabledButton: {
     backgroundColor: '#9ca3af',
   },
   disabledButtonText: {
     color: '#6b7280',
+  },
+  // 경험치 정보 스타일
+  xpContainer: {
+    margin: 16,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  xpTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  xpDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  xpItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  xpText: {
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  xpBadge: {
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  xpBadgeText: {
+    fontSize: 12,
+    color: '#92400e',
+    fontWeight: '600',
+  },
+  xpTip: {
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginTop: 12,
+    lineHeight: 16,
   },
 }); 
