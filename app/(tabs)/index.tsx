@@ -9,13 +9,15 @@ import { getUserGameStats } from '../../lib/games';
 import { getPopularPostsForHome } from '../../lib/boards';
 import { getRankingPreview } from '../../lib/ranking';
 import { School, Post } from '../../types';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { syncUserExperienceData } from '../../lib/experience';
 import { SafeScreenContainer } from '../../components/SafeScreenContainer';
 import { Ionicons } from '@expo/vector-icons';
 import PostListItem from '../../components/PostListItem';
+import { useRewardedAd } from '../../components/ads/AdMobAds';
 import { Timestamp } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // 시간 포맷팅 함수 - 유틸리티 함수 활용
 import { formatSmartTime } from '../../utils/timeUtils';
@@ -30,6 +32,159 @@ interface RankingPreview {
 export default function HomeScreen() {
   const { user, isLoading: authLoading } = useAuthStore();
   const [refreshing, setRefreshing] = useState(false);
+  // 리워드 광고 완료 시 경험치 추가
+  const handleRewardEarned = async (reward: any) => {
+    if (!user?.uid) return;
+    
+    try {
+      // 경험치 추가 로직 (experience.ts 활용)
+      const { addExperience } = await import('../../lib/experience');
+      await addExperience(user.uid, 50, 'rewarded_ad');
+      
+      // 광고 시청 데이터 업데이트
+      const now = Date.now();
+      const newCount = adWatchCount + 1;
+      setAdWatchCount(newCount);
+      setLastAdWatchTime(now);
+      await saveAdWatchData(newCount, now);
+      
+      // 사용자 데이터 새로고침
+      await loadUserData();
+      
+      const remainingAds = DAILY_AD_LIMIT - newCount;
+      Alert.alert(
+        '🎉 보상 획득!', 
+        `경험치 +50을 받았습니다!\n\n오늘 남은 광고 시청 횟수: ${remainingAds}회`
+      );
+    } catch (error) {
+      console.error('경험치 추가 오류:', error);
+      Alert.alert('오류', '보상 지급 중 오류가 발생했습니다.');
+    }
+  };
+
+  const { showRewardedAd, isLoaded } = useRewardedAd(handleRewardEarned);
+  
+  // 리워드 광고 제한 상태
+  const [adWatchCount, setAdWatchCount] = useState(0);
+  const [lastAdWatchTime, setLastAdWatchTime] = useState<number | null>(null);
+  const [timeUntilNextAd, setTimeUntilNextAd] = useState(0);
+
+  // 광고 시청 제한 설정
+  const AD_COOLDOWN_MINUTES = 15; // 15분 간격
+  const DAILY_AD_LIMIT = 5; // 일일 5회 제한
+
+  // Firebase에서 광고 시청 데이터 로드
+  const loadAdWatchData = async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD 형식
+      const adWatchRef = doc(db, 'users', user.uid, 'adWatchData', today);
+      const adWatchSnap = await getDoc(adWatchRef);
+      
+      if (adWatchSnap.exists()) {
+        const data = adWatchSnap.data();
+        setAdWatchCount(data.count || 0);
+        setLastAdWatchTime(data.lastWatchTime || null);
+      } else {
+        // 오늘 첫 접속 시 초기화
+        setAdWatchCount(0);
+        setLastAdWatchTime(null);
+      }
+      
+      // 로컬 백업도 저장
+      const adDataKey = `adWatch_${user.uid}_${today}`;
+      const backupData = {
+        count: adWatchCount,
+        lastWatchTime: lastAdWatchTime
+      };
+      await AsyncStorage.setItem(adDataKey, JSON.stringify(backupData));
+    } catch (error) {
+      console.error('Firebase 광고 데이터 로드 오류:', error);
+      // Firebase 실패 시 로컬 데이터 사용
+      await loadLocalAdWatchData();
+    }
+  };
+
+  // 로컬 백업 데이터 로드 (Firebase 실패 시)
+  const loadLocalAdWatchData = async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const adDataKey = `adWatch_${user.uid}_${today}`;
+      const adData = await AsyncStorage.getItem(adDataKey);
+      
+      if (adData) {
+        const { count, lastWatchTime } = JSON.parse(adData);
+        setAdWatchCount(count || 0);
+        setLastAdWatchTime(lastWatchTime || null);
+      }
+    } catch (error) {
+      console.error('로컬 광고 데이터 로드 오류:', error);
+    }
+  };
+
+  // Firebase에 광고 시청 데이터 저장
+  const saveAdWatchData = async (count: number, watchTime: number) => {
+    if (!user?.uid) return;
+    
+    try {
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD 형식
+      const adWatchRef = doc(db, 'users', user.uid, 'adWatchData', today);
+      
+      const adWatchData = {
+        count,
+        lastWatchTime: watchTime,
+        date: today,
+        updatedAt: Timestamp.now()
+      };
+      
+      // Firebase에 저장
+      await setDoc(adWatchRef, adWatchData, { merge: true });
+      
+      // 로컬 백업도 저장
+      const adDataKey = `adWatch_${user.uid}_${today}`;
+      await AsyncStorage.setItem(adDataKey, JSON.stringify({
+        count,
+        lastWatchTime: watchTime
+      }));
+      
+      console.log('광고 시청 데이터 Firebase 저장 완료:', { count, date: today });
+    } catch (error) {
+      console.error('Firebase 광고 데이터 저장 오류:', error);
+      // Firebase 실패 시에도 로컬에는 저장
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const adDataKey = `adWatch_${user.uid}_${today}`;
+        await AsyncStorage.setItem(adDataKey, JSON.stringify({
+          count,
+          lastWatchTime: watchTime
+        }));
+      } catch (localError) {
+        console.error('로컬 광고 데이터 저장도 실패:', localError);
+      }
+    }
+  };
+
+  // 다음 광고까지 남은 시간 계산
+  const calculateTimeUntilNextAd = () => {
+    if (!lastAdWatchTime) return 0;
+    
+    const now = Date.now();
+    const timeSinceLastAd = now - lastAdWatchTime;
+    const cooldownMs = AD_COOLDOWN_MINUTES * 60 * 1000;
+    
+    return Math.max(0, cooldownMs - timeSinceLastAd);
+  };
+
+  // 광고 시청 가능 여부 확인
+  const canWatchAd = () => {
+    if (adWatchCount >= DAILY_AD_LIMIT) return false;
+    if (!lastAdWatchTime) return true;
+    
+    return calculateTimeUntilNextAd() === 0;
+  };
   const [userData, setUserData] = useState<any>(null);
   const [attendance, setAttendance] = useState<UserAttendance | null>(null);
   const [isCheckingAttendance, setIsCheckingAttendance] = useState(false);
@@ -59,6 +214,22 @@ export default function HomeScreen() {
     
     return { current, required, percentage };
   }, [user?.stats]);
+
+  // 타이머 업데이트
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeUntilNextAd(calculateTimeUntilNextAd());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [lastAdWatchTime]);
+
+  // 광고 시청 데이터 로드
+  useEffect(() => {
+    if (user?.uid) {
+      loadAdWatchData();
+    }
+  }, [user?.uid]);
 
   // 사용자 데이터 및 출석 정보 로드
   const loadUserData = async () => {
@@ -140,6 +311,60 @@ export default function HomeScreen() {
     } finally {
       setIsCheckingAttendance(false);
     }
+  };
+
+  // 시간을 분:초 형태로 포맷
+  const formatTime = (milliseconds: number) => {
+    const minutes = Math.floor(milliseconds / (1000 * 60));
+    const seconds = Math.floor((milliseconds % (1000 * 60)) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  // 리워디드 광고 시청 후 경험치 보상
+  const handleWatchRewardedAd = () => {
+    if (!user?.uid) {
+      Alert.alert('로그인 필요', '광고를 시청하려면 로그인해주세요.');
+      return;
+    }
+
+    if (!isLoaded) {
+      Alert.alert('광고 준비 중', '광고가 준비되지 않았습니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
+    // 일일 제한 확인
+    if (adWatchCount >= DAILY_AD_LIMIT) {
+      Alert.alert(
+        '일일 제한 도달', 
+        `오늘은 더 이상 광고를 시청할 수 없습니다.\n\n일일 제한: ${DAILY_AD_LIMIT}회\n내일 다시 시도해주세요!`
+      );
+      return;
+    }
+
+    // 쿨다운 확인
+    if (!canWatchAd()) {
+      const timeLeft = formatTime(timeUntilNextAd);
+      Alert.alert(
+        '⏰ 잠시 기다려주세요', 
+        `다음 광고 시청까지 ${timeLeft} 남았습니다.\n\n광고 간격: ${AD_COOLDOWN_MINUTES}분\n최적의 수익을 위한 제한입니다.`
+      );
+      return;
+    }
+
+    const remainingAds = DAILY_AD_LIMIT - adWatchCount;
+    Alert.alert(
+      '🎁 광고 시청하기',
+      `30초 광고를 시청하면 경험치 +50을 받을 수 있습니다!\n\n오늘 남은 횟수: ${remainingAds}회\n다음 광고까지: ${AD_COOLDOWN_MINUTES}분 간격`,
+      [
+        { text: '취소', style: 'cancel' },
+        { 
+          text: '시청하기', 
+          onPress: () => {
+            showRewardedAd();
+          }
+        }
+      ]
+    );
   };
 
   const getRankIcon = (rank: number) => {
@@ -319,13 +544,40 @@ export default function HomeScreen() {
         <Text style={styles.title}>📚 Inschoolz</Text>
         <View style={styles.userInfo}>
           <Text style={styles.userName}>{user.profile?.userName || '익명'}</Text>
-          <View style={styles.expBar}>
-            <View style={styles.expBarBackground}>
-              <View style={[styles.expBarFill, { width: `${expProgress.percentage}%` }]} />
+          <View style={styles.expSection}>
+            <View style={styles.expBar}>
+              <View style={styles.expBarBackground}>
+                <View style={[styles.expBarFill, { width: `${expProgress.percentage}%` }]} />
+              </View>
+              <Text style={styles.expText}>
+                Lv.{user.stats?.level || 1} ({expProgress.current}/{expProgress.required})
+              </Text>
             </View>
-            <Text style={styles.expText}>
-              Lv.{user.stats?.level || 1} ({expProgress.current}/{expProgress.required})
-            </Text>
+            <TouchableOpacity 
+              style={[
+                styles.rewardedAdButton,
+                { 
+                  backgroundColor: canWatchAd() && isLoaded ? '#f59e0b' : '#9ca3af',
+                  opacity: canWatchAd() && isLoaded ? 1 : 0.7
+                }
+              ]}
+              onPress={handleWatchRewardedAd}
+              disabled={!isLoaded || !canWatchAd()}
+            >
+              <Text style={styles.rewardedAdButtonText}>
+                {adWatchCount >= DAILY_AD_LIMIT 
+                  ? '🚫 일일 제한' 
+                  : !canWatchAd() 
+                    ? `⏰ ${formatTime(timeUntilNextAd)}`
+                    : '🎁 +50 XP'
+                }
+              </Text>
+              {canWatchAd() && adWatchCount < DAILY_AD_LIMIT && (
+                <Text style={styles.rewardedAdSubText}>
+                  {DAILY_AD_LIMIT - adWatchCount}회 남음
+                </Text>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -505,11 +757,14 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1f2937',
   },
+  expSection: {
+    marginTop: 8,
+  },
   expBar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginTop: 8,
+    marginBottom: 8,
   },
   expBarBackground: {
     flex: 1,
@@ -527,6 +782,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6b7280',
     fontWeight: '500',
+  },
+  rewardedAdButton: {
+    backgroundColor: '#f59e0b',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+  },
+  rewardedAdButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  rewardedAdSubText: {
+    color: 'white',
+    fontSize: 10,
+    opacity: 0.9,
+    textAlign: 'center',
+    marginTop: 2,
   },
   loginPrompt: {
     backgroundColor: 'white',

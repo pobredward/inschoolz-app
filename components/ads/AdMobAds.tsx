@@ -34,8 +34,8 @@ const AD_UNIT_IDS = !isExpoGo ? {
     android: 'ca-app-pub-5100840159526765/5841727180', // 현재는 배너와 동일, 필요시 별도 전면광고 단위 생성
   }),
   rewarded: __DEV__ ? TestIds?.REWARDED : Platform.select({
-    ios: 'ca-app-pub-5100840159526765/2477197240', // 현재는 배너와 동일, 필요시 별도 리워드광고 단위 생성
-    android: 'ca-app-pub-5100840159526765/5841727180', // 현재는 배너와 동일, 필요시 별도 리워드광고 단위 생성
+    ios: 'ca-app-pub-5100840159526765/5519530651', // 실제 리워드 광고 단위 ID (iOS용 별도 생성 필요시 교체)
+    android: 'ca-app-pub-5100840159526765/5519530651', // 실제 Android 리워드 광고 단위 ID
   }),
 } : {};
 
@@ -118,9 +118,49 @@ export function LargeBannerAd({ style }: { style?: object }) {
 export function MediumRectangleAd({ style }: { style?: object }) {
   return (
     <BannerAdComponent 
-      size={BannerAdSize.MEDIUM_RECTANGLE}
+      size={BannerAdSize?.MEDIUM_RECTANGLE || BannerAdSize?.BANNER}
       style={[styles.mediumRectangle, style]}
     />
+  );
+}
+
+// 게시글과 동일한 크기의 네이티브 스타일 광고 (피드 사이 삽입용)
+export function NativeFeedAd({ style }: { style?: object }) {
+  // Expo Go 환경에서는 게시글 스타일의 플레이스홀더 표시
+  if (isExpoGo) {
+    return (
+      <View style={[styles.nativeFeedAd, style]}>
+        <View style={styles.nativeFeedHeader}>
+          <Text style={styles.adBadge}>광고</Text>
+        </View>
+        <View style={styles.nativeFeedContent}>
+          <View style={styles.nativeFeedTextContainer}>
+            <Text style={styles.nativeFeedTitle}>
+              📱 광고 영역 (Development Build에서 실제 광고 표시)
+            </Text>
+            <Text style={styles.nativeFeedDescription}>
+              이 영역에 AdMob 네이티브 광고가 표시됩니다.
+            </Text>
+          </View>
+        </View>
+        <View style={styles.nativeFeedStats}>
+          <Text style={styles.nativeFeedStatItem}>후원 콘텐츠</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // 실제 환경에서는 MEDIUM_RECTANGLE 광고를 게시글 스타일로 래핑
+  return (
+    <View style={[styles.nativeFeedAd, style]}>
+      <View style={styles.nativeFeedHeader}>
+        <Text style={styles.adBadge}>광고</Text>
+      </View>
+      <BannerAdComponent 
+        size={BannerAdSize?.MEDIUM_RECTANGLE || BannerAdSize?.BANNER}
+        style={styles.nativeFeedAdContent}
+      />
+    </View>
   );
 }
 
@@ -130,7 +170,7 @@ export function SmartBannerAd({ style }: { style?: object }) {
   
   return (
     <BannerAdComponent 
-      size={screenData.width > 728 ? BannerAdSize.LEADERBOARD : BannerAdSize.BANNER}
+      size={screenData.width > 728 ? (BannerAdSize?.LEADERBOARD || BannerAdSize?.BANNER) : BannerAdSize?.BANNER}
       style={[styles.smartBanner, style]}
     />
   );
@@ -142,6 +182,11 @@ export function useInterstitialAd() {
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
+    // Expo Go 환경이거나 AdMob 모듈이 없는 경우 early return
+    if (isExpoGo || !InterstitialAd || !AD_UNIT_IDS.interstitial) {
+      return;
+    }
+
     const interstitialAd = InterstitialAd.createForAdRequest(AD_UNIT_IDS.interstitial!, {
       requestNonPersonalizedAdsOnly: false,
     });
@@ -185,11 +230,16 @@ export function useInterstitialAd() {
 }
 
 // 리워드 광고 훅
-export function useRewardedAd() {
+export function useRewardedAd(onRewardEarned?: (reward: any) => void) {
   const [rewarded, setRewarded] = useState<any | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
+    // Expo Go 환경이거나 AdMob 모듈이 없는 경우 early return
+    if (isExpoGo || !RewardedAd || !AD_UNIT_IDS.rewarded) {
+      return;
+    }
+
     const rewardedAd = RewardedAd.createForAdRequest(AD_UNIT_IDS.rewarded!, {
       requestNonPersonalizedAdsOnly: false,
     });
@@ -208,7 +258,10 @@ export function useRewardedAd() {
       RewardedAdEventType.EARNED_REWARD,
       (reward: any) => {
         console.log('리워드 획득:', reward);
-        // 여기서 리워드 로직 처리 (경험치 추가 등)
+        // 콜백 함수가 있으면 실행
+        if (onRewardEarned) {
+          onRewardEarned(reward);
+        }
       },
     );
 
@@ -228,7 +281,7 @@ export function useRewardedAd() {
       unsubscribeEarned();
       unsubscribeClosed();
     };
-  }, []);
+  }, [onRewardEarned]);
 
   const showRewardedAd = () => {
     if (isLoaded && rewarded) {
@@ -274,12 +327,81 @@ const styles = StyleSheet.create({
     height: 50,
     marginVertical: 8,
   },
+  // 게시글과 동일한 스타일의 네이티브 피드 광고
+  nativeFeedAd: {
+    backgroundColor: 'white',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#f3f4f6', // 광고임을 나타내는 미묘한 테두리
+  },
+  nativeFeedHeader: {
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  adBadge: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#6b7280',
+    backgroundColor: '#f9fafb',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  nativeFeedContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 8,
+  },
+  nativeFeedTextContainer: {
+    flex: 1,
+    minWidth: 0,
+  },
+  nativeFeedTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 4,
+    lineHeight: 22,
+  },
+  nativeFeedDescription: {
+    fontSize: 14,
+    color: '#4b5563',
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  nativeFeedStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  nativeFeedStatItem: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontStyle: 'italic',
+  },
+  nativeFeedAdContent: {
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginVertical: 0,
+  },
 });
 
 export default {
   BannerAdComponent,
   LargeBannerAd,
   MediumRectangleAd,
+  NativeFeedAd,
   SmartBannerAd,
   useInterstitialAd,
   useRewardedAd,

@@ -17,7 +17,7 @@ import {
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import PostListItem from '../../components/PostListItem';
-import { LargeBannerAd, MediumRectangleAd } from '../../components/ads/AdMobAds';
+// 광고 제거: 리워디드 광고만 사용
 import { Timestamp } from 'firebase/firestore';
 // 유틸리티 함수 import
 import { formatRelativeTime, getPostPreviewImages, toTimestamp } from '../../utils/timeUtils';
@@ -785,8 +785,7 @@ export default function CommunityScreen() {
       >
         {renderTabs()}
         
-        {/* 상단 광고 */}
-        <LargeBannerAd style={{ marginHorizontal: 16, marginVertical: 12 }} />
+        {/* 상단 광고 제거 - 리워디드 광고만 사용 */}
         
         {selectedTab === 'school' && (
           <SchoolSelector 
@@ -822,10 +821,7 @@ export default function CommunityScreen() {
                   posts.map((post, index) => (
                     <View key={post.id}>
                       {renderPostCard({ item: post })}
-                      {/* 게시글 3개마다 광고 삽입 */}
-                      {((index + 1) % 3 === 0 && index > 0) && (
-                        <MediumRectangleAd style={{ marginHorizontal: 16, marginVertical: 16 }} />
-                      )}
+                      {/* 피드 광고 제거 - 리워디드 광고만 사용 */}
                     </View>
                   ))
                 ) : (
