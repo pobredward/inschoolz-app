@@ -108,7 +108,7 @@ export function BannerAdComponent({
 export function LargeBannerAd({ style }: { style?: object }) {
   return (
     <BannerAdComponent 
-      size={BannerAdSize.LARGE_BANNER}
+      size={BannerAdSize?.LARGE_BANNER || BannerAdSize?.BANNER}
       style={[styles.largeBanner, style]}
     />
   );
