@@ -471,7 +471,12 @@ export const awardExperience = async (
   reason?: string;
 }> => {
   try {
+    // 최신 설정을 가져오기 위해 캐시 무효화
+    invalidateSystemSettingsCache();
+    
     const settings = await getSystemSettings();
+    console.log(`awardExperience - 활동 타입: ${activityType}, 게임 타입: ${gameType}, 점수: ${gameScore}`);
+    console.log(`awardExperience - 현재 시스템 설정:`, settings);
     let expToAward = 0;
     let shouldCheckLimit = true;
     let activityLimitType: 'posts' | 'comments' | 'games' | null = null;
@@ -506,10 +511,15 @@ export const awardExperience = async (
         if (!gameType) return { success: false, expAwarded: 0, leveledUp: false, reason: '게임 타입이 필요합니다.' };
         
         const gameSettings = settings.gameSettings[gameType];
+        console.log(`awardExperience - 게임 ${gameType} 설정:`, gameSettings);
+        console.log(`awardExperience - 게임 점수: ${gameScore}, 임계값: ${gameSettings.rewardThreshold}`);
+        
         if (gameScore && gameScore >= gameSettings.rewardThreshold) {
           expToAward = gameSettings.rewardAmount;
           activityLimitType = 'games';
+          console.log(`awardExperience - 게임 경험치 ${expToAward} 지급 예정`);
         } else {
+          console.log(`awardExperience - 기준 점수 미달 (${gameScore} < ${gameSettings.rewardThreshold})`);
           return { success: false, expAwarded: 0, leveledUp: false, reason: '기준 점수에 도달하지 못했습니다.' };
         }
         break;
@@ -566,7 +576,8 @@ export const syncUserExperienceData = async (userId: string): Promise<void> => {
     const userDoc = await getDoc(userRef);
     
     if (!userDoc.exists()) {
-      throw new Error('사용자를 찾을 수 없습니다.');
+      console.warn('사용자 문서를 찾을 수 없습니다:', userId);
+      return; // 에러를 던지지 않고 조용히 반환하여 UI 블로킹 방지
     }
     
     const userData = userDoc.data() as User;
@@ -575,20 +586,35 @@ export const syncUserExperienceData = async (userId: string): Promise<void> => {
     const totalExp = userData.stats?.totalExperience || 0;
     const progress = calculateCurrentLevelProgress(totalExp);
     
-    // 데이터 동기화
-    await updateDoc(userRef, {
+    // 이미 동기화된 경우 스킵하여 성능 개선
+    if (userData.stats?.level === progress.level && 
+        userData.stats?.currentExp === progress.currentExp) {
+      console.log('경험치 데이터가 이미 동기화되어 있습니다:', userId);
+      return;
+    }
+    
+    // 데이터 동기화 - 네트워크 오류 시 타임아웃 설정
+    const updatePromise = updateDoc(userRef, {
       'stats.totalExperience': totalExp,
-      // 'stats.experience': totalExp, // experience 필드 제거
       'stats.level': progress.level,
       'stats.currentExp': progress.currentExp,
       'stats.currentLevelRequiredXp': progress.currentLevelRequiredXp,
       'updatedAt': serverTimestamp()
     });
     
+    // 3초 타임아웃 설정
+    await Promise.race([
+      updatePromise,
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('경험치 동기화 타임아웃')), 3000)
+      )
+    ]);
+    
     console.log(`✅ 사용자 ${userId}의 경험치 데이터가 동기화되었습니다.`);
     console.log(`- 총 경험치: ${totalExp}, 레벨: ${progress.level}, 현재 경험치: ${progress.currentExp}/${progress.currentLevelRequiredXp}`);
   } catch (error) {
-    console.error('경험치 데이터 동기화 오류:', error);
+    console.error('경험치 데이터 동기화 오류 (백그라운드):', error);
+    // UI 블로킹을 방지하기 위해 에러를 던지지 않음
   }
 };
 
@@ -1170,7 +1196,15 @@ export const getHomeStats = async (): Promise<{
 export const resetDailyActivityLimits = async (userId: string): Promise<void> => {
   try {
     const userRef = doc(db, 'users', userId);
-    const userDoc = await getDoc(userRef);
+    
+    // 타임아웃 설정으로 UI 블로킹 방지
+    const userDocPromise = getDoc(userRef);
+    const userDoc = await Promise.race([
+      userDocPromise,
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('일일 제한 리셋 타임아웃')), 2000)
+      )
+    ]) as any;
     
     if (!userDoc.exists()) {
       console.warn('사용자 문서를 찾을 수 없습니다:', userId);
@@ -1198,11 +1232,22 @@ export const resetDailyActivityLimits = async (userId: string): Promise<void> =>
         // adRewards는 날짜별로 별도 관리되므로 리셋하지 않음
       };
       
-      await updateDoc(userRef, resetData);
+      // 업데이트에도 타임아웃 설정
+      const updatePromise = updateDoc(userRef, resetData);
+      await Promise.race([
+        updatePromise,
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('일일 제한 업데이트 타임아웃')), 2000)
+        )
+      ]);
+      
       console.log('일일 활동 제한 리셋 완료:', userId);
+    } else {
+      console.log('일일 활동 제한 리셋 불필요:', userId, today);
     }
   } catch (error) {
-    console.error('일일 활동 제한 리셋 오류:', error);
+    console.error('일일 활동 제한 리셋 오류 (백그라운드):', error);
+    // UI 블로킹을 방지하기 위해 에러를 던지지 않음
   }
 }; 
 

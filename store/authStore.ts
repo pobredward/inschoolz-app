@@ -81,14 +81,12 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
               
               if (userDoc.exists()) {
-                // 일일 활동 제한 자동 리셋 실행
-                await resetDailyActivityLimits(firebaseUser.uid);
-                
                 const userData = userDoc.data() as User;
                 userData.uid = firebaseUser.uid;
                 
                 logger.auth('사용자 데이터 로드 완료:', userData.profile?.userName);
                 
+                // 먼저 사용자 데이터를 설정하여 UI 블로킹 해제
                 set({
                   user: userData,
                   isAuthenticated: true,
@@ -99,6 +97,11 @@ export const useAuthStore = create<AuthState & AuthActions>()(
                 // 실시간 사용자 데이터 리스너 설정
                 const { setupRealtimeUserListener } = get();
                 setupRealtimeUserListener(firebaseUser.uid);
+                
+                // 일일 활동 제한 리셋을 백그라운드에서 비동기 실행 (UI 블로킹 방지)
+                resetDailyActivityLimits(firebaseUser.uid).catch(error => {
+                  console.error('일일 활동 제한 리셋 실패 (백그라운드):', error);
+                });
               } else {
                 logger.warn('Firestore에서 사용자 문서를 찾을 수 없음');
                 set({
@@ -329,21 +332,38 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         logger.debug('실시간 사용자 데이터 리스너 설정:', userId);
         
         const userRef = doc(db, 'users', userId);
+        
+        // 실시간 리스너를 throttle하여 성능 개선
+        let lastUpdate = 0;
+        const THROTTLE_MS = 2000; // 2초마다 최대 1회 업데이트
+        
         const unsubscribe = onSnapshot(userRef, (doc) => {
+          const now = Date.now();
+          if (now - lastUpdate < THROTTLE_MS) {
+            return; // 너무 빈번한 업데이트 방지
+          }
+          lastUpdate = now;
+          
           if (doc.exists()) {
             const userData = doc.data() as User;
             userData.uid = userId;
             
-            // 기존 사용자 정보와 병합하여 업데이트
+            // 기존 사용자 정보와 병합하여 업데이트 (변경된 데이터만 업데이트)
             const { user: currentUser } = get();
             if (currentUser) {
-              set({
-                user: {
-                  ...currentUser,
-                  ...userData,
-                  uid: userId, // uid 유지
-                },
-              });
+              // 데이터가 실제로 변경되었는지 확인
+              const hasChanged = JSON.stringify(currentUser.stats) !== JSON.stringify(userData.stats) ||
+                                JSON.stringify(currentUser.profile) !== JSON.stringify(userData.profile);
+              
+              if (hasChanged) {
+                set({
+                  user: {
+                    ...currentUser,
+                    ...userData,
+                    uid: userId, // uid 유지
+                  },
+                });
+              }
             }
           }
         });

@@ -33,10 +33,16 @@ const calculateGameXP = async (gameType: GameType, value: number): Promise<numbe
   try {
     console.log('calculateGameXP - gameType:', gameType, 'value:', value);
     
+    // 최신 설정을 가져오기 위해 캐시 무효화
+    const { invalidateSystemSettingsCache } = await import('./experience');
+    invalidateSystemSettingsCache();
+    
     // 게임 타입에 따라 적절한 경험치 계산
     if (gameType === 'reactionGame') {
       // 반응속도 게임은 기존 로직 유지 (반응시간 기반)
       const settings = await getSystemSettings();
+      console.log('calculateGameXP - reactionGame settings:', settings.gameSettings.reactionGame);
+      
       if (settings.gameSettings.reactionGame.thresholds) {
         const thresholds = settings.gameSettings.reactionGame.thresholds;
         const sortedThresholds = [...thresholds].sort((a, b) => a.minScore - b.minScore);
@@ -53,6 +59,8 @@ const calculateGameXP = async (gameType: GameType, value: number): Promise<numbe
       console.log(`calculateGameXP - 타일 게임 움직임 횟수: ${value}번`);
       
       const settings = await getSystemSettings();
+      console.log('calculateGameXP - tileGame settings:', settings.gameSettings.tileGame);
+      
       if (settings.gameSettings.tileGame.thresholds) {
         const thresholds = settings.gameSettings.tileGame.thresholds;
         // 움직임 횟수가 적을수록 더 높은 경험치 (minScore는 실제로 minMoves)
@@ -71,6 +79,7 @@ const calculateGameXP = async (gameType: GameType, value: number): Promise<numbe
     } else if (gameType === 'flappyBird') {
       // flappyBird는 기본 경험치 반환
       const settings = await getSystemSettings();
+      console.log('calculateGameXP - flappyBird settings:', settings.gameSettings.flappyBird);
       return settings.gameSettings.flappyBird.rewardAmount;
     }
     
@@ -170,6 +179,10 @@ export const updateGameScore = async (userId: string, gameType: GameType, score:
 // 사용자 게임 통계 조회
 export const getUserGameStats = async (userId: string): Promise<GameStatsResponse> => {
   try {
+    // 최신 설정을 가져오기 위해 캐시 무효화
+    const { invalidateSystemSettingsCache } = await import('./experience');
+    invalidateSystemSettingsCache();
+    
     const userRef = doc(db, 'users', userId);
     const userDoc = await getDoc(userRef);
     
@@ -208,6 +221,8 @@ export const getUserGameStats = async (userId: string): Promise<GameStatsRespons
     // 일일 최대 플레이 횟수 (시스템 설정에서 가져오기)
     const settings = await getSystemSettings();
     const maxPlays = settings.dailyLimits.gamePlayCount;
+    
+    console.log('getUserGameStats - 현재 시스템 설정:', settings.gameSettings);
     
     // 게임별 획득 가능한 경험치 계산
     let totalXpEarned = 0;

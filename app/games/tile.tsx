@@ -256,13 +256,13 @@ export default function TileGameScreen() {
     };
   }, [gameState, gameStartTime, maxTime]);
 
-  // 게임 초기화 및 사용자 데이터 로드 (컴포넌트 마운트 시)
+  // 게임 초기화 및 사용자 데이터 로드 (컴포넌트 마운트 시) - 무한 루프 방지
   useEffect(() => {
     initializeGame();
     if (user?.uid) {
       loadRemainingAttempts();
     }
-  }, [initializeGame, user?.uid]);
+  }, [user?.uid]); // initializeGame 의존성 제거로 무한 루프 방지
 
   const getEmojiForValue = (value: number) => {
     const emojis = ['🍎', '🍌', '🍇', '🍊', '🍓', '🥝'];
