@@ -98,7 +98,7 @@ export default function ProfileScreen() {
     }
   };
 
-  const { showRewardedAd, isLoaded, isLoading } = useRewardedAd(handleRewardEarned);
+  const { showRewardedAd, isLoaded, isLoading, loadAttempts, loadingTime } = useRewardedAd(handleRewardEarned);
 
   // Firebase에서 광고 시청 데이터 로드
   const loadAdWatchData = useCallback(async () => {
@@ -177,9 +177,10 @@ export default function ProfileScreen() {
       return;
     }
 
-    if (!isLoaded) {
-      Alert.alert('광고 준비 중', '광고가 준비되지 않았습니다. 잠시 후 다시 시도해주세요.');
-      return;
+    // 클릭 시 로딩 방식에서는 Alert 대신 바로 로딩 시작
+    if (!isLoaded && !isLoading) {
+      // 광고 로딩을 시작하고 사용자에게 피드백 제공
+      console.log('광고 로딩을 시작합니다...');
     }
 
     // 일일 제한 확인
@@ -588,8 +589,9 @@ export default function ProfileScreen() {
               style={[
                 styles.rewardedAdButton,
                 { 
-                  backgroundColor: canWatchAd() && (isLoaded || !isLoading) ? '#f59e0b' : '#9ca3af',
-                  opacity: canWatchAd() && (isLoaded || !isLoading) ? 1 : 0.7
+                  backgroundColor: canWatchAd() && isLoaded ? '#f59e0b' : 
+                                  canWatchAd() && isLoading ? '#fbbf24' : '#9ca3af',
+                  opacity: canWatchAd() ? 1 : 0.7
                 }
               ]}
               onPress={handleWatchRewardedAd}
@@ -601,13 +603,16 @@ export default function ProfileScreen() {
                   : !canWatchAd() 
                     ? `⏰ ${formatTime(timeUntilNextAd)}`
                     : isLoading 
-                      ? '⏳ 광고 로딩 중...'
-                      : `🎁 +${adSettings.experienceReward} XP`
+                      ? `⏳ 잠시만 기다려주세요... (${loadingTime}초, ${loadAttempts}/3)`
+                      : isLoaded
+                        ? `🎁 +${adSettings.experienceReward} XP`
+                        : `🎁 +${adSettings.experienceReward} XP`
                 }
               </Text>
-              {canWatchAd() && adWatchCount < adSettings.dailyLimit && !isLoading && (
+              {canWatchAd() && adWatchCount < adSettings.dailyLimit && (
                 <Text style={styles.rewardedAdSubText}>
-                  {isLoaded ? '준비됨!' : '클릭 시 로딩'} • {adSettings.dailyLimit - adWatchCount}회 남음
+                  {isLoaded ? '✅ 준비됨! 바로 시청 가능' : 
+                   isLoading ? `⏳ 광고 로딩 중... 잠시만 대기해주세요 (${loadingTime}초 경과, ${loadAttempts}/3 시도)` : '👆 클릭하여 시청하기'} • {adSettings.dailyLimit - adWatchCount}회 남음
                 </Text>
               )}
             </TouchableOpacity>
