@@ -258,7 +258,7 @@ export const registerWithEmail = async (
           const expSettings = await getExperienceSettings();
           
           const referrerExp = expSettings.referral?.referrerXP || 30; // 추천인이 받는 경험치
-          const refereeExp = expSettings.referral?.refereeXP || 20;   // 추천받은 사람이 받는 경험치
+          const refereeExp = expSettings.referral?.refereeXP || 30;   // 추천받은 사람이 받는 경험치
           
           // 추천인 경험치 업데이트 (레벨업 계산 포함)
           const { updateUserExperience } = await import('./experience');

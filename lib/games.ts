@@ -49,22 +49,25 @@ const calculateGameXP = async (gameType: GameType, value: number): Promise<numbe
         }
       }
     } else if (gameType === 'tileGame') {
-      // 타일 게임은 움직임 횟수 기반으로 경험치 계산
+      // 타일 게임은 움직임 횟수 기반으로 경험치 계산 (Firebase 설정 사용)
       console.log(`calculateGameXP - 타일 게임 움직임 횟수: ${value}번`);
       
-      if (value <= 7) {
-        console.log('calculateGameXP - 타일 게임 15 XP 지급! (7번 이하)');
-        return 15;
-      } else if (value <= 10) {
-        console.log('calculateGameXP - 타일 게임 10 XP 지급! (8-10번)');
-        return 10;
-      } else if (value <= 13) {
-        console.log('calculateGameXP - 타일 게임 5 XP 지급! (11-13번)');
-        return 5;
-      } else {
-        console.log('calculateGameXP - 타일 게임 0 XP 지급! (14번 이상)');
-        return 0;
+      const settings = await getSystemSettings();
+      if (settings.gameSettings.tileGame.thresholds) {
+        const thresholds = settings.gameSettings.tileGame.thresholds;
+        // 움직임 횟수가 적을수록 더 높은 경험치 (minScore는 실제로 minMoves)
+        const sortedThresholds = [...thresholds].sort((a, b) => a.minScore - b.minScore);
+        
+        for (const threshold of sortedThresholds) {
+          if (value <= threshold.minScore) {
+            console.log(`calculateGameXP - 타일 게임 경험치 ${threshold.xpReward} 지급! (${value}번 <= ${threshold.minScore}번)`);
+            return threshold.xpReward;
+          }
+        }
       }
+      
+      console.log('calculateGameXP - 타일 게임 0 XP 지급! (모든 threshold 초과)');
+      return 0;
     } else if (gameType === 'flappyBird') {
       // flappyBird는 기본 경험치 반환
       const settings = await getSystemSettings();
@@ -107,21 +110,21 @@ export const updateGameScore = async (userId: string, gameType: GameType, score:
 
     const userData = userDoc.data() as User;
     
-    // 현재 최저 반응시간 확인 (반응속도 게임의 경우) 또는 최고 점수 확인 (타일 게임의 경우)
+    // 현재 최저 반응시간 확인 (반응속도 게임의 경우) 또는 최소 움직임 확인 (타일 게임의 경우)
     const currentBestReactionTime = userData.gameStats?.[gameType]?.bestReactionTime || null;
     const isBestReactionTime = gameType === 'reactionGame' && reactionTime && 
       (currentBestReactionTime === null || reactionTime < currentBestReactionTime);
     const isHighScore = gameType === 'tileGame' && score && 
-      (currentBestReactionTime === null || score > currentBestReactionTime);
+      (currentBestReactionTime === null || score < currentBestReactionTime);
     
     // 게임 통계 업데이트
     const updateData: Record<string, any> = {};
     
-    // 최저 반응시간 업데이트 (반응속도 게임의 경우) 또는 최고 점수 업데이트 (타일 게임의 경우)
+    // 최저 반응시간 업데이트 (반응속도 게임의 경우) 또는 최소 움직임 업데이트 (타일 게임의 경우)
     if (isBestReactionTime && reactionTime) {
       updateData[`gameStats.${gameType}.bestReactionTime`] = reactionTime;
     } else if (isHighScore && score) {
-      updateData[`gameStats.${gameType}.bestReactionTime`] = score; // 타일 게임은 점수를 저장
+      updateData[`gameStats.${gameType}.bestReactionTime`] = score; // 타일 게임은 최소 움직임 횟수를 저장
     }
     
     // 일일 플레이 카운트 증가
@@ -130,8 +133,8 @@ export const updateGameScore = async (userId: string, gameType: GameType, score:
     // Firestore 업데이트
     await updateDoc(userRef, updateData);
     
-    // 경험치 계산 및 지급 (반응시간 기반)
-    const xpEarned = await calculateGameXP(gameType, reactionTime || 1000);
+    // 경험치 계산 및 지급 (게임 타입에 따라 다른 값 사용)
+    const xpEarned = await calculateGameXP(gameType, gameType === 'tileGame' ? score : (reactionTime || 1000));
     
     let result: { leveledUp: boolean; oldLevel?: number; newLevel?: number } = { 
       leveledUp: false, 

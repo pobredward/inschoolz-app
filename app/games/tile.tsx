@@ -39,7 +39,6 @@ export default function TileGameScreen() {
   const [moves, setMoves] = useState(0);
   const [matches, setMatches] = useState(0);
   const [timeElapsed, setTimeElapsed] = useState(0);
-  const [finalScore, setFinalScore] = useState(0);
   const [gameStartTime, setGameStartTime] = useState<number>(0);
   const [remainingAttempts, setRemainingAttempts] = useState(3);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
@@ -92,7 +91,6 @@ export default function TileGameScreen() {
     setMoves(0);
     setMatches(0);
     setTimeElapsed(0);
-    setFinalScore(0);
   }, [totalPairs]);
 
   // 게임 시작
@@ -184,16 +182,9 @@ export default function TileGameScreen() {
     const endTime = performance.now();
     const totalTime = Math.floor((endTime - gameStartTime) / 1000);
     setTimeElapsed(totalTime);
-    
-    // 움직임 횟수 기반 점수 계산 (시간 제거)
-    const optimalMoves = totalPairs; // 최적 움직임 = 쌍의 개수 (6번)
-    const moveScore = Math.max(0, (optimalMoves * 2 - moves + optimalMoves) * 100); // 움직임이 적을수록 높은 점수
-    const score = Math.max(100, moveScore);
-    
-    setFinalScore(score);
     setGameState('finished');
 
-    // Firebase에 점수 저장
+    // Firebase에 움직임 횟수 저장 및 경험치 계산
     const { user } = useAuthStore.getState();
     if (!user?.uid) {
       Alert.alert('오류', '로그인이 필요합니다.');
@@ -202,22 +193,23 @@ export default function TileGameScreen() {
 
     try {
       // 움직임 횟수를 점수로 전달 (경험치 계산용)
+      console.log(`타일 게임 완료 - 움직임 횟수: ${moves}번`);
       const result = await updateGameScore(user.uid, 'tileGame', moves);
       if (result.success) {
-        let message = `점수: ${score}점`;
+        let message = `움직임 횟수: ${moves}번`;
         
         if (result.leveledUp) {
           message += `\n🎉 레벨업! ${result.oldLevel} → ${result.newLevel}`;
         }
         
         if (result.isHighScore) {
-          message += '\n🏆 새로운 최고 점수!';
+          message += '\n🏆 새로운 최소 움직임 기록!';
         }
         
         if (result.xpEarned && result.xpEarned > 0) {
           message += `\n⭐ 경험치 +${result.xpEarned} XP 획득!`;
         } else {
-          message += '\n💡 더 높은 점수로 경험치를 획득하세요.';
+          message += '\n💡 더 적은 움직임으로 경험치를 획득하세요.';
         }
         
         Alert.alert(
@@ -235,7 +227,7 @@ export default function TileGameScreen() {
       console.error('게임 점수 저장 실패:', error);
       Alert.alert(
         '게임 완료',
-        `점수: ${score}점\n점수 저장 중 오류가 발생했습니다.`,
+        `움직임 횟수: ${moves}번\n점수 저장 중 오류가 발생했습니다.`,
         [{ text: '확인' }]
       );
     }
@@ -283,7 +275,6 @@ export default function TileGameScreen() {
     setMoves(0);
     setMatches(0);
     setTimeElapsed(0);
-    setFinalScore(0);
     setGameStartTime(0);
     initializeGame();
   };
@@ -398,16 +389,12 @@ export default function TileGameScreen() {
               
               <View style={styles.resultsContainer}>
                 <View style={styles.resultItem}>
-                  <Text style={styles.resultLabel}>최종 점수</Text>
-                  <Text style={[styles.resultValue, { color: '#3b82f6' }]}>{finalScore}점</Text>
+                  <Text style={styles.resultLabel}>총 움직임</Text>
+                  <Text style={[styles.resultValue, { color: '#3b82f6' }]}>{moves}회</Text>
                 </View>
                 <View style={styles.resultItem}>
                   <Text style={styles.resultLabel}>완료 시간</Text>
                   <Text style={[styles.resultValue, { color: '#10b981' }]}>{timeElapsed}초</Text>
-                </View>
-                <View style={styles.resultItem}>
-                  <Text style={styles.resultLabel}>총 움직임</Text>
-                  <Text style={[styles.resultValue, { color: '#8b5cf6' }]}>{moves}회</Text>
                 </View>
               </View>
 
