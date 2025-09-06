@@ -92,8 +92,8 @@ android {
         applicationId 'com.onmindlab.inschoolz'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "1.0.3"
+        versionCode 7
+        versionName "1.1.1"
     }
     signingConfigs {
         debug {
