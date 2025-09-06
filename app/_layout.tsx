@@ -8,16 +8,11 @@ import { useAuthStore } from '../store/authStore';
 import { initializeKakaoSDK } from '@react-native-kakao/core';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
-import { router } from 'expo-router';
 import {
-  registerForPushNotificationsAsync,
-  savePushTokenToUser,
   addNotificationReceivedListener,
   addNotificationResponseReceivedListener,
-  setBadgeCount,
   getLastNotificationResponse,
 } from '../lib/push-notifications';
-import { getUnreadNotificationCount } from '../lib/notifications';
 import {
   handleForegroundNotification,
   handleNotificationResponse,
@@ -37,8 +32,8 @@ export default function RootLayout() {
     updateUnreadNotificationCount,
     user: currentUser 
   } = useAuthStore();
-  const notificationListener = useRef<Notifications.Subscription>();
-  const responseListener = useRef<Notifications.Subscription>();
+  const notificationListener = useRef<Notifications.Subscription | null>(null);
+  const responseListener = useRef<Notifications.Subscription | null>(null);
 
   useEffect(() => {
     // 카카오 SDK 초기화 (안전한 초기화)
@@ -95,7 +90,7 @@ export default function RootLayout() {
         console.error('푸시 알림 초기화 실패:', error);
       });
     }
-  }, [currentUser?.uid]); // initializePushNotifications 제거하여 무한 루프 방지
+  }, [currentUser, initializePushNotifications]); // 의존성 배열 수정
 
   // 알림 수신 핸들러 설정
   useEffect(() => {
