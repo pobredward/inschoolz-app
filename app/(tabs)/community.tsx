@@ -164,7 +164,7 @@ export default function CommunityScreen() {
     }
   }, [shouldRestoreScroll, selectedTab, selectedBoard, sortBy, getScrollPosition]);
 
-  // 차단된 사용자 목록 로드
+  // 차단된 사용자 목록 로드 - useCallback으로 메모이제이션
   const loadBlockedUsers = useCallback(async () => {
     if (!user?.uid) return;
     
@@ -216,12 +216,12 @@ export default function CommunityScreen() {
     loadPosts();
   }, [selectedTab, selectedBoard, sortBy, boards]);
 
-  // 사용자 정보 변경 시 차단된 사용자 목록 로드
+  // 사용자 정보 변경 시 차단된 사용자 목록 로드 - 무한 루프 방지 수정
   useEffect(() => {
     if (user?.uid) {
       loadBlockedUsers();
     }
-  }, [user?.uid, loadBlockedUsers]);
+  }, [user?.uid]); // loadBlockedUsers 의존성 제거로 무한 루프 방지
 
   // 게시글 로딩이 완료되고 레이아웃이 준비된 후 스크롤 위치 복원
   useEffect(() => {
@@ -777,59 +777,91 @@ export default function CommunityScreen() {
   return (
     <View style={styles.container}>
       <SafeScreenContainer 
-        scrollable={true}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-        scrollViewRef={scrollViewRef}
-        onLayout={handleLayout}
+        scrollable={false}
       >
-        {renderTabs()}
-        
-        {/* 상단 광고 제거 - 리워디드 광고만 사용 */}
-        
-        {selectedTab === 'school' && (
-          <SchoolSelector 
-            ref={schoolSelectorRef}
-            style={styles.schoolSelector}
-            onSchoolChange={async (school: any) => {
-              // 학교 변경 시 URL 업데이트
-              console.log('학교 변경됨:', school);
-              const schoolId = school?.id || school;
-              router.push(`/(tabs)/community?tab=school/${schoolId}`);
-              // 게시글 다시 로드
-              loadBoards();
-              loadPosts();
-            }}
-          />
-        )}
-        
         {/* 로그인이 필요한 탭에서는 로그인 안내 화면 표시 */}
         {isLoginRequired ? (
-          renderLoginRequired()
+          <View style={styles.loginRequiredWrapper}>
+            {renderTabs()}
+            <ScrollView 
+              style={styles.loginRequiredScrollView}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  colors={['#10B981']}
+                />
+              }
+            >
+              {renderLoginRequired()}
+            </ScrollView>
+          </View>
         ) : (
-          <>
-            {renderCategoryFilter()}
-            {renderSortHeader()}
-
-            {isLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#10B981" />
-              </View>
-            ) : (
-              <View style={styles.postsContainer}>
-                {posts.length > 0 ? (
-                  posts.map((post, index) => (
-                    <View key={post.id}>
-                      {renderPostCard({ item: post })}
-                      {/* 피드 광고 제거 - 리워디드 광고만 사용 */}
-                    </View>
-                  ))
-                ) : (
-                  renderEmptyState()
+          <FlatList
+            data={posts}
+            keyExtractor={(item) => item.id}
+            renderItem={renderPostCard}
+            style={styles.flatListContainer}
+            contentContainerStyle={{ paddingHorizontal: 6, paddingBottom: 100 }}
+            showsVerticalScrollIndicator={false}
+            // 헤더 컴포넌트들을 FlatList의 ListHeaderComponent로 이동
+            ListHeaderComponent={
+              <View>
+                {renderTabs()}
+                
+                {selectedTab === 'school' && (
+                  <SchoolSelector 
+                    ref={schoolSelectorRef}
+                    style={styles.schoolSelector}
+                    onSchoolChange={async (school: any) => {
+                      // 학교 변경 시 URL 업데이트
+                      console.log('학교 변경됨:', school);
+                      const schoolId = school?.id || school;
+                      router.push(`/(tabs)/community?tab=school/${schoolId}`);
+                      // 게시글 다시 로드
+                      loadBoards();
+                      loadPosts();
+                    }}
+                  />
+                )}
+                
+                {renderCategoryFilter()}
+                {renderSortHeader()}
+                
+                {isLoading && (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#10B981" />
+                  </View>
                 )}
               </View>
-            )}
-          </>
+            }
+            ListEmptyComponent={!isLoading ? renderEmptyState() : null}
+            // 성능 최적화 옵션들
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={5}
+            updateCellsBatchingPeriod={50}
+            initialNumToRender={8}
+            windowSize={10}
+            getItemLayout={(data, index) => ({
+              length: 200, // 예상 아이템 높이
+              offset: 200 * index,
+              index,
+            })}
+            // 스크롤 이벤트 처리
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+            onLayout={handleLayout}
+            // RefreshControl 추가
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={['#10B981']}
+              />
+            }
+            // 스크롤 위치 복원
+            ref={scrollViewRef as any}
+          />
         )}
 
         {/* 게시판 선택 모달 */}
@@ -915,6 +947,9 @@ const styles = StyleSheet.create({
   postsContainer: {
     padding: 16,
   },
+  flatListContainer: {
+    flex: 1,
+  },
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: 'white',
@@ -948,7 +983,7 @@ const styles = StyleSheet.create({
   categoryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
   },
   categoryScroll: {
     flex: 1,
@@ -970,7 +1005,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
     backgroundColor: '#F9FAFB',
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     paddingVertical: 12,
     maxHeight: 300,
   },
@@ -1028,7 +1063,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     paddingVertical: 12,
     backgroundColor: 'white',
     borderBottomWidth: 1,
@@ -1226,13 +1261,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     paddingVertical: 12,
   },
   authorSection: {
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 12,
+  },
+  loginRequiredWrapper: {
+    flex: 1,
+  },
+  loginRequiredScrollView: {
+    flex: 1,
   },
   loginRequiredContainer: {
     alignItems: 'center',
