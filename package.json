@@ -12,8 +12,8 @@
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
     "@react-native-async-storage/async-storage": "2.1.2",
-    "@react-native-kakao/core": "^2.4.0",
-    "@react-native-kakao/user": "^2.4.0",
+    "@react-native-kakao/core": "^2.3.0",
+    "@react-native-kakao/user": "^2.3.0",
     "@react-native-picker/picker": "2.11.1",
     "@react-navigation/bottom-tabs": "^7.3.10",
     "@react-navigation/elements": "^2.3.8",
@@ -42,7 +42,7 @@
     "expo-updates": "~0.28.17",
     "expo-web-browser": "~14.2.0",
     "firebase": "^11.10.0",
-    "query-string": "^7.1.3",
+    "query-string": "6.14.1",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "0.79.5",
@@ -61,11 +61,18 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@expo/metro-config": "^0.20.17",
     "@types/node": "^24.0.10",
     "@types/react": "~19.0.10",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~9.2.0",
     "typescript": "~5.8.3"
+  },
+  "resolutions": {
+    "query-string": "6.14.1"
+  },
+  "overrides": {
+    "query-string": "6.14.1"
   },
   "private": true
 }
