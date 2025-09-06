@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, RefreshControl, Alert, ActivityIndicator, Image, Linking } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, RefreshControl, Alert, ActivityIndicator, Linking } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { checkAttendance, UserAttendance } from '../../lib/attendance';
+import { User } from '../../types';
 import { getUserActivitySummary, getFollowersCount, getFollowingCount } from '../../lib/users';
 import { getScrappedPostsCount } from '../../lib/boards';
 import { getKoreanDateString } from '../../utils/timeUtils';
-import { Ionicons } from '@expo/vector-icons';
 import { formatPhoneNumber } from '../../utils/formatters';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth} from '../../lib/firebase';
@@ -15,13 +15,11 @@ import FollowersModal from '../../components/FollowersModal';
 import { SafeProfileImage } from '../../components/SafeProfileImage';
 import { deleteAccount } from '../../lib/auth';
 import { useRewardedAd } from '../../components/ads/AdMobAds';
-import { awardExperience } from '../../lib/experience';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ProfileScreen() {
   const { user, clearAuth, isLoading: authLoading } = useAuthStore();
   const [refreshing, setRefreshing] = useState(false);
-  const [userData, setUserData] = useState<any>(null);
+  const [userData, setUserData] = useState<User | null>(null);
   const [attendanceData, setAttendanceData] = useState<UserAttendance>({
     checkedToday: false,
     streak: 0,
@@ -77,7 +75,7 @@ export default function ProfileScreen() {
     try {
       // 경험치 추가
       const { awardExperience } = await import('../../lib/experience');
-      const expResult = await awardExperience(user.uid, 'attendance', adSettings.experienceReward);
+      await awardExperience(user.uid, 'attendance', adSettings.experienceReward);
       
       // 광고 시청 데이터 업데이트
       const now = Date.now();
@@ -103,7 +101,7 @@ export default function ProfileScreen() {
   const { showRewardedAd, isLoaded, isLoading } = useRewardedAd(handleRewardEarned);
 
   // Firebase에서 광고 시청 데이터 로드
-  const loadAdWatchData = async () => {
+  const loadAdWatchData = useCallback(async () => {
     if (!user?.uid) return;
     
     try {
@@ -122,7 +120,7 @@ export default function ProfileScreen() {
     } catch (error) {
       console.error('Firebase 광고 데이터 로드 오류:', error);
     }
-  };
+  }, [user?.uid]);
 
   // Firebase에 광고 시청 데이터 저장
   const saveAdWatchData = async (count: number, watchTime: number) => {
@@ -147,7 +145,7 @@ export default function ProfileScreen() {
   };
 
   // 다음 광고까지 남은 시간 계산
-  const calculateTimeUntilNextAd = () => {
+  const calculateTimeUntilNextAd = useCallback(() => {
     if (!lastAdWatchTime) return 0;
     
     const now = Date.now();
@@ -155,7 +153,7 @@ export default function ProfileScreen() {
     const cooldownMs = adSettings.cooldownMinutes * 60 * 1000;
     
     return Math.max(0, cooldownMs - timeSinceLastAd);
-  };
+  }, [lastAdWatchTime, adSettings.cooldownMinutes]);
 
   // 광고 시청 가능 여부 확인
   const canWatchAd = () => {
@@ -226,16 +224,16 @@ export default function ProfileScreen() {
     }, 5000); // 1초 → 5초로 변경하여 성능 개선
 
     return () => clearInterval(interval);
-  }, [lastAdWatchTime]);
+  }, [lastAdWatchTime, calculateTimeUntilNextAd]);
 
   // 광고 시청 데이터 로드
   useEffect(() => {
     if (user?.uid) {
       loadAdWatchData();
     }
-  }, [user?.uid]);
+  }, [user?.uid, loadAdWatchData]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!user?.uid) {
       console.log('로그인되지 않아 프로필 데이터 로드를 건너뜁니다.');
       return;
@@ -247,7 +245,7 @@ export default function ProfileScreen() {
       // 사용자 데이터 직접 로드 (안전한 접근)
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (userDoc.exists()) {
-        const data = userDoc.data();
+        const data = userDoc.data() as User;
         setUserData(data);
       } else {
         console.warn('사용자 문서가 존재하지 않습니다:', user.uid);
@@ -299,7 +297,7 @@ export default function ProfileScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!authLoading) {
@@ -308,7 +306,7 @@ export default function ProfileScreen() {
       }
       // 로그인하지 않은 경우 리디렉션 제거 - 대신 UI에서 처리
     }
-  }, [user?.uid, authLoading]);
+  }, [user?.uid, authLoading, loadData]);
 
   const onRefresh = async () => {
     if (!user?.uid) return;
