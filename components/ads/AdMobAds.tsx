@@ -23,7 +23,7 @@ if (!isExpoGo) {
 // 리워드 광고 Unit ID만 (실제 사용하는 것만)
 const REWARDED_AD_UNIT_ID = !isExpoGo ? (
   __DEV__ ? TestIds?.REWARDED : Platform.select({
-    ios: 'ca-app-pub-5100840159526765/5519530651',
+    ios: 'ca-app-pub-5100840159526765/6241709090',
     android: 'ca-app-pub-5100840159526765/5519530651',
   })
 ) : null;

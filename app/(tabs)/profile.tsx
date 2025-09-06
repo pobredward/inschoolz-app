@@ -72,10 +72,14 @@ export default function ProfileScreen() {
   const handleRewardEarned = async (reward: any) => {
     if (!user?.uid) return;
     
+    console.log('🎁 리워드 광고 완료! 지급할 경험치:', adSettings.experienceReward);
+    console.log('🎁 AdMob 리워드 정보:', reward);
+    
     try {
       // 경험치 추가
       const { awardExperience } = await import('../../lib/experience');
-      await awardExperience(user.uid, 'attendance', adSettings.experienceReward);
+      const result = await awardExperience(user.uid, 'attendance', adSettings.experienceReward);
+      console.log('🎁 경험치 지급 결과:', result);
       
       // 광고 시청 데이터 업데이트
       const now = Date.now();
@@ -163,11 +167,13 @@ export default function ProfileScreen() {
     return calculateTimeUntilNextAd() === 0;
   };
 
-  // 시간을 분:초 형태로 포맷
+  // 시간을 분 단위로만 포맷 (초는 표시하지 않음)
   const formatTime = (milliseconds: number) => {
-    const minutes = Math.floor(milliseconds / (1000 * 60));
-    const seconds = Math.floor((milliseconds % (1000 * 60)) / 1000);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    const totalMinutes = Math.ceil(milliseconds / (1000 * 60)); // 올림 처리로 더 정확한 표시
+    if (totalMinutes === 0) {
+      return '1분 미만';
+    }
+    return `${totalMinutes}분`;
   };
 
   // 리워드 광고 시청
@@ -197,7 +203,7 @@ export default function ProfileScreen() {
       const timeLeft = formatTime(timeUntilNextAd);
       Alert.alert(
         '⏰ 잠시 기다려주세요', 
-        `다음 광고 시청까지 ${timeLeft} 남았습니다.\n\n광고 간격: ${adSettings.cooldownMinutes}분\n최적의 수익을 위한 제한입니다.`
+        `다음 광고 시청까지 ${timeLeft} 남았습니다.\n\n• 광고 시청 시간: 1분\n• 광고 간격: ${adSettings.cooldownMinutes}분\n• 최적의 수익을 위한 제한입니다.`
       );
       return;
     }
@@ -205,7 +211,7 @@ export default function ProfileScreen() {
     const remainingAds = adSettings.dailyLimit - adWatchCount;
     Alert.alert(
       '🎁 광고 시청하기',
-      `30초 광고를 시청하면 경험치 +${adSettings.experienceReward}을 받을 수 있습니다!\n\n오늘 남은 횟수: ${remainingAds}회\n다음 광고까지: ${adSettings.cooldownMinutes}분 간격`,
+      `1분 광고를 시청하면 경험치 +${adSettings.experienceReward}을 받을 수 있습니다!\n\n오늘 남은 횟수: ${remainingAds}회\n다음 광고까지: ${adSettings.cooldownMinutes}분 간격`,
       [
         { text: '취소', style: 'cancel' },
         { 
@@ -218,11 +224,11 @@ export default function ProfileScreen() {
     );
   };
 
-  // 타이머 업데이트 - 최적화: 5초마다 업데이트로 변경
+  // 타이머 업데이트 - 분 단위 표시이므로 30초마다 업데이트
   useEffect(() => {
     const interval = setInterval(() => {
       setTimeUntilNextAd(calculateTimeUntilNextAd());
-    }, 5000); // 1초 → 5초로 변경하여 성능 개선
+    }, 30000); // 30초마다 업데이트 (분 단위 표시에 충분)
 
     return () => clearInterval(interval);
   }, [lastAdWatchTime, calculateTimeUntilNextAd]);
@@ -611,8 +617,8 @@ export default function ProfileScreen() {
               </Text>
               {canWatchAd() && adWatchCount < adSettings.dailyLimit && (
                 <Text style={styles.rewardedAdSubText}>
-                  {isLoaded ? '✅ 준비됨! 바로 시청 가능' : 
-                   isLoading ? `⏳ 광고 로딩 중... 잠시만 대기해주세요 (${loadingTime}초 경과, ${loadAttempts}/3 시도)` : '👆 클릭하여 시청하기'} • {adSettings.dailyLimit - adWatchCount}회 남음
+                  {isLoaded ? '✅ 준비됨! 1분 시청 후 보상' : 
+                   isLoading ? `⏳ 광고 로딩 중... 잠시만 대기해주세요 (${loadingTime}초 경과, ${loadAttempts}/3 시도)` : '👆 클릭하여 시청하기 (1분 후 보상)'} • {adSettings.dailyLimit - adWatchCount}회 남음
                 </Text>
               )}
             </TouchableOpacity>
