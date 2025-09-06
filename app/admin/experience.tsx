@@ -69,6 +69,14 @@ interface ExperienceSettings {
     refereeXP: number;     // 추천받은 사람(B)이 받는 경험치
     enabled: boolean;      // 추천인 시스템 활성화 여부
   };
+  
+  ads: {
+    rewardedVideo: {
+      experienceReward: number;
+      dailyLimit: number;
+      cooldownMinutes: number;
+    };
+  };
 }
 
 export default function ExperienceManagementScreen() {
@@ -94,11 +102,11 @@ export default function ExperienceManagementScreen() {
       },
       tileGame: {
         enabled: true,
-        dailyLimit: 5,
+        dailyLimit: 3,
         thresholds: [
-          { minScore: 50, xpReward: 5 },
-          { minScore: 100, xpReward: 10 },
-          { minScore: 150, xpReward: 15 },
+          { minScore: 7, xpReward: 15 },
+          { minScore: 10, xpReward: 10 },
+          { minScore: 13, xpReward: 5 },
         ],
       },
     },
@@ -113,6 +121,14 @@ export default function ExperienceManagementScreen() {
       referrerXP: 30,     // 추천인이 받는 경험치 (기본값)
       refereeXP: 30,      // 추천받은 사람이 받는 경험치 (기본값)
       enabled: true,      // 추천인 시스템 활성화
+    },
+    
+    ads: {
+      rewardedVideo: {
+        experienceReward: 30,
+        dailyLimit: 5,
+        cooldownMinutes: 30,
+      },
     },
   });
 
@@ -135,7 +151,20 @@ export default function ExperienceManagementScreen() {
     try {
       setIsLoading(true);
       const response = await getExperienceSettings();
-      setSettings(response);
+      
+      // 광고 설정이 없으면 기본값 추가
+      const settingsWithDefaults = {
+        ...response,
+        ads: response.ads || {
+          rewardedVideo: {
+            experienceReward: 30,
+            dailyLimit: 5,
+            cooldownMinutes: 30,
+          },
+        },
+      };
+      
+      setSettings(settingsWithDefaults);
     } catch (error) {
       console.error('설정 로드 실패:', error);
       Alert.alert('오류', '설정을 불러오는데 실패했습니다.');
@@ -491,6 +520,58 @@ export default function ExperienceManagementScreen() {
                   'B가 A를 추천인으로 설정했을 때 B가 받는 경험치'
                 )}
               </>
+            )}
+          </View>
+        </View>
+
+        {/* 광고 시청 설정 */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>광고 시청</Text>
+          <View style={styles.sectionContent}>
+            {renderNumberInput(
+              '광고 시청 경험치',
+              settings.ads.rewardedVideo.experienceReward,
+              (value) => setSettings(prev => ({
+                ...prev,
+                ads: { 
+                  ...prev.ads, 
+                  rewardedVideo: { 
+                    ...prev.ads.rewardedVideo, 
+                    experienceReward: value 
+                  } 
+                }
+              })),
+              '광고 시청 완료 시 지급되는 경험치'
+            )}
+            {renderNumberInput(
+              '일일 시청 제한',
+              settings.ads.rewardedVideo.dailyLimit,
+              (value) => setSettings(prev => ({
+                ...prev,
+                ads: { 
+                  ...prev.ads, 
+                  rewardedVideo: { 
+                    ...prev.ads.rewardedVideo, 
+                    dailyLimit: value 
+                  } 
+                }
+              })),
+              '하루에 시청할 수 있는 광고 횟수'
+            )}
+            {renderNumberInput(
+              '광고 간격 (분)',
+              settings.ads.rewardedVideo.cooldownMinutes,
+              (value) => setSettings(prev => ({
+                ...prev,
+                ads: { 
+                  ...prev.ads, 
+                  rewardedVideo: { 
+                    ...prev.ads.rewardedVideo, 
+                    cooldownMinutes: value 
+                  } 
+                }
+              })),
+              '광고 시청 후 다음 광고까지 대기 시간'
             )}
           </View>
         </View>

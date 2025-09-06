@@ -132,7 +132,9 @@ export const getSystemSettings = async (): Promise<SystemSettings> => {
         ads: {
           rewardedVideo: {
             gameExtraPlays: 3,
-            cooldownMinutes: 30
+            cooldownMinutes: 30,
+            experienceReward: firebaseSettings.ads?.rewardedVideo?.experienceReward || 30,
+            dailyLimit: firebaseSettings.ads?.rewardedVideo?.dailyLimit || 5
           }
         },
         appVersion: {
@@ -206,7 +208,9 @@ export const getSystemSettings = async (): Promise<SystemSettings> => {
     ads: {
       rewardedVideo: {
         gameExtraPlays: 3,
-        cooldownMinutes: 30
+        cooldownMinutes: 30,
+        experienceReward: 30,
+        dailyLimit: 5
       }
     },
     appVersion: {
@@ -843,6 +847,14 @@ export interface ExperienceSettings {
     refereeXP: number;     // 추천받은 사람(B)이 받는 경험치
     enabled: boolean;      // 추천인 시스템 활성화 여부
   };
+  
+  ads: {
+    rewardedVideo: {
+      experienceReward: number;
+      dailyLimit: number;
+      cooldownMinutes: number;
+    };
+  };
 }
 
 /**
@@ -877,11 +889,11 @@ export const getExperienceSettings = async (): Promise<ExperienceSettings> => {
           },
           tileGame: {
             enabled: true,
-            dailyLimit: 5,
+            dailyLimit: 3,
             thresholds: [
-              { minScore: 50, xpReward: 5 },
-              { minScore: 100, xpReward: 10 },
-              { minScore: 150, xpReward: 15 },
+              { minScore: 7, xpReward: 15 },
+              { minScore: 10, xpReward: 10 },
+              { minScore: 13, xpReward: 5 },
             ],
           },
         },
@@ -896,6 +908,14 @@ export const getExperienceSettings = async (): Promise<ExperienceSettings> => {
           referrerXP: 30,     // 추천인이 받는 경험치 (기본값)
           refereeXP: 30,      // 추천받은 사람이 받는 경험치 (기본값)
           enabled: true,      // 추천인 시스템 활성화
+        },
+        
+        ads: {
+          rewardedVideo: {
+            experienceReward: 30,
+            dailyLimit: 5,
+            cooldownMinutes: 30,
+          },
         },
       };
       

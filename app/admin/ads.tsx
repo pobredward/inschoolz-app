@@ -29,6 +29,7 @@ export default function AdminAdsScreen() {
     yearly: number;
   } | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [adSettings, setAdSettings] = useState({ experienceReward: 30, dailyLimit: 5, cooldownMinutes: 30 });
 
   // 관리자 권한 확인
   useEffect(() => {
@@ -39,7 +40,23 @@ export default function AdminAdsScreen() {
     }
     
     loadAdStats();
+    loadAdSettings();
   }, [user]);
+
+  // 광고 설정 로드
+  const loadAdSettings = async () => {
+    try {
+      const { getSystemSettings } = await import('../../lib/experience');
+      const settings = await getSystemSettings();
+      setAdSettings({
+        experienceReward: settings.ads.rewardedVideo.experienceReward,
+        dailyLimit: settings.ads.rewardedVideo.dailyLimit,
+        cooldownMinutes: settings.ads.rewardedVideo.cooldownMinutes
+      });
+    } catch (error) {
+      console.error('광고 설정 로드 실패:', error);
+    }
+  };
 
   const loadAdStats = async () => {
     try {
@@ -189,17 +206,17 @@ export default function AdminAdsScreen() {
           
           <View style={styles.policyItem}>
             <Text style={styles.policyLabel}>일일 제한:</Text>
-            <Text style={styles.policyValue}>5회</Text>
+            <Text style={styles.policyValue}>{adSettings.dailyLimit}회</Text>
           </View>
           
           <View style={styles.policyItem}>
             <Text style={styles.policyLabel}>광고 간격:</Text>
-            <Text style={styles.policyValue}>15분</Text>
+            <Text style={styles.policyValue}>{adSettings.cooldownMinutes}분</Text>
           </View>
           
           <View style={styles.policyItem}>
             <Text style={styles.policyLabel}>보상:</Text>
-            <Text style={styles.policyValue}>50 XP</Text>
+            <Text style={styles.policyValue}>{adSettings.experienceReward} XP</Text>
           </View>
           
           <View style={styles.policyItem}>

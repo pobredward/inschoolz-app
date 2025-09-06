@@ -21,41 +21,49 @@ const defaultSettings = {
       enabled: true,
       dailyLimit: 5,
       thresholds: [
-        { minReactionTime: 100, xpReward: 25 },
-        { minReactionTime: 200, xpReward: 20 },
-        { minReactionTime: 300, xpReward: 15 },
-        { minReactionTime: 500, xpReward: 10 },
-        { minReactionTime: 1000, xpReward: 5 }
+        { minScore: 100, xpReward: 15 },
+        { minScore: 200, xpReward: 10 },
+        { minScore: 300, xpReward: 5 }
       ]
     },
     tileGame: {
       enabled: true,
       dailyLimit: 3,
       thresholds: [
-        { minMoves: 7, xpReward: 25 },
-        { minMoves: 10, xpReward: 20 },
-        { minMoves: 13, xpReward: 15 },
-        { minMoves: 16, xpReward: 10 },
-        { minMoves: 20, xpReward: 5 }
+        { minScore: 7, xpReward: 15 },
+        { minScore: 10, xpReward: 10 },
+        { minScore: 13, xpReward: 5 }
       ]
     }
   },
   attendance: {
-    weeklyBonusXP: 50,
+    dailyXP: 10,
     streakBonus: 5,
-    maxStreakDays: 30
+    weeklyBonusXP: 50
   },
-  posts: {
-    dailyLimit: 10,
-    xpReward: 10
+  community: {
+    postXP: 10,
+    commentXP: 5,
+    likeXP: 1,
+    dailyPostLimit: 3,
+    dailyCommentLimit: 5,
+    dailyLikeLimit: 50
   },
-  comments: {
-    dailyLimit: 20,
-    xpReward: 5
+  referral: {
+    referrerXP: 30,
+    refereeXP: 30,
+    enabled: true
   },
   levelSystem: {
     baseXP: 100,
     multiplier: 1.5
+  },
+  ads: {
+    rewardedVideo: {
+      experienceReward: 30,
+      dailyLimit: 5,
+      cooldownMinutes: 30
+    }
   }
 };
 
@@ -153,6 +161,15 @@ async function updateAttendanceSettings(settings) {
   }
 }
 
+async function updateAdSettings(settings) {
+  try {
+    return await updateFirebaseSettings('ads.rewardedVideo', settings);
+  } catch (error) {
+    console.error('❌ 광고 설정 업데이트 실패:', error);
+    return false;
+  }
+}
+
 async function resetToDefaults() {
   try {
     console.log('⚠️  모든 설정을 기본값으로 리셋합니다...');
@@ -187,12 +204,14 @@ async function main() {
     console.log('  node update-firebase-settings.js reset                     # 모든 설정을 기본값으로 리셋');
     console.log('  node update-firebase-settings.js game [TYPE] [JSON]        # 게임 설정 업데이트');
     console.log('  node update-firebase-settings.js attendance [JSON]         # 출석 설정 업데이트');
+    console.log('  node update-firebase-settings.js ads [JSON]                # 광고 설정 업데이트');
     console.log('');
     console.log('예시:');
     console.log('  node update-firebase-settings.js show');
     console.log('  node update-firebase-settings.js init');
     console.log('  node update-firebase-settings.js game reactionGame \'{"enabled":true,"dailyLimit":10}\'');
     console.log('  node update-firebase-settings.js attendance \'{"weeklyBonusXP":100,"streakBonus":10}\'');
+    console.log('  node update-firebase-settings.js ads \'{"experienceReward":50,"dailyLimit":3,"cooldownMinutes":15}\'');
     console.log('');
     console.log('게임 타입: reactionGame, tileGame');
     return;
@@ -251,9 +270,28 @@ async function main() {
         process.exit(1);
       }
     }
+    else if (command === 'ads') {
+      const settingsJson = args[1];
+      
+      if (!settingsJson) {
+        console.error('❌ 광고 설정 JSON을 입력해주세요.');
+        console.log('사용법: node update-firebase-settings.js ads [JSON]');
+        process.exit(1);
+      }
+      
+      try {
+        const settings = JSON.parse(settingsJson);
+        const success = await updateAdSettings(settings);
+        if (!success) process.exit(1);
+      } catch (error) {
+        console.error('❌ JSON 파싱 오류:', error);
+        console.log('올바른 JSON 형식으로 입력해주세요.');
+        process.exit(1);
+      }
+    }
     else {
       console.error('❌ 알 수 없는 명령어:', command);
-      console.log('사용 가능한 명령어: show, init, reset, game, attendance');
+      console.log('사용 가능한 명령어: show, init, reset, game, attendance, ads');
       process.exit(1);
     }
   } catch (error) {

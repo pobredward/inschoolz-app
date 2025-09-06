@@ -432,20 +432,20 @@ export interface SystemSettings {
       dailyLimit?: number;
       rewardThreshold: number;
       rewardAmount: number;
-      thresholds?: Array<{
+      thresholds?: {
         minScore: number;
         xpReward: number;
-      }>;
+      }[];
     };
     tileGame: {
       enabled?: boolean;
       dailyLimit?: number;
       rewardThreshold: number;
       rewardAmount: number;
-      thresholds?: Array<{
+      thresholds?: {
         minScore: number;
         xpReward: number;
-      }>;
+      }[];
     };
     flappyBird: {
       rewardThreshold: number;
@@ -456,6 +456,8 @@ export interface SystemSettings {
     rewardedVideo: {
       gameExtraPlays: number;
       cooldownMinutes: number;
+      experienceReward: number;
+      dailyLimit: number;
     };
   };
   appVersion: {

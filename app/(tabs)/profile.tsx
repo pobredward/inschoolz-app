@@ -50,10 +50,25 @@ export default function ProfileScreen() {
   const [adWatchCount, setAdWatchCount] = useState(0);
   const [lastAdWatchTime, setLastAdWatchTime] = useState<number | null>(null);
   const [timeUntilNextAd, setTimeUntilNextAd] = useState(0);
+  const [adSettings, setAdSettings] = useState({ experienceReward: 30, dailyLimit: 5, cooldownMinutes: 30 });
 
-  // 광고 시청 제한 설정
-  const AD_COOLDOWN_MINUTES = 15; // 15분 간격
-  const DAILY_AD_LIMIT = 5; // 일일 5회 제한
+  // 광고 설정 로드
+  useEffect(() => {
+    const loadAdSettings = async () => {
+      try {
+        const { getSystemSettings } = await import('../../lib/experience');
+        const settings = await getSystemSettings();
+        setAdSettings({
+          experienceReward: settings.ads.rewardedVideo.experienceReward,
+          dailyLimit: settings.ads.rewardedVideo.dailyLimit,
+          cooldownMinutes: settings.ads.rewardedVideo.cooldownMinutes
+        });
+      } catch (error) {
+        console.error('광고 설정 로드 실패:', error);
+      }
+    };
+    loadAdSettings();
+  }, []);
 
   // 리워드 광고 완료 시 경험치 추가
   const handleRewardEarned = async (reward: any) => {
@@ -61,7 +76,7 @@ export default function ProfileScreen() {
     
     try {
       // 경험치 추가
-      await addExperience(user.uid, 50, 'rewarded_ad');
+      await addExperience(user.uid, adSettings.experienceReward, 'rewarded_ad');
       
       // 광고 시청 데이터 업데이트
       const now = Date.now();
@@ -73,10 +88,10 @@ export default function ProfileScreen() {
       // 사용자 데이터 새로고침
       await loadData();
       
-      const remainingAds = DAILY_AD_LIMIT - newCount;
+      const remainingAds = adSettings.dailyLimit - newCount;
       Alert.alert(
         '🎉 보상 획득!', 
-        `경험치 +50을 받았습니다!\n\n오늘 남은 광고 시청 횟수: ${remainingAds}회`
+        `경험치 +${adSettings.experienceReward}을 받았습니다!\n\n오늘 남은 광고 시청 횟수: ${remainingAds}회`
       );
     } catch (error) {
       console.error('경험치 추가 오류:', error);
@@ -136,14 +151,14 @@ export default function ProfileScreen() {
     
     const now = Date.now();
     const timeSinceLastAd = now - lastAdWatchTime;
-    const cooldownMs = AD_COOLDOWN_MINUTES * 60 * 1000;
+    const cooldownMs = adSettings.cooldownMinutes * 60 * 1000;
     
     return Math.max(0, cooldownMs - timeSinceLastAd);
   };
 
   // 광고 시청 가능 여부 확인
   const canWatchAd = () => {
-    if (adWatchCount >= DAILY_AD_LIMIT) return false;
+    if (adWatchCount >= adSettings.dailyLimit) return false;
     if (!lastAdWatchTime) return true;
     
     return calculateTimeUntilNextAd() === 0;
@@ -169,10 +184,10 @@ export default function ProfileScreen() {
     }
 
     // 일일 제한 확인
-    if (adWatchCount >= DAILY_AD_LIMIT) {
+    if (adWatchCount >= adSettings.dailyLimit) {
       Alert.alert(
         '일일 제한 도달', 
-        `오늘은 더 이상 광고를 시청할 수 없습니다.\n\n일일 제한: ${DAILY_AD_LIMIT}회\n내일 다시 시도해주세요!`
+        `오늘은 더 이상 광고를 시청할 수 없습니다.\n\n일일 제한: ${adSettings.dailyLimit}회\n내일 다시 시도해주세요!`
       );
       return;
     }
@@ -182,15 +197,15 @@ export default function ProfileScreen() {
       const timeLeft = formatTime(timeUntilNextAd);
       Alert.alert(
         '⏰ 잠시 기다려주세요', 
-        `다음 광고 시청까지 ${timeLeft} 남았습니다.\n\n광고 간격: ${AD_COOLDOWN_MINUTES}분\n최적의 수익을 위한 제한입니다.`
+        `다음 광고 시청까지 ${timeLeft} 남았습니다.\n\n광고 간격: ${adSettings.cooldownMinutes}분\n최적의 수익을 위한 제한입니다.`
       );
       return;
     }
 
-    const remainingAds = DAILY_AD_LIMIT - adWatchCount;
+    const remainingAds = adSettings.dailyLimit - adWatchCount;
     Alert.alert(
       '🎁 광고 시청하기',
-      `30초 광고를 시청하면 경험치 +50을 받을 수 있습니다!\n\n오늘 남은 횟수: ${remainingAds}회\n다음 광고까지: ${AD_COOLDOWN_MINUTES}분 간격`,
+      `30초 광고를 시청하면 경험치 +${adSettings.experienceReward}을 받을 수 있습니다!\n\n오늘 남은 횟수: ${remainingAds}회\n다음 광고까지: ${adSettings.cooldownMinutes}분 간격`,
       [
         { text: '취소', style: 'cancel' },
         { 
@@ -582,16 +597,16 @@ export default function ProfileScreen() {
               disabled={!isLoaded || !canWatchAd()}
             >
               <Text style={styles.rewardedAdButtonText}>
-                {adWatchCount >= DAILY_AD_LIMIT 
+                {adWatchCount >= adSettings.dailyLimit 
                   ? '🚫 일일 제한' 
                   : !canWatchAd() 
                     ? `⏰ ${formatTime(timeUntilNextAd)}`
-                    : '🎁 +50 XP'
+                    : `🎁 +${adSettings.experienceReward} XP`
                 }
               </Text>
-              {canWatchAd() && adWatchCount < DAILY_AD_LIMIT && (
+              {canWatchAd() && adWatchCount < adSettings.dailyLimit && (
                 <Text style={styles.rewardedAdSubText}>
-                  {DAILY_AD_LIMIT - adWatchCount}회 남음
+                  {adSettings.dailyLimit - adWatchCount}회 남음
                 </Text>
               )}
             </TouchableOpacity>
