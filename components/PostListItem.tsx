@@ -84,9 +84,9 @@ const PostListItem: React.FC<PostListItemProps> = ({
             {post.title}
           </Text>
           
-          {((post as any).previewContent || post.content) && (
+          {(post.previewContent || post.content) && (
             <Text style={styles.postPreview} numberOfLines={2}>
-              {(post as any).previewContent || parseContentWithLineBreaks(post.content).slice(0, 150) || ''}
+              {post.previewContent || parseContentWithLineBreaks(post.content).slice(0, 150) || ''}
             </Text>
           )}
         </View>
@@ -287,4 +287,10 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PostListItem; 
+// React.memo로 불필요한 리렌더링 방지
+export default React.memo(PostListItem, (prevProps, nextProps) => {
+  return prevProps.post.id === nextProps.post.id &&
+         prevProps.post.updatedAt === nextProps.post.updatedAt &&
+         prevProps.post.stats?.likeCount === nextProps.post.stats?.likeCount &&
+         prevProps.post.stats?.commentCount === nextProps.post.stats?.commentCount;
+}); 

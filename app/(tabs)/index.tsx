@@ -38,8 +38,8 @@ export default function HomeScreen() {
     
     try {
       // 경험치 추가 로직 (experience.ts 활용)
-      const { addExperience } = await import('../../lib/experience');
-      await addExperience(user.uid, adSettings.experienceReward, 'rewarded_ad');
+      const { awardExperience } = await import('../../lib/experience');
+      const expResult = await awardExperience(user.uid, 'attendance', adSettings.experienceReward);
       
       // 광고 시청 데이터 업데이트
       const now = Date.now();
@@ -62,7 +62,7 @@ export default function HomeScreen() {
     }
   };
 
-  const { showRewardedAd, isLoaded } = useRewardedAd(handleRewardEarned);
+  const { showRewardedAd, isLoaded, isLoading } = useRewardedAd(handleRewardEarned);
   
   // 리워드 광고 제한 상태
   const [adWatchCount, setAdWatchCount] = useState(0);
@@ -230,11 +230,11 @@ export default function HomeScreen() {
     return { current, required, percentage };
   }, [user?.stats]);
 
-  // 타이머 업데이트
+  // 타이머 업데이트 - 최적화: 5초마다 업데이트로 변경
   useEffect(() => {
     const interval = setInterval(() => {
       setTimeUntilNextAd(calculateTimeUntilNextAd());
-    }, 1000);
+    }, 5000); // 1초 → 5초로 변경하여 성능 개선
 
     return () => clearInterval(interval);
   }, [lastAdWatchTime]);
@@ -246,33 +246,44 @@ export default function HomeScreen() {
     }
   }, [user?.uid]);
 
-  // 사용자 데이터 및 출석 정보 로드
+  // 사용자 데이터 및 출석 정보 로드 - 성능 최적화
   const loadUserData = async () => {
     try {
       setLoading(true);
       
+      // 인기 게시글을 먼저 로드하여 빠른 UI 표시
+      const posts = await getPopularPostsForHome(3);
+      setPopularPosts(posts);
+      
       // 로그인된 경우에만 개인 데이터 로드
       if (user?.uid) {
-        // 경험치 데이터 동기화
-        await syncUserExperienceData(user.uid);
-        
-        // 출석 정보만 로드 (나머지는 추후 구현)
-        const attendanceInfo = await checkAttendance(user.uid);
-        setAttendance(attendanceInfo);
-        
-        // 게임 통계 로드
-        try {
-          const gameStatsResponse = await getUserGameStats(user.uid);
-          if (gameStatsResponse.success && gameStatsResponse.data) {
-            setGameStats({
-              bestReactionTimes: gameStatsResponse.data.bestReactionTimes,
-              todayPlays: gameStatsResponse.data.todayPlays,
-              maxPlays: gameStatsResponse.data.maxPlays
-            });
-          }
-        } catch (error) {
-          console.error('게임 통계 로드 실패:', error);
-        }
+        // 백그라운드에서 비동기 병렬 처리로 성능 개선
+        Promise.all([
+          // 경험치 데이터 동기화 (백그라운드)
+          syncUserExperienceData(user.uid).catch(error => {
+            console.error('경험치 동기화 실패 (백그라운드):', error);
+          }),
+          
+          // 출석 정보 로드
+          checkAttendance(user.uid).then(attendanceInfo => {
+            setAttendance(attendanceInfo);
+          }).catch(error => {
+            console.error('출석 정보 로드 실패:', error);
+          }),
+          
+          // 게임 통계 로드
+          getUserGameStats(user.uid).then(gameStatsResponse => {
+            if (gameStatsResponse.success && gameStatsResponse.data) {
+              setGameStats({
+                bestReactionTimes: gameStatsResponse.data.bestReactionTimes,
+                todayPlays: gameStatsResponse.data.todayPlays,
+                maxPlays: gameStatsResponse.data.maxPlays
+              });
+            }
+          }).catch(error => {
+            console.error('게임 통계 로드 실패:', error);
+          })
+        ]);
         
         // TODO: 추후 다른 데이터들도 로드 구현
         // const mainSchoolInfo = await getMainSchool(user.uid);
@@ -280,10 +291,6 @@ export default function HomeScreen() {
         // setMainSchool(mainSchoolInfo);
         // setRankingPreview(rankings);
       }
-      
-      // 인기 게시글은 로그인 여부와 관계없이 로드
-      const posts = await getPopularPostsForHome(3);
-      setPopularPosts(posts);
       
     } catch (error) {
       console.error('데이터 로드 오류:', error);
@@ -553,6 +560,8 @@ export default function HomeScreen() {
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
+      // 성능 최적화를 위한 스크롤 옵션
+      scrollEventThrottle={16}
     >
       {/* 헤더 */}
       <View style={styles.header}>
@@ -572,24 +581,26 @@ export default function HomeScreen() {
               style={[
                 styles.rewardedAdButton,
                 { 
-                  backgroundColor: canWatchAd() && isLoaded ? '#f59e0b' : '#9ca3af',
-                  opacity: canWatchAd() && isLoaded ? 1 : 0.7
+                  backgroundColor: canWatchAd() && (isLoaded || !isLoading) ? '#f59e0b' : '#9ca3af',
+                  opacity: canWatchAd() && (isLoaded || !isLoading) ? 1 : 0.7
                 }
               ]}
               onPress={handleWatchRewardedAd}
-              disabled={!isLoaded || !canWatchAd()}
+              disabled={!canWatchAd()}
             >
               <Text style={styles.rewardedAdButtonText}>
                 {adWatchCount >= adSettings.dailyLimit 
                   ? '🚫 일일 제한' 
                   : !canWatchAd() 
                     ? `⏰ ${formatTime(timeUntilNextAd)}`
-                    : `🎁 +${adSettings.experienceReward} XP`
+                    : isLoading 
+                      ? '⏳ 광고 로딩 중...'
+                      : `🎁 +${adSettings.experienceReward} XP`
                 }
               </Text>
-              {canWatchAd() && adWatchCount < adSettings.dailyLimit && (
+              {canWatchAd() && adWatchCount < adSettings.dailyLimit && !isLoading && (
                 <Text style={styles.rewardedAdSubText}>
-                  {adSettings.dailyLimit - adWatchCount}회 남음
+                  {isLoaded ? '준비됨!' : '클릭 시 로딩'} • {adSettings.dailyLimit - adWatchCount}회 남음
                 </Text>
               )}
             </TouchableOpacity>

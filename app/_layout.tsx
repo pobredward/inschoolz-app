@@ -76,7 +76,19 @@ export default function RootLayout() {
 
     // 앱 시작 시 카카오 SDK 및 인증 상태 초기화
     initializeKakao();
-    useAuthStore.getState().initializeAuth();
+    
+    // Firebase 초기화에 타임아웃 설정하여 스플래시 화면 블로킹 방지
+    const initAuth = useAuthStore.getState().initializeAuth();
+    
+    // 5초 후에도 로딩이 끝나지 않으면 강제로 진행
+    setTimeout(() => {
+      const { isLoading } = useAuthStore.getState();
+      if (isLoading) {
+        console.warn('⚠️ Auth 초기화 타임아웃 - 강제 진행');
+        useAuthStore.getState().setLoading(false);
+      }
+    }, 5000);
+    
     setupNotifications();
   }, []); // 의존성 제거 - 이 함수들은 앱 시작 시 한 번만 실행되어야 함
 

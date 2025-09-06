@@ -62,8 +62,8 @@ function CustomHeader() {
 
     loadUnreadCount();
 
-    // 30초마다 업데이트 (백그라운드 동기화)
-    const interval = setInterval(loadUnreadCount, 30000);
+    // 60초마다 업데이트로 변경하여 성능 개선 (30초 → 60초)
+    const interval = setInterval(loadUnreadCount, 60000);
 
     return () => {
       clearInterval(interval);

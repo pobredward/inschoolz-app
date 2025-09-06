@@ -15,7 +15,7 @@ import FollowersModal from '../../components/FollowersModal';
 import { SafeProfileImage } from '../../components/SafeProfileImage';
 import { deleteAccount } from '../../lib/auth';
 import { useRewardedAd } from '../../components/ads/AdMobAds';
-import { addExperience } from '../../lib/experience';
+import { awardExperience } from '../../lib/experience';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ProfileScreen() {
@@ -76,7 +76,8 @@ export default function ProfileScreen() {
     
     try {
       // 경험치 추가
-      await addExperience(user.uid, adSettings.experienceReward, 'rewarded_ad');
+      const { awardExperience } = await import('../../lib/experience');
+      const expResult = await awardExperience(user.uid, 'attendance', adSettings.experienceReward);
       
       // 광고 시청 데이터 업데이트
       const now = Date.now();
@@ -99,7 +100,7 @@ export default function ProfileScreen() {
     }
   };
 
-  const { showRewardedAd, isLoaded } = useRewardedAd(handleRewardEarned);
+  const { showRewardedAd, isLoaded, isLoading } = useRewardedAd(handleRewardEarned);
 
   // Firebase에서 광고 시청 데이터 로드
   const loadAdWatchData = async () => {
@@ -218,11 +219,11 @@ export default function ProfileScreen() {
     );
   };
 
-  // 타이머 업데이트
+  // 타이머 업데이트 - 최적화: 5초마다 업데이트로 변경
   useEffect(() => {
     const interval = setInterval(() => {
       setTimeUntilNextAd(calculateTimeUntilNextAd());
-    }, 1000);
+    }, 5000); // 1초 → 5초로 변경하여 성능 개선
 
     return () => clearInterval(interval);
   }, [lastAdWatchTime]);
@@ -589,24 +590,26 @@ export default function ProfileScreen() {
               style={[
                 styles.rewardedAdButton,
                 { 
-                  backgroundColor: canWatchAd() && isLoaded ? '#f59e0b' : '#9ca3af',
-                  opacity: canWatchAd() && isLoaded ? 1 : 0.7
+                  backgroundColor: canWatchAd() && (isLoaded || !isLoading) ? '#f59e0b' : '#9ca3af',
+                  opacity: canWatchAd() && (isLoaded || !isLoading) ? 1 : 0.7
                 }
               ]}
               onPress={handleWatchRewardedAd}
-              disabled={!isLoaded || !canWatchAd()}
+              disabled={!canWatchAd()}
             >
               <Text style={styles.rewardedAdButtonText}>
                 {adWatchCount >= adSettings.dailyLimit 
                   ? '🚫 일일 제한' 
                   : !canWatchAd() 
                     ? `⏰ ${formatTime(timeUntilNextAd)}`
-                    : `🎁 +${adSettings.experienceReward} XP`
+                    : isLoading 
+                      ? '⏳ 광고 로딩 중...'
+                      : `🎁 +${adSettings.experienceReward} XP`
                 }
               </Text>
-              {canWatchAd() && adWatchCount < adSettings.dailyLimit && (
+              {canWatchAd() && adWatchCount < adSettings.dailyLimit && !isLoading && (
                 <Text style={styles.rewardedAdSubText}>
-                  {adSettings.dailyLimit - adWatchCount}회 남음
+                  {isLoaded ? '준비됨!' : '클릭 시 로딩'} • {adSettings.dailyLimit - adWatchCount}회 남음
                 </Text>
               )}
             </TouchableOpacity>
