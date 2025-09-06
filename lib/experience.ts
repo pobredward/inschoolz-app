@@ -496,7 +496,8 @@ export const awardExperience = async (
         shouldCheckLimit = false; // 좋아요는 제한 없음
         break;
       case 'attendance':
-        expToAward = settings.experience.attendanceReward;
+        expToAward = amount || settings.experience.attendanceReward;
+        console.log(`🔍 attendance 경험치 - amount: ${amount}, 설정값: ${settings.experience.attendanceReward}, 최종: ${expToAward}`);
         shouldCheckLimit = false;
         break;
       case 'attendanceStreak':

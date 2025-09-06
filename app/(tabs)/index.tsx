@@ -36,14 +36,28 @@ export default function HomeScreen() {
   const handleRewardEarned = async (reward: any) => {
     if (!user?.uid) return;
     
-    console.log('🎁 리워드 광고 완료! 지급할 경험치:', adSettings.experienceReward);
-    console.log('🎁 AdMob 리워드 정보:', reward);
+    console.log('🔍 === AdMob 리워드 디버깅 시작 (홈) ===');
+    console.log('🔍 현재 adSettings:', adSettings);
+    console.log('🔍 adSettings.experienceReward:', adSettings.experienceReward);
+    console.log('🔍 AdMob reward 객체:', reward);
+    console.log('🔍 AdMob reward.amount:', reward?.amount);
+    console.log('🔍 AdMob reward.type:', reward?.type);
+    
+    // AdMob에서 전달한 값과 설정값 비교
+    const admobAmount = reward?.amount;
+    const settingsAmount = adSettings.experienceReward;
+    console.log('🔍 값 비교 - AdMob:', admobAmount, 'vs Settings:', settingsAmount);
+    
+    // 실제 사용할 경험치 값 결정
+    const experienceToAward = settingsAmount; // 설정값 우선 사용
+    console.log('🔍 실제 지급할 경험치:', experienceToAward);
     
     try {
-      // 경험치 추가 로직 (experience.ts 활용)
+      // 경험치 추가 로직 - 리워드 광고는 amount 매개변수로 직접 전달
       const { awardExperience } = await import('../../lib/experience');
-      const expResult = await awardExperience(user.uid, 'attendance', adSettings.experienceReward);
-      console.log('🎁 경험치 지급 결과:', expResult);
+      const expResult = await awardExperience(user.uid, 'attendance', experienceToAward);
+      console.log('🔍 경험치 지급 결과:', expResult);
+      console.log('🔍 === AdMob 리워드 디버깅 종료 (홈) ===');
       
       // 광고 시청 데이터 업데이트
       const now = Date.now();
@@ -58,7 +72,7 @@ export default function HomeScreen() {
       const remainingAds = adSettings.dailyLimit - newCount;
       Alert.alert(
         '🎉 보상 획득!', 
-        `경험치 +${adSettings.experienceReward}을 받았습니다!\n\n오늘 남은 광고 시청 횟수: ${remainingAds}회`
+        `경험치 +${experienceToAward}을 받았습니다!\n\n오늘 남은 광고 시청 횟수: ${remainingAds}회`
       );
     } catch (error) {
       console.error('경험치 추가 오류:', error);
