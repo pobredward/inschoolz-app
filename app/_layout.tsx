@@ -27,9 +27,6 @@ export default function RootLayout() {
   });
 
   const { 
-    initializeAuth, 
-    initializePushNotifications, 
-    updateUnreadNotificationCount,
     user: currentUser 
   } = useAuthStore();
   const notificationListener = useRef<Notifications.Subscription | null>(null);
@@ -79,18 +76,18 @@ export default function RootLayout() {
 
     // 앱 시작 시 카카오 SDK 및 인증 상태 초기화
     initializeKakao();
-    initializeAuth();
+    useAuthStore.getState().initializeAuth();
     setupNotifications();
-  }, [initializeAuth, updateUnreadNotificationCount]);
+  }, []); // 의존성 제거 - 이 함수들은 앱 시작 시 한 번만 실행되어야 함
 
   // 사용자 로그인 후 푸시 알림 초기화 (무한 루프 방지)
   useEffect(() => {
-    if (currentUser) {
-      initializePushNotifications().catch(error => {
+    if (currentUser?.uid) {
+      useAuthStore.getState().initializePushNotifications().catch(error => {
         console.error('푸시 알림 초기화 실패:', error);
       });
     }
-  }, [currentUser, initializePushNotifications]); // 의존성 배열 수정
+  }, [currentUser?.uid]); // uid만 의존성으로 설정하여 무한 루프 방지
 
   // 알림 수신 핸들러 설정
   useEffect(() => {
