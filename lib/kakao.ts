@@ -274,6 +274,11 @@ export const loginWithKakaoOptimized = async (): Promise<User> => {
   try {
     logger.debug('카카오 로그인 시작');
 
+    // 카카오 SDK 사용 가능 여부 확인
+    if (typeof login !== 'function') {
+      throw new Error('카카오 로그인을 사용할 수 없습니다. Development Build가 필요합니다.');
+    }
+
     // 1. 카카오 로그인 수행 (@react-native-kakao/user - 자동으로 최적 방식 선택)
     const loginResult = await login();
     logger.debug('카카오 로그인 성공:', {

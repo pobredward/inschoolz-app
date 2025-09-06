@@ -23,6 +23,7 @@ interface AuthState {
   error: string | null;
   realtimeListener: (() => void) | null;
   unreadNotificationCount: number; // 읽지 않은 알림 개수 추가
+  isPushInitializing: boolean; // 푸시 알림 초기화 중 플래그
 }
 
 // 인증 액션 타입 정의
@@ -56,6 +57,7 @@ const initialState: AuthState = {
   error: null,
   realtimeListener: null,
   unreadNotificationCount: 0, // 초기값 0
+  isPushInitializing: false, // 푸시 초기화 플래그 초기값
 };
 
 // AuthStore 생성
@@ -363,15 +365,24 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         set({ unreadNotificationCount: Math.max(0, unreadNotificationCount - amount) });
       },
 
-      // 푸시 알림 초기화
+      // 푸시 알림 초기화 (중복 호출 방지)
       initializePushNotifications: async () => {
         try {
-          const { user } = get();
+          const { user, isPushInitializing } = get();
           if (!user) {
             console.warn('사용자가 로그인되지 않아 푸시 알림을 초기화할 수 없습니다.');
             return;
           }
 
+          // 이미 초기화 중이면 중복 호출 방지
+          if (isPushInitializing) {
+            console.log('푸시 알림 초기화가 이미 진행 중입니다.');
+            return;
+          }
+
+          // 초기화 시작 플래그 설정
+          set({ isPushInitializing: true });
+          
           logger.debug('푸시 알림 초기화 시작:', user.uid);
           
           const token = await registerForPushNotificationsAsync();
@@ -382,6 +393,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         } catch (error) {
           logger.error('푸시 알림 초기화 실패:', error);
           throw error;
+        } finally {
+          // 초기화 완료 플래그 해제
+          set({ isPushInitializing: false });
         }
       },
 

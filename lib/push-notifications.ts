@@ -131,20 +131,45 @@ export async function savePushTokenToUser(userId: string, token: string): Promis
       return;
     }
 
+    // deviceId 안전하게 처리
+    let deviceId: string;
+    try {
+      // Constants.deviceId가 없으면 대체 방법 사용
+      deviceId = Constants.deviceId || 
+                 Constants.sessionId || 
+                 `${Platform.OS}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    } catch (error) {
+      // 완전한 fallback
+      deviceId = `${Platform.OS}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+
     const tokenData: PushNotificationToken = {
       token,
       platform: Platform.OS,
-      deviceId: Constants.deviceId || undefined,
+      deviceId: deviceId,
+    };
+
+    // 기존 푸시 토큰 데이터 가져오기
+    const userData = userDoc.data();
+    const existingPushTokens = userData.pushTokens || {};
+
+    // 현재 플랫폼의 토큰 업데이트 (기존 토큰 유지하면서 현재 토큰 추가/업데이트)
+    const updatedPushTokens = {
+      ...existingPushTokens,
+      [Platform.OS]: tokenData,
     };
 
     await updateDoc(userRef, {
-      pushTokens: {
-        [Platform.OS]: tokenData,
-      },
+      pushTokens: updatedPushTokens,
       updatedAt: new Date(),
     });
 
-    console.log('✅ 푸시 토큰 저장 완료:', userId);
+    console.log('✅ 푸시 토큰 저장 완료:', {
+      userId,
+      platform: Platform.OS,
+      deviceId: deviceId,
+      tokenLength: token.length
+    });
   } catch (error) {
     console.error('❌ 푸시 토큰 저장 실패:', error);
     throw error;

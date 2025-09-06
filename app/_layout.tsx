@@ -41,9 +41,15 @@ export default function RootLayout() {
   const responseListener = useRef<Notifications.Subscription>();
 
   useEffect(() => {
-    // 카카오 SDK 초기화
+    // 카카오 SDK 초기화 (안전한 초기화)
     const initializeKakao = async () => {
       try {
+        // 카카오 SDK가 사용 가능한지 먼저 확인
+        if (typeof initializeKakaoSDK !== 'function') {
+          console.warn('⚠️ 카카오 SDK를 사용할 수 없습니다. (Development Build 필요)');
+          return;
+        }
+
         const kakaoAppKey = Constants.expoConfig?.extra?.kakaoAppKey || '380177b185226c4935a7f293190afc46';
         if (kakaoAppKey) {
           // @react-native-kakao/core로 명시적 초기화
@@ -54,6 +60,8 @@ export default function RootLayout() {
         }
       } catch (error) {
         console.error('❌ 카카오 SDK 초기화 실패:', error);
+        // 카카오 SDK 초기화 실패해도 앱이 크래시되지 않도록 처리
+        console.warn('⚠️ 카카오 로그인 기능을 사용할 수 없습니다.');
       }
     };
 
@@ -80,14 +88,14 @@ export default function RootLayout() {
     setupNotifications();
   }, [initializeAuth, updateUnreadNotificationCount]);
 
-  // 사용자 로그인 후 푸시 알림 초기화
+  // 사용자 로그인 후 푸시 알림 초기화 (무한 루프 방지)
   useEffect(() => {
     if (currentUser) {
       initializePushNotifications().catch(error => {
         console.error('푸시 알림 초기화 실패:', error);
       });
     }
-  }, [currentUser, initializePushNotifications]);
+  }, [currentUser?.uid]); // initializePushNotifications 제거하여 무한 루프 방지
 
   // 알림 수신 핸들러 설정
   useEffect(() => {
