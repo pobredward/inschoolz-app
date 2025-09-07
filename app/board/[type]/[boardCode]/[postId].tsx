@@ -1461,7 +1461,7 @@ export default function PostDetailScreen() {
     }
   };
 
-  const renderProfileImage = (profileImageUrl?: string, userName?: string, isAnonymous?: boolean) => {
+  const renderProfileImage = (profileImageUrl?: string, userName?: string, isAnonymous?: boolean, authorId?: string) => {
     if (isAnonymous) {
       return (
         <View style={styles.commentAvatar}>
@@ -1470,20 +1470,36 @@ export default function PostDetailScreen() {
       );
     }
 
-    if (profileImageUrl) {
+    const ProfileImageContent = () => {
+      if (profileImageUrl) {
+        return (
+          <Image 
+            source={{ uri: profileImageUrl }} 
+            style={styles.commentAvatar}
+          />
+        );
+      }
+
       return (
-        <Image 
-          source={{ uri: profileImageUrl }} 
-          style={styles.commentAvatar}
-        />
+        <View style={styles.commentAvatar}>
+          <Ionicons name="person" size={16} color="#6b7280" />
+        </View>
+      );
+    };
+
+    // 익명이 아니고 authorId가 있으면 터치 가능하게 만들기
+    if (!isAnonymous && authorId) {
+      return (
+        <TouchableOpacity
+          onPress={() => router.push(`/users/${authorId}`)}
+          style={styles.profileImageTouchable}
+        >
+          <ProfileImageContent />
+        </TouchableOpacity>
       );
     }
 
-    return (
-      <View style={styles.commentAvatar}>
-        <Ionicons name="person" size={16} color="#6b7280" />
-      </View>
-    );
+    return <ProfileImageContent />;
   };
 
   const renderComment = (comment: CommentWithAuthor, level: number = 0, parentAuthor?: string) => {
@@ -1526,9 +1542,20 @@ export default function PostDetailScreen() {
             {renderProfileImage(
               comment.author?.profileImageUrl,
               comment.author?.userName,
-              comment.isAnonymous
+              comment.isAnonymous,
+              comment.authorId || undefined
             )}
-            <Text style={styles.commentAuthor}>{authorName}</Text>
+            {/* 작성자 이름도 클릭 가능하게 만들기 */}
+            {!comment.isAnonymous && comment.authorId ? (
+              <TouchableOpacity
+                onPress={() => router.push(`/users/${comment.authorId!}`)}
+                style={styles.authorNameTouchable}
+              >
+                <Text style={[styles.commentAuthor, styles.clickableAuthor]}>{authorName}</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.commentAuthor}>{authorName}</Text>
+            )}
             <Text style={styles.commentDate}>
               {formatRelativeTime(comment.createdAt)}
             </Text>
@@ -2670,6 +2697,14 @@ const styles = StyleSheet.create({
   commentHeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  profileImageTouchable: {
+    borderRadius: 16,
+  },
+  authorNameTouchable: {
+    borderRadius: 4,
+    paddingHorizontal: 2,
+    paddingVertical: 1,
   },
   likeButton: {
     flexDirection: 'row',
