@@ -39,7 +39,6 @@
     },
     "android": {
       "package": "com.onmindlab.inschoolz",
-      "versionCode": 9,
       "icon": "./assets/images/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
