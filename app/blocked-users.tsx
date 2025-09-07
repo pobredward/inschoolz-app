@@ -8,11 +8,13 @@ import {
   RefreshControl, 
   Alert, 
   ActivityIndicator,
-  Image
+  Image,
+  StatusBar,
+  SafeAreaView,
+  Platform
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
-import { SafeScreenContainer } from '../components/SafeScreenContainer';
 import { Ionicons } from '@expo/vector-icons';
 import { getBlockedUsers, toggleBlock } from '../lib/users';
 import { formatRelativeTime } from '../utils/timeUtils';
@@ -166,45 +168,50 @@ export default function BlockedUsersScreen() {
 
   if (loading) {
     return (
-      <SafeScreenContainer>
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.header}>
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="arrow-back" size={20} color="#1F2937" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>차단된 사용자</Text>
+            <View style={styles.placeholder} />
+          </View>
+          
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#10b981" />
+            <Text style={styles.loadingText}>차단된 사용자 목록을 불러오는 중...</Text>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
+      <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
           <TouchableOpacity 
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Ionicons name="chevron-back" size={24} color="#374151" />
+            <Ionicons name="arrow-back" size={20} color="#1F2937" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>차단된 사용자</Text>
           <View style={styles.placeholder} />
         </View>
-        
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#10b981" />
-          <Text style={styles.loadingText}>차단된 사용자 목록을 불러오는 중...</Text>
-        </View>
-      </SafeScreenContainer>
-    );
-  }
 
-  return (
-    <SafeScreenContainer>
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
+        <ScrollView
+          style={styles.content}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
         >
-          <Ionicons name="chevron-back" size={24} color="#374151" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>차단된 사용자</Text>
-        <View style={styles.placeholder} />
-      </View>
-
-      <ScrollView
-        style={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-      >
         {/* 안내 메시지 */}
         <View style={styles.infoCard}>
           <View style={styles.infoIcon}>
@@ -241,31 +248,50 @@ export default function BlockedUsersScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeScreenContainer>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+  },
+  safeArea: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
+    backgroundColor: '#f9fafb',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
-    backgroundColor: '#fff',
+    elevation: 0,
+    shadowOpacity: 0,
   },
   backButton: {
-    padding: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerTitle: {
-    fontSize: 18,
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 17,
     fontWeight: '600',
-    color: '#111827',
+    color: '#1F2937',
+    marginHorizontal: 8,
   },
   placeholder: {
-    width: 32,
+    width: 36,
+    height: 36,
   },
   content: {
     flex: 1,
