@@ -828,7 +828,11 @@ export default function CommunityScreen() {
             {/* 게시글 목록 */}
             <View style={styles.postsContainer}>
               {posts.length > 0 ? (
-                posts.map((post) => renderPostCard({ item: post }))
+                posts.map((post) => (
+                  <View key={post.id}>
+                    {renderPostCard({ item: post })}
+                  </View>
+                ))
               ) : (
                 !isLoading && renderEmptyState()
               )}
