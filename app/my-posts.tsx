@@ -137,15 +137,12 @@ export default function MyPostsScreen() {
   };
 
   const handlePostPress = (post: UserPost) => {
-    // 게시글 타입별 라우팅
-    let route = '';
-    if (post.type === 'national') {
-      route = `/board/national/${post.boardCode}/${post.id}`;
-    } else if (post.type === 'regional' && post.regions) {
-      route = `/board/regional/${post.regions.sido}/${post.regions.sigungu}/${post.boardCode}/${post.id}`;
-    } else if (post.type === 'school' && post.schoolId) {
-      route = `/board/school/${post.schoolId}/${post.boardCode}/${post.id}`;
-    }
+    // 앱의 라우트 구조에 맞게 수정: /board/[type]/[boardCode]/[postId]
+    // 모든 게시글을 national 타입으로 통일하여 라우팅 (게시글 ID로 직접 조회하므로 타입 무관)
+    let route = `/board/national/${post.boardCode || 'free'}/${post.id}`;
+    
+    console.log('원본 게시글 정보:', { type: post.type, boardCode: post.boardCode, schoolId: post.schoolId, regions: post.regions });
+    console.log('통일된 라우트로 변경:', route);
     
     if (route) {
       router.push(route as any);

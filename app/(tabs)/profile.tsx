@@ -5,7 +5,6 @@ import { useAuthStore } from '../../store/authStore';
 import { checkAttendance, UserAttendance } from '../../lib/attendance';
 import { User } from '../../types';
 import { getUserActivitySummary, getFollowersCount, getFollowingCount } from '../../lib/users';
-import { getScrappedPostsCount } from '../../lib/boards';
 import { getKoreanDateString } from '../../utils/timeUtils';
 import { formatPhoneNumber } from '../../utils/formatters';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -38,11 +37,11 @@ export default function ProfileScreen() {
     nextLevelXP: 10
   });
   const [loading, setLoading] = useState(false);
-  const [scrapCount, setScrapCount] = useState(0);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [isFollowersModalVisible, setIsFollowersModalVisible] = useState(false);
   const [followersModalType, setFollowersModalType] = useState<'followers' | 'following'>('followers');
+
 
   // 리워드 광고 제한 상태
   const [adWatchCount, setAdWatchCount] = useState(0);
@@ -190,6 +189,7 @@ export default function ProfileScreen() {
     return `${totalMinutes}분`;
   };
 
+
   // 리워드 광고 시청
   const handleWatchRewardedAd = () => {
     if (!user?.uid) {
@@ -290,14 +290,6 @@ export default function ProfileScreen() {
         // 기본값 유지
       }
 
-      // 스크랩 개수 로드 (오류 처리 강화)
-      try {
-        const scrapCountResult = await getScrappedPostsCount(user.uid);
-        setScrapCount(scrapCountResult);
-      } catch (scrapError) {
-        console.error('스크랩 개수 로드 오류:', scrapError);
-        // 기본값 0 유지
-      }
 
       // 팔로워/팔로잉 수 로드 (오류 처리 강화)
       try {
@@ -311,6 +303,7 @@ export default function ProfileScreen() {
         console.error('팔로워/팔로잉 수 로드 오류:', followError);
         // 기본값 0 유지
       }
+
     } catch (error) {
       console.error('데이터 로드 오류:', error);
       // 사용자에게 오류 알림
@@ -327,7 +320,7 @@ export default function ProfileScreen() {
       }
       // 로그인하지 않은 경우 리디렉션 제거 - 대신 UI에서 처리
     }
-  }, [user?.uid, authLoading, loadData]);
+  }, [user, authLoading, loadData]);
 
   const onRefresh = async () => {
     if (!user?.uid) return;
@@ -794,6 +787,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
 
         {/* 설정 */}
         <View style={styles.menuSection}>
@@ -1383,4 +1377,5 @@ const styles = StyleSheet.create({
      color: '#9ca3af',
      marginLeft: 'auto',
    },
+
  }); 

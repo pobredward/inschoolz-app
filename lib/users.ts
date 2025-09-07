@@ -15,7 +15,8 @@ import {
   getCountFromServer,
   Timestamp,
   QueryConstraint,
-  FieldValue
+  FieldValue,
+  collectionGroup
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { User, FirebaseTimestamp } from '../types'; // 통일된 타입 사용
@@ -1388,12 +1389,49 @@ export const getUserPosts = async (
   sortBy: 'latest' | 'popular' = 'latest'
 ): Promise<{ posts: any[], totalCount: number, hasMore: boolean }> => {
   try {
-    // TODO: 실제 게시글 조회 로직 구현
-    // 현재는 빈 배열 반환
+    const offset = (page - 1) * pageSize;
+    
+    // 정렬 기준 설정
+    let orderByField = 'createdAt';
+    let orderByDirection: 'desc' | 'asc' = 'desc';
+    
+    if (sortBy === 'popular') {
+      orderByField = 'stats.likeCount';
+    }
+    
+    // 게시글 조회 쿼리 - 웹과 동일한 인덱스 사용
+    const postsQuery = query(
+      collection(db, 'posts'),
+      where('authorId', '==', userId),
+      where('status.isDeleted', '==', false),
+      orderBy('createdAt', 'desc'),
+      limit(pageSize + 1) // hasMore 확인을 위해 1개 더 가져옴
+    );
+    
+    const postsSnapshot = await getDocs(postsQuery);
+    const posts: any[] = [];
+    
+    postsSnapshot.docs.forEach((doc, index) => {
+      if (index < pageSize) { // pageSize만큼만 실제 데이터에 포함
+        const postData = doc.data();
+        posts.push({
+          id: doc.id,
+          ...postData,
+          // 보드 이름 추가
+          boardName: postData.boardName || postData.boardCode || '게시판'
+        });
+      }
+    });
+    
+    // 전체 개수는 로드된 게시글 수로 근사치 사용 (성능 최적화)
+    const totalCount = posts.length;
+    
+    const hasMore = postsSnapshot.docs.length > pageSize;
+    
     return {
-      posts: [],
-      totalCount: 0,
-      hasMore: false
+      posts,
+      totalCount,
+      hasMore
     };
   } catch (error) {
     console.error('사용자 게시글 조회 오류:', error);
@@ -1410,13 +1448,163 @@ export const getUserComments = async (
   pageSize = 10
 ): Promise<{ comments: any[], totalCount: number, hasMore: boolean }> => {
   try {
-    // TODO: 실제 댓글 조회 로직 구현
-    // 현재는 빈 배열 반환
-    return {
-      comments: [],
-      totalCount: 0,
-      hasMore: false
-    };
+    console.log('getUserComments 호출 (간단 버전) - userId:', userId, 'pageSize:', pageSize);
+    
+    if (!userId) {
+      return {
+        comments: [],
+        totalCount: 0,
+        hasMore: false
+      };
+    }
+    
+    // collectionGroup을 사용해서 모든 posts의 comments 서브컬렉션에서 한 번에 조회
+    console.log('collectionGroup으로 모든 댓글에서 사용자 댓글 검색...');
+    
+    try {
+      const commentsQuery = query(
+        collectionGroup(db, 'comments'),
+        where('authorId', '==', userId),
+        where('status.isDeleted', '==', false),
+        orderBy('createdAt', 'desc'),
+        limit(pageSize + 1)
+      );
+      
+      const commentsSnapshot = await getDocs(commentsQuery);
+      console.log('발견된 댓글 수:', commentsSnapshot.docs.length);
+      
+      const comments: any[] = [];
+      
+      // 댓글 데이터와 실제 게시글 정보 함께 처리
+      for (let i = 0; i < Math.min(commentsSnapshot.docs.length, pageSize); i++) {
+        const commentDoc = commentsSnapshot.docs[i];
+        const commentData = commentDoc.data();
+        
+        // postId는 댓글 문서의 부모 경로에서 추출
+        const postId = commentDoc.ref.parent.parent?.id;
+        
+        try {
+          // 실제 게시글 정보 가져오기
+          const postRef = doc(db, 'posts', postId);
+          const postDoc = await getDoc(postRef);
+          
+          let postData = null;
+          if (postDoc.exists()) {
+            const post = postDoc.data();
+            postData = {
+              title: post.title,
+              type: post.type || 'national',
+              boardCode: post.boardCode,
+              boardName: post.boardName || post.boardCode || '게시판',
+              schoolId: post.schoolId,
+              regions: post.regions
+            };
+          } else {
+            console.warn('게시글이 존재하지 않음:', postId);
+            postData = {
+              title: '삭제된 게시글',
+              type: 'national',
+              boardCode: 'free',
+              boardName: '게시판'
+            };
+          }
+          
+          const comment = {
+            id: commentDoc.id,
+            ...commentData,
+            postId: postId,
+            postData: postData
+          };
+          
+          comments.push(comment);
+        } catch (postError) {
+          console.warn(`게시글 ${postId} 조회 실패:`, postError);
+          // 게시글 정보 없이도 댓글은 표시
+          const comment = {
+            id: commentDoc.id,
+            ...commentData,
+            postId: postId,
+            postData: {
+              title: '게시글 정보 없음',
+              type: 'national',
+              boardCode: 'free',
+              boardName: '게시판'
+            }
+          };
+          
+          comments.push(comment);
+        }
+      }
+      
+      const totalCount = comments.length;
+      const hasMore = commentsSnapshot.docs.length > pageSize;
+      
+      console.log('처리된 댓글 수:', comments.length);
+      if (comments.length > 0) {
+        console.log('첫 번째 댓글 샘플:', {
+          id: comments[0].id,
+          content: comments[0].content?.substring(0, 30),
+          postId: comments[0].postId
+        });
+      }
+      
+      return {
+        comments,
+        totalCount,
+        hasMore
+      };
+      
+    } catch (collectionGroupError) {
+      console.warn('collectionGroup 쿼리 실패, fallback 사용:', collectionGroupError);
+      
+      // fallback: 최상위 comments 컬렉션에서 시도
+      const fallbackQuery = query(
+        collection(db, 'comments'),
+        where('authorId', '==', userId),
+        orderBy('createdAt', 'desc'),
+        limit(pageSize + 1)
+      );
+      
+      const fallbackSnapshot = await getDocs(fallbackQuery);
+      console.log('fallback 쿼리 결과:', fallbackSnapshot.docs.length);
+      
+      const comments: any[] = [];
+      
+      for (let i = 0; i < Math.min(fallbackSnapshot.docs.length, pageSize); i++) {
+        const commentDoc = fallbackSnapshot.docs[i];
+        const commentData = commentDoc.data();
+        
+        // 삭제된 댓글 필터링
+        if (commentData.status?.isDeleted === true) {
+          continue;
+        }
+        
+        const comment = {
+          id: commentDoc.id,
+          ...commentData,
+          postData: {
+            title: '게시글 제목',
+            type: 'national',
+            boardCode: 'free',
+            boardName: '자유게시판'
+          }
+        };
+        
+        comments.push(comment);
+      }
+      
+      const totalCount = comments.length;
+      const hasMore = fallbackSnapshot.docs.length > pageSize;
+      
+      console.log('fallback 처리된 댓글 수:', comments.length);
+      
+      return {
+        comments,
+        totalCount,
+        hasMore
+      };
+    }
+    
   } catch (error) {
     console.error('사용자 댓글 조회 오류:', error);
     throw new Error('댓글을 조회하는 중 오류가 발생했습니다.');

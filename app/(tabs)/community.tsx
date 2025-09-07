@@ -777,91 +777,63 @@ export default function CommunityScreen() {
   return (
     <View style={styles.container}>
       <SafeScreenContainer 
-        scrollable={false}
+        scrollable={true}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#10B981']}
+          />
+        }
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        scrollViewRef={scrollViewRef as React.RefObject<ScrollView>}
+        onLayout={handleLayout}
       >
         {/* 로그인이 필요한 탭에서는 로그인 안내 화면 표시 */}
         {isLoginRequired ? (
           <View style={styles.loginRequiredWrapper}>
             {renderTabs()}
-            <ScrollView 
-              style={styles.loginRequiredScrollView}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  colors={['#10B981']}
-                />
-              }
-            >
-              {renderLoginRequired()}
-            </ScrollView>
+            {renderLoginRequired()}
           </View>
         ) : (
-          <FlatList
-            data={posts}
-            keyExtractor={(item) => item.id}
-            renderItem={renderPostCard}
-            style={styles.flatListContainer}
-            contentContainerStyle={{ paddingHorizontal: 6, paddingBottom: 100 }}
-            showsVerticalScrollIndicator={false}
-            // 헤더 컴포넌트들을 FlatList의 ListHeaderComponent로 이동
-            ListHeaderComponent={
-              <View>
-                {renderTabs()}
-                
-                {selectedTab === 'school' && (
-                  <SchoolSelector 
-                    ref={schoolSelectorRef}
-                    style={styles.schoolSelector}
-                    onSchoolChange={async (school: any) => {
-                      // 학교 변경 시 URL 업데이트
-                      console.log('학교 변경됨:', school);
-                      const schoolId = school?.id || school;
-                      router.push(`/(tabs)/community?tab=school/${schoolId}`);
-                      // 게시글 다시 로드
-                      loadBoards();
-                      loadPosts();
-                    }}
-                  />
-                )}
-                
-                {renderCategoryFilter()}
-                {renderSortHeader()}
-                
-                {isLoading && (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#10B981" />
-                  </View>
-                )}
-              </View>
-            }
-            ListEmptyComponent={!isLoading ? renderEmptyState() : null}
-            // 성능 최적화 옵션들
-            removeClippedSubviews={true}
-            maxToRenderPerBatch={5}
-            updateCellsBatchingPeriod={50}
-            initialNumToRender={8}
-            windowSize={10}
-            getItemLayout={(data, index) => ({
-              length: 200, // 예상 아이템 높이
-              offset: 200 * index,
-              index,
-            })}
-            // 스크롤 이벤트 처리
-            onScroll={handleScroll}
-            scrollEventThrottle={16}
-            onLayout={handleLayout}
-            // RefreshControl 추가
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                colors={['#10B981']}
+          <View style={styles.contentContainer}>
+            {renderTabs()}
+            
+            {selectedTab === 'school' && (
+              <SchoolSelector 
+                ref={schoolSelectorRef}
+                style={styles.schoolSelector}
+                onSchoolChange={async (school: any) => {
+                  // 학교 변경 시 URL 업데이트
+                  console.log('학교 변경됨:', school);
+                  const schoolId = school?.id || school;
+                  router.push(`/(tabs)/community?tab=school/${schoolId}`);
+                  // 게시글 다시 로드
+                  loadBoards();
+                  loadPosts();
+                }}
               />
-            }
-            // 스크롤 위치 복원
-            ref={scrollViewRef as any}
-          />
+            )}
+            
+            {renderCategoryFilter()}
+            {renderSortHeader()}
+            
+            {isLoading && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#10B981" />
+              </View>
+            )}
+            
+            {/* 게시글 목록 */}
+            <View style={styles.postsContainer}>
+              {posts.length > 0 ? (
+                posts.map((post) => renderPostCard({ item: post }))
+              ) : (
+                !isLoading && renderEmptyState()
+              )}
+            </View>
+          </View>
         )}
 
         {/* 게시판 선택 모달 */}
@@ -944,11 +916,12 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
   },
-  postsContainer: {
-    padding: 16,
+  contentContainer: {
+    paddingBottom: 100, // 글쓰기 버튼과의 간격을 위한 여백
   },
-  flatListContainer: {
-    flex: 1,
+  postsContainer: {
+    paddingHorizontal: 6,
+    paddingBottom: 20,
   },
   tabContainer: {
     flexDirection: 'row',
@@ -1270,10 +1243,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   loginRequiredWrapper: {
-    flex: 1,
-  },
-  loginRequiredScrollView: {
-    flex: 1,
+    paddingBottom: 100, // 글쓰기 버튼과의 간격을 위한 여백
   },
   loginRequiredContainer: {
     alignItems: 'center',

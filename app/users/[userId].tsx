@@ -10,8 +10,6 @@ import {
   getFollowersCount, 
   getFollowingCount, 
   toggleFollow,
-  getUserPosts,
-  getUserComments 
 } from '../../lib/users';
 import { checkAttendance, UserAttendance } from '../../lib/attendance';
 import { getKoreanDateString } from '../../utils/timeUtils';
@@ -39,8 +37,6 @@ export default function UserProfileScreen() {
   const [followingCount, setFollowingCount] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
-  const [posts, setPosts] = useState<any[]>([]);
-  const [comments, setComments] = useState<any[]>([]);
   const [showFollowersModal, setShowFollowersModal] = useState(false);
   const [followersModalType, setFollowersModalType] = useState<'followers' | 'following'>('followers');
 
@@ -104,18 +100,6 @@ export default function UserProfileScreen() {
         }
       }
 
-      // 사용자 콘텐츠 조회
-      try {
-        const [postsResult, commentsResult] = await Promise.all([
-          getUserPosts(userId, 1, 10, 'latest').catch(() => ({ posts: [], totalCount: 0 })),
-          getUserComments(userId, 1, 10).catch(() => ({ comments: [], totalCount: 0 }))
-        ]);
-
-        setPosts(postsResult.posts || []);
-        setComments(commentsResult.comments || []);
-      } catch (contentError) {
-        console.warn('사용자 콘텐츠 조회 실패:', contentError);
-      }
     } catch (error) {
       console.error('사용자 프로필 로드 오류:', error);
       setError('프로필을 불러오는 중 오류가 발생했습니다.');
@@ -395,55 +379,24 @@ export default function UserProfileScreen() {
           </View>
         </View>
 
-        {/* 5. 활동 내역 (게시글 및 댓글) */}
-        <View style={styles.contentCard}>
-          <Text style={styles.cardTitle}>📝 활동 내역</Text>
-          
-          {/* 게시글 섹션 */}
-          <View style={styles.activitySection}>
-            <View style={styles.activityHeader}>
-              <Ionicons name="document-text" size={16} color="#3B82F6" />
-              <Text style={styles.activityLabel}>게시글 ({posts.length})</Text>
-            </View>
-            {posts.length > 0 ? (
-              posts.slice(0, 3).map((post, index) => (
-                <View key={index} style={styles.activityItem}>
-                  <Text style={styles.activityTitle} numberOfLines={1}>
-                    {post.title || '제목 없음'}
-                  </Text>
-                  <Text style={styles.activityContent} numberOfLines={2}>
-                    {post.content?.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<p[^>]*>/gi, '').replace(/<\/div>/gi, '\n').replace(/<div[^>]*>/gi, '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'").trim() || '내용 없음'}
-                  </Text>
-                  <Text style={styles.activityDate}>
-                    {post.boardName || '게시판'} • 작성일
-                  </Text>
-                </View>
-              ))
-            ) : (
-              <Text style={styles.emptyText}>작성한 게시글이 없습니다.</Text>
-            )}
-          </View>
-
-          {/* 댓글 섹션 */}
-          <View style={styles.activitySection}>
-            <View style={styles.activityHeader}>
-              <Ionicons name="chatbubble" size={16} color="#10B981" />
-              <Text style={styles.activityLabel}>댓글 ({comments.length})</Text>
-            </View>
-            {comments.length > 0 ? (
-              comments.slice(0, 3).map((comment, index) => (
-                <View key={index} style={styles.activityItem}>
-                  <Text style={styles.activityContent} numberOfLines={2}>
-                    {comment.content || '내용 없음'}
-                  </Text>
-                  <Text style={styles.activityDate}>
-                    댓글 • 작성일
-                  </Text>
-                </View>
-              ))
-            ) : (
-              <Text style={styles.emptyText}>작성한 댓글이 없습니다.</Text>
-            )}
+        {/* 5. 활동 통계 */}
+        <View style={styles.statsCard}>
+          <Text style={styles.cardTitle}>📊 활동 통계</Text>
+          <View style={styles.statsGrid}>
+            <TouchableOpacity 
+              style={styles.statCard}
+              onPress={() => router.push(`/users/${userId}/posts` as any)}
+            >
+              <Text style={styles.statIcon}>📝</Text>
+              <Text style={styles.statLabel}>유저가 쓴 글</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.statCard}
+              onPress={() => router.push(`/users/${userId}/comments` as any)}
+            >
+              <Text style={styles.statIcon}>💬</Text>
+              <Text style={styles.statLabel}>유저 댓글</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </SafeScreenContainer>
@@ -773,7 +726,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 4,
   },
-  contentCard: {
+  statsCard: {
     backgroundColor: '#FFFFFF',
     margin: 16,
     marginTop: 0,
@@ -786,52 +739,28 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-       comingSoon: {
-    textAlign: 'center',
-    color: '#6B7280',
-    fontStyle: 'italic',
-  },
-  activitySection: {
-    marginBottom: 20,
-  },
-  activityHeader: {
+  statsGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'space-around',
+    gap: 16,
   },
-  activityLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginLeft: 8,
-  },
-  activityItem: {
+  statCard: {
+    flex: 1,
     backgroundColor: '#F9FAFB',
-    padding: 12,
-    borderRadius: 8,
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  statIcon: {
+    fontSize: 24,
     marginBottom: 8,
   },
-  activityTitle: {
+  statLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: '#1F2937',
-    marginBottom: 4,
-  },
-  activityContent: {
-    fontSize: 13,
-    color: '#6B7280',
-    lineHeight: 18,
-    marginBottom: 4,
-  },
-  activityDate: {
-    fontSize: 11,
-    color: '#9CA3AF',
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#9CA3AF',
     textAlign: 'center',
-    fontStyle: 'italic',
-    paddingVertical: 20,
   },
 }); 
