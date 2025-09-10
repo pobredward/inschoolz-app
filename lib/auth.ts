@@ -9,12 +9,17 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential,
   signInWithCustomToken,
+  OAuthProvider,
+  signInWithCredential,
   User as FirebaseUser,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { User } from '../types';
 import { logger } from '../utils/logger';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Crypto from 'expo-crypto';
+import { Platform } from 'react-native';
 
 /**
  * 추천인 아이디 검증 함수
@@ -618,6 +623,214 @@ export const loginWithKakaoToken = async (customToken: string): Promise<User> =>
     }
     
     throw new Error('카카오 로그인 중 오류가 발생했습니다.');
+  }
+};
+
+/**
+ * Apple 로그인 지원 여부 확인
+ */
+export const isAppleAuthenticationAvailable = async (): Promise<boolean> => {
+  if (Platform.OS !== 'ios') {
+    return false;
+  }
+  
+  try {
+    return await AppleAuthentication.isAvailableAsync();
+  } catch (error) {
+    logger.error('Apple 인증 가용성 확인 오류:', error);
+    return false;
+  }
+};
+
+/**
+ * Apple 로그인용 nonce 생성
+ * 보안을 위해 무작위 nonce를 생성합니다.
+ */
+const generateNonce = async (): Promise<string> => {
+  const randomBytes = await Crypto.getRandomBytesAsync(32);
+  return Array.from(randomBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+};
+
+/**
+ * nonce를 SHA256으로 해시화
+ */
+const sha256 = async (input: string): Promise<string> => {
+  const digest = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    input
+  );
+  return digest;
+};
+
+/**
+ * Apple ID로 로그인 (보안 강화 버전)
+ */
+export const loginWithApple = async (): Promise<User> => {
+  try {
+    logger.debug('Apple 로그인 시작');
+    
+    // Apple 인증 가능 여부 확인
+    const isAvailable = await isAppleAuthenticationAvailable();
+    if (!isAvailable) {
+      throw new Error('Apple 로그인을 사용할 수 없습니다.');
+    }
+    
+    // 보안을 위한 nonce 생성
+    const rawNonce = await generateNonce();
+    const hashedNonce = await sha256(rawNonce);
+    
+    logger.debug('nonce 생성 완료');
+    
+    // Apple 인증 요청 (nonce 포함)
+    const appleCredential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+      nonce: hashedNonce,
+    });
+    
+    logger.debug('Apple 인증 성공:', appleCredential.user);
+    
+    // identityToken이 없으면 오류
+    if (!appleCredential.identityToken) {
+      throw new Error('Apple 인증 토큰을 받을 수 없습니다.');
+    }
+    
+    // Firebase OAuthProvider를 사용하여 Apple 로그인
+    const provider = new OAuthProvider('apple.com');
+    
+    // Apple에서 받은 토큰을 Firebase 인증에 사용 (원본 nonce 사용)
+    const firebaseCredential = provider.credential({
+      idToken: appleCredential.identityToken,
+      rawNonce: rawNonce, // 해시되지 않은 원본 nonce 사용
+    });
+    
+    // Firebase로 로그인
+    const userCredential = await signInWithCredential(auth, firebaseCredential);
+    const firebaseUser = userCredential.user;
+    
+    logger.debug('Firebase 로그인 성공:', firebaseUser.uid);
+    
+    // Firestore에서 사용자 정보 확인
+    const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+    
+    if (userDoc.exists()) {
+      // 기존 사용자: 마지막 로그인 시간 업데이트
+      await updateDoc(doc(db, 'users', firebaseUser.uid), {
+        lastLoginAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      
+      const userData = userDoc.data() as User;
+      userData.uid = firebaseUser.uid;
+      return userData;
+    } else {
+      // 신규 사용자: 기본 정보로 사용자 생성
+      const newUser = await createAppleUser(firebaseUser, appleCredential);
+      return newUser;
+    }
+  } catch (error) {
+    logger.error('Apple 로그인 오류:', error);
+    
+    if (error instanceof Error) {
+      // Apple 인증 취소
+      if (error.message.includes('canceled') || error.message.includes('cancelled')) {
+        throw new Error('Apple 로그인이 취소되었습니다.');
+      }
+      // 기타 Apple 인증 오류
+      if (error.message.includes('ERR_REQUEST_CANCELED')) {
+        throw new Error('Apple 로그인이 취소되었습니다.');
+      }
+      // Firebase 인증 오류
+      if (error.message.includes('auth/')) {
+        throw new Error('Firebase 인증 중 오류가 발생했습니다.');
+      }
+    }
+    
+    throw new Error('Apple 로그인 중 오류가 발생했습니다.');
+  }
+};
+
+
+/**
+ * Apple 로그인으로 신규 사용자 생성
+ */
+const createAppleUser = async (
+  firebaseUser: FirebaseUser,
+  appleCredential: AppleAuthentication.AppleAuthenticationCredential
+): Promise<User> => {
+  try {
+    logger.debug('Apple 신규 사용자 생성 시작');
+    
+    // Apple에서 제공된 이름 정보 처리
+    const fullName = appleCredential.fullName;
+    const displayName = fullName 
+      ? `${fullName.givenName || ''} ${fullName.familyName || ''}`.trim()
+      : `Apple사용자${Date.now().toString().slice(-4)}`;
+    
+    // 사용자명 생성 (중복 방지)
+    let userName = `apple_${Date.now().toString().slice(-6)}`;
+    let attempts = 0;
+    while (attempts < 5) {
+      const isAvailable = await checkUserNameAvailability(userName);
+      if (isAvailable) break;
+      userName = `apple_${Date.now().toString().slice(-6)}_${attempts}`;
+      attempts++;
+    }
+    
+    // 새 사용자 데이터 생성
+    const newUser: any = {
+      uid: firebaseUser.uid,
+      email: appleCredential.email || firebaseUser.email || '',
+      role: 'student',
+      status: 'active',
+      isVerified: true, // Apple 로그인은 검증된 것으로 간주
+      
+      profile: {
+        userName: userName,
+        realName: displayName,
+        profileImageUrl: '',
+        createdAt: serverTimestamp(),
+        isAdmin: false
+      },
+      
+      stats: {
+        level: 1,
+        totalExperience: 0,
+        postCount: 0,
+        commentCount: 0,
+        likeCount: 0,
+        streak: 0
+      },
+      
+      agreements: {
+        terms: true,
+        privacy: true,
+        location: false,
+        marketing: false
+      },
+      
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+    
+    // Firestore에 사용자 정보 저장
+    await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+    logger.debug('Apple 사용자 생성 완료');
+    
+    // 저장된 데이터 반환
+    const savedUserDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+    if (savedUserDoc.exists()) {
+      const userData = savedUserDoc.data() as User;
+      userData.uid = firebaseUser.uid;
+      return userData;
+    }
+    
+    return newUser as User;
+  } catch (error) {
+    logger.error('Apple 사용자 생성 오류:', error);
+    throw new Error('Apple 사용자 생성 중 오류가 발생했습니다.');
   }
 };
 

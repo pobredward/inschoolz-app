@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -11,13 +11,15 @@ import {
   ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { useAuthStore } from '../store/authStore';
-import { loginWithEmail } from '../lib/auth';
+import { loginWithEmail, loginWithApple, isAppleAuthenticationAvailable } from '../lib/auth';
 import { loginWithKakaoOptimized } from '../lib/kakao';
 import { router } from 'expo-router';
 
 export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
+  const [isAppleLoginAvailable, setIsAppleLoginAvailable] = useState(false);
   
   // 이메일 폼 상태
   const [emailForm, setEmailForm] = useState({
@@ -26,6 +28,16 @@ export default function LoginScreen() {
   });
   
   const { setUser, setLoading, isLoading } = useAuthStore();
+
+  // Apple 로그인 가능 여부 확인
+  useEffect(() => {
+    const checkAppleAuth = async () => {
+      const isAvailable = await isAppleAuthenticationAvailable();
+      setIsAppleLoginAvailable(isAvailable);
+    };
+    
+    checkAppleAuth();
+  }, []);
 
   // 이메일 로그인
   const handleEmailLogin = async () => {
@@ -63,6 +75,28 @@ export default function LoginScreen() {
     } catch (error: any) {
       console.error('카카오 로그인 오류:', error);
       Alert.alert('카카오 로그인 실패', error.message || '카카오 로그인 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Apple 로그인
+  const handleAppleLogin = async () => {
+    try {
+      setLoading(true);
+      const user = await loginWithApple();
+      setUser(user);
+      
+      Alert.alert('성공', 'Apple 로그인이 완료되었습니다!', [
+        { text: '확인', onPress: () => router.replace('/(tabs)') }
+      ]);
+    } catch (error: any) {
+      console.error('Apple 로그인 오류:', error);
+      
+      // 사용자가 취소한 경우는 알림을 표시하지 않음
+      if (!error.message?.includes('취소')) {
+        Alert.alert('Apple 로그인 실패', error.message || 'Apple 로그인 중 오류가 발생했습니다.');
+      }
     } finally {
       setLoading(false);
     }
@@ -156,6 +190,17 @@ export default function LoginScreen() {
                     카카오로 로그인
                   </Text>
                 </TouchableOpacity>
+
+                {/* Apple 로그인 버튼 (iOS에서만 표시) */}
+                {isAppleLoginAvailable && (
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                    cornerRadius={8}
+                    style={styles.appleButton}
+                    onPress={handleAppleLogin}
+                  />
+                )}
           </View>
         </View>
 
@@ -383,6 +428,10 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 16,
     fontWeight: '600',
+  },
+  appleButton: {
+    height: 48,
+    marginTop: 12,
   },
   linkContainer: {
     flexDirection: 'row',
