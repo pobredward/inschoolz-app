@@ -229,17 +229,25 @@ export async function sendPushNotificationToMultipleUsers(
  */
 function getChannelIdForNotificationType(type: NotificationType): string {
   const channelMap: Record<NotificationType, string> = {
-    post_comment: 'comments',
-    comment_reply: 'comments',
-    system: 'system',
-    referral: 'referral',
-    warning: 'system',
-    suspension: 'system',
-    report_received: 'system',
-    report_resolved: 'default',
+    post_comment: 'comments',      // 게시글 댓글
+    comment_reply: 'comments',     // 댓글 대댓글
+    system: 'system',              // 시스템 알림
+    general: 'general',            // 일반 알림
+    event: 'events',               // 이벤트 알림
+    referral: 'social',            // 추천인 설정
+    warning: 'warnings',           // 경고 조치
+    suspension: 'warnings',        // 정지 조치
+    report_received: 'reports',    // 신고 접수
+    report_resolved: 'reports',    // 신고 처리
+    like: 'social',                // 좋아요 (미구현)
+    comment: 'comments',           // 댓글 (미구현)
+    reply: 'comments',             // 답글 (미구현)
+    follow: 'social',              // 팔로우 (미구현)
   };
 
-  return channelMap[type] || 'default';
+  const channelId = channelMap[type] || 'default';
+  console.log(`📱 [DEBUG] 알림 타입 ${type} → 채널 ${channelId}`);
+  return channelId;
 }
 
 /**
