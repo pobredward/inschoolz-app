@@ -114,7 +114,26 @@ async function testAllNotificationTypes(userId) {
           },
           sound: 'default',
           priority: 'high',
-          channelId: getChannelId(notifType.type)
+          channelId: getChannelId(notifType.type),
+          // 인스쿨즈 사용자 정의 아이콘
+          icon: 'https://inschoolz.com/android-icon-96x96.png',
+          android: {
+            channelId: getChannelId(notifType.type),
+            sound: true,
+            priority: 'high',
+            vibrate: true,
+            color: '#FF231F7C',
+            icon: 'https://inschoolz.com/android-icon-96x96.png',
+            largeIcon: 'https://inschoolz.com/android-icon-192x192.png',
+          },
+          ios: {
+            sound: true,
+            _displayInForeground: true,
+            attachments: [{
+              url: 'https://inschoolz.com/apple-icon-180x180.png',
+              type: 'image'
+            }],
+          },
         };
 
         const result = await sendExpoPushNotification(message);
