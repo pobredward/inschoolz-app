@@ -18,6 +18,7 @@ import PostListItem from '../../components/PostListItem';
 import { useRewardedAd } from '../../components/ads/AdMobAds';
 import { Timestamp } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import PromoBanner from '../../components/PromoBanner';
 
 // 시간 포맷팅 함수 - 유틸리티 함수 활용
 import { formatSmartTime } from '../../utils/timeUtils';
@@ -476,6 +477,49 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* 홍보 배너 (로그인 없는 상태) */}
+        <PromoBanner 
+          onPress={() => {
+            // 배너 클릭 시 동작 (필요시 수정)
+            console.log('홍보 배너 클릭됨 (로그인 없음)');
+          }}
+          dismissible={true}
+          shouldShow={() => {
+            // 인증 로딩이 끝난 상태에서 항상 표시 (로그인 여부와 무관)
+            const shouldDisplay = !authLoading;
+            console.log('🔍 배너 shouldShow 체크 (로그인 없음):', { authLoading, shouldDisplay });
+            return shouldDisplay;
+          }}
+        />
+
+        {/* 개발/테스트용: 배너 상태 리셋 버튼 (로그인 없는 상태) */}
+        {__DEV__ && (
+          <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#ff6b6b',
+                padding: 10,
+                borderRadius: 8,
+                alignItems: 'center'
+              }}
+              onPress={async () => {
+                try {
+                  await AsyncStorage.removeItem('promo_banner_dismissed');
+                  await AsyncStorage.removeItem('promo_banner_daily_dismissed');
+                  console.log('🔄 배너 상태 리셋됨 - 새로고침하세요');
+                  Alert.alert('배너 상태 리셋', '앱을 다시 시작하면 배너가 표시됩니다.');
+                } catch (error) {
+                  console.error('배너 상태 리셋 실패:', error);
+                }
+              }}
+            >
+              <Text style={{ color: 'white', fontWeight: 'bold' }}>
+                🔄 배너 상태 리셋 (개발용)
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* 로그인 없이도 볼 수 있는 컨텐츠 */}
         
         {/* 인기 게시글 */}
@@ -632,6 +676,48 @@ export default function HomeScreen() {
           </View>
         </View>
       </View>
+
+      {/* 홍보 배너 */}
+      <PromoBanner 
+        onPress={() => {
+          // 배너 클릭 시 동작 (필요시 수정)
+          console.log('홍보 배너 클릭됨');
+        }}
+        dismissible={true}
+        shouldShow={() => {
+          // 인증 로딩이 끝난 상태에서 항상 표시 (로그인 여부와 무관)
+          const shouldDisplay = !authLoading;
+          console.log('🔍 배너 shouldShow 체크:', { user: !!user, authLoading, shouldDisplay });
+          return shouldDisplay;
+        }}
+      />
+
+      {/* 개발/테스트용: 배너 상태 리셋 버튼 */}
+      {__DEV__ && (
+        <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#ff6b6b',
+              padding: 10,
+              borderRadius: 8,
+              alignItems: 'center'
+            }}
+            onPress={async () => {
+              try {
+                await AsyncStorage.removeItem('promo_banner_dismissed');
+                console.log('🔄 배너 상태 리셋됨 - 새로고침하세요');
+                Alert.alert('배너 상태 리셋', '앱을 다시 시작하면 배너가 표시됩니다.');
+              } catch (error) {
+                console.error('배너 상태 리셋 실패:', error);
+              }
+            }}
+          >
+            <Text style={{ color: 'white', fontWeight: 'bold' }}>
+              🔄 배너 상태 리셋 (개발용)
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* 출석 체크 */}
       <View style={styles.section}>
