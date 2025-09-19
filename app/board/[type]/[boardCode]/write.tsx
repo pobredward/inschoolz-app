@@ -219,11 +219,9 @@ export default function WritePostPage() {
   // 경험치 모달 닫기 핸들러
   const handleExperienceModalClose = () => {
     setShowExperienceModal(false);
-    // 모달 닫기 후 뒤로가기
-    if (pendingPostId) {
-      router.back();
-      setPendingPostId(null);
-    }
+    // 게시글 작성 완료 후 커뮤니티 화면으로 이동
+    router.push('/(tabs)/community');
+    setPendingPostId(null);
     setExperienceData(null);
   };
 
@@ -358,11 +356,11 @@ export default function WritePostPage() {
           setPendingPostId(postId);
           setShowExperienceModal(true);
         } else {
-          // 경험치 부여 실패 시 즉시 뒤로가기
+          // 경험치 부여 실패 시 즉시 커뮤니티로 이동
           Alert.alert('성공', '게시글이 작성되었습니다.', [
             {
               text: '확인',
-              onPress: () => router.back()
+              onPress: () => router.push('/(tabs)/community')
             }
           ]);
         }
@@ -372,7 +370,7 @@ export default function WritePostPage() {
         Alert.alert('성공', '게시글이 작성되었습니다.', [
           {
             text: '확인',
-            onPress: () => router.back()
+            onPress: () => router.push('/(tabs)/community')
           }
         ]);
       }

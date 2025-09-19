@@ -238,6 +238,8 @@ export default function CommunityScreen() {
   // 화면이 포커스될 때마다 게시글 목록 및 차단 목록 새로고침
   useFocusEffect(
     useCallback(() => {
+      console.log('=== useFocusEffect 실행됨 ===');
+      
       // 차단 목록 새로고침
       if (user?.uid) {
         loadBlockedUsers();
@@ -248,12 +250,14 @@ export default function CommunityScreen() {
         schoolSelectorRef.current.refresh();
       }
       
-      // 초기 로드가 아닌 경우에만 게시글 새로고침 (뒤로가기 등으로 돌아온 경우)
+      // 게시글 새로고침 (항상 실행하여 새 게시글이 바로 나타나도록)
+      loadPosts();
+      
+      // 뒤로가기로 돌아온 경우 스크롤 위치 복원을 준비
       if (posts.length > 0) {
-        // 뒤로가기로 돌아온 경우 스크롤 위치 복원을 준비
         setShouldRestoreScroll(true);
       }
-    }, [posts.length, user?.uid, selectedTab, loadBlockedUsers])
+    }, [user?.uid, selectedTab, loadBlockedUsers, posts.length])
   );
 
   // 차단 해제 시 상태 업데이트
