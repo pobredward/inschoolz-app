@@ -27,10 +27,11 @@ import { BoardType, Post, Comment, Board } from '@/types';
 import { getBoardsByType, deleteAnonymousComment, toggleCommentLike, checkMultipleCommentLikeStatus } from '@/lib/boards';
 import { useAuthStore } from '@/store/authStore';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, collection, getDocs, addDoc, query, where, orderBy, Timestamp, updateDoc, deleteDoc, serverTimestamp, increment } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, addDoc, query, where, orderBy, Timestamp, updateDoc, deleteDoc, serverTimestamp, increment, limit } from 'firebase/firestore';
 import AnonymousCommentForm from '../../../../components/ui/AnonymousCommentForm';
 import AnonymousPasswordModal from '../../../../components/ui/AnonymousPasswordModal';
 import { PollVoting } from '../../../../components/ui/PollVoting';
+import { SafeProfileImage } from '../../../../components/SafeProfileImage';
 // 유틸리티 함수 import
 import { formatRelativeTime, formatAbsoluteTime, toTimestamp } from '../../../../utils/timeUtils';
 import { BlockedUserContent } from '../../../../components/ui/BlockedUserContent';
@@ -1015,7 +1016,19 @@ export default function PostDetailScreen() {
     try {
       // 댓글 작성 (로그인 사용자는 익명이어도 비밀번호 불필요)
       const { createComment } = await import('../../../../lib/boards');
-      await createComment(post.id, newComment, user.uid, isAnonymous);
+      const newCommentData = await createComment(post.id, newComment, user.uid, isAnonymous);
+      
+      // 새 댓글을 로컬 상태에 즉시 추가 (페이지 refresh 없이)
+      const newCommentWithAuthor: CommentWithAuthor = {
+        ...newCommentData,
+        author: {
+          userName: isAnonymous ? '익명' : (user.profile?.userName || '사용자'),
+          profileImageUrl: isAnonymous ? '' : (user.profile?.profileImageUrl || '')
+        },
+        replies: []
+      };
+      
+      setComments(prev => [...prev, newCommentWithAuthor]);
       
       // 로컬 게시글 댓글 수 업데이트
       setPost(prev => prev ? {
@@ -1026,8 +1039,6 @@ export default function PostDetailScreen() {
         }
       } : null);
       
-      // 댓글 목록 새로고침
-      await loadComments(post.id);
       setNewComment('');
       setIsAnonymous(false);
       
@@ -1076,8 +1087,38 @@ export default function PostDetailScreen() {
       }
     } : null);
     
+    // 최신 댓글만 가져와서 추가 (전체 새로고침 대신)
     if (post) {
-      await loadComments(post.id);
+      try {
+        const commentsRef = collection(db, 'posts', post.id, 'comments');
+        const latestCommentsQuery = query(
+          commentsRef,
+          where('parentId', '==', null),
+          orderBy('createdAt', 'desc'),
+          limit(1)
+        );
+        const latestSnapshot = await getDocs(latestCommentsQuery);
+        
+        if (!latestSnapshot.empty) {
+          const latestCommentDoc = latestSnapshot.docs[0];
+          const latestCommentData = { id: latestCommentDoc.id, ...latestCommentDoc.data() } as Comment;
+          
+          const newCommentWithAuthor: CommentWithAuthor = {
+            ...latestCommentData,
+            author: {
+              userName: latestCommentData.anonymousAuthor?.nickname || '익명',
+              profileImageUrl: ''
+            },
+            replies: []
+          };
+          
+          setComments(prev => [...prev, newCommentWithAuthor]);
+        }
+      } catch (error) {
+        console.error('최신 댓글 로드 실패:', error);
+        // 실패 시 전체 댓글 목록 새로고침
+        await loadComments(post.id);
+      }
     }
   };
 
@@ -1086,15 +1127,37 @@ export default function PostDetailScreen() {
     if (!user || !replyingTo || !replyContent.trim()) return;
 
     try {
+      let newReplyData;
       if (isAnonymous) {
         // 익명 답글 작성 (로그인 사용자는 비밀번호 불필요)
         const { createComment } = await import('../../../../lib/boards');
-        await createComment(post!.id, replyContent, user.uid, true, replyingTo.id);
+        newReplyData = await createComment(post!.id, replyContent, user.uid, true, replyingTo.id);
       } else {
         // 일반 답글 작성
         const { createComment } = await import('../../../../lib/boards');
-        await createComment(post!.id, replyContent, user.uid, false, replyingTo.id);
+        newReplyData = await createComment(post!.id, replyContent, user.uid, false, replyingTo.id);
       }
+
+      // 새 답글을 로컬 상태에 즉시 추가 (페이지 refresh 없이)
+      const newReplyWithAuthor: CommentWithAuthor = {
+        ...newReplyData,
+        author: {
+          userName: isAnonymous ? '익명' : (user.profile?.userName || '사용자'),
+          profileImageUrl: isAnonymous ? '' : (user.profile?.profileImageUrl || '')
+        },
+        replies: []
+      };
+
+      // 부모 댓글의 replies 배열에 새 답글 추가
+      setComments(prev => prev.map(comment => {
+        if (comment.id === replyingTo.id) {
+          return {
+            ...comment,
+            replies: [...(comment.replies || []), newReplyWithAuthor]
+          };
+        }
+        return comment;
+      }));
 
       // 로컬 게시글 댓글 수 업데이트
       setPost(prev => prev ? {
@@ -1109,11 +1172,6 @@ export default function PostDetailScreen() {
       setReplyContent('');
       setReplyingTo(null);
       setIsAnonymous(false);
-
-      // 댓글 목록 새로고침
-      if (post) {
-        await loadComments(post.id);
-      }
 
       // 경험치 지급 (회원 댓글인 경우만)
       if (!isAnonymous) {
@@ -1461,7 +1519,7 @@ export default function PostDetailScreen() {
     }
   };
 
-  const renderProfileImage = (profileImageUrl?: string, userName?: string, isAnonymous?: boolean, authorId?: string) => {
+  const renderProfileImage = useCallback((profileImageUrl?: string, userName?: string, isAnonymous?: boolean, authorId?: string) => {
     if (isAnonymous) {
       return (
         <View style={styles.commentAvatar}>
@@ -1470,22 +1528,15 @@ export default function PostDetailScreen() {
       );
     }
 
-    const ProfileImageContent = () => {
-      if (profileImageUrl) {
-        return (
-          <Image 
-            source={{ uri: profileImageUrl }} 
-            style={styles.commentAvatar}
-          />
-        );
-      }
-
-      return (
-        <View style={styles.commentAvatar}>
-          <Ionicons name="person" size={16} color="#6b7280" />
-        </View>
-      );
-    };
+    const imageContent = (
+      <SafeProfileImage
+        uri={profileImageUrl}
+        size={32}
+        style={styles.safeProfileImageStyle}
+        fallbackIcon="person"
+        fallbackColor="#6b7280"
+      />
+    );
 
     // 익명이 아니고 authorId가 있으면 터치 가능하게 만들기
     if (!isAnonymous && authorId) {
@@ -1494,13 +1545,13 @@ export default function PostDetailScreen() {
           onPress={() => router.push(`/users/${authorId}`)}
           style={styles.profileImageTouchable}
         >
-          <ProfileImageContent />
+          {imageContent}
         </TouchableOpacity>
       );
     }
 
-    return <ProfileImageContent />;
-  };
+    return imageContent;
+  }, [router]);
 
   const renderComment = (comment: CommentWithAuthor, level: number = 0, parentAuthor?: string) => {
     const isDeleted = comment.status.isDeleted && comment.content === '삭제된 댓글입니다.';
@@ -2448,6 +2499,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f1f5f9',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  safeProfileImageStyle: {
+    // SafeProfileImage 컴포넌트용 스타일
   },
   anonymousAvatar: {
     backgroundColor: '#f0fdf4',
