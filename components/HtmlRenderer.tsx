@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dimensions, Image, TouchableOpacity, Alert } from 'react-native';
+import { Dimensions, Image } from 'react-native';
 import RenderHtml from 'react-native-render-html';
 
 const { width } = Dimensions.get('window');
@@ -121,26 +121,17 @@ export default function HtmlRenderer({
       const maxWidth = contentWidth - 32;
       
       return (
-        <TouchableOpacity
+        <Image
           key={props.key}
-          onPress={() => {
-            Alert.alert('이미지', '이미지를 확대하여 보시겠습니까?', [
-              { text: '취소', style: 'cancel' },
-              { text: '확인', onPress: () => console.log('이미지 확대:', src) }
-            ]);
+          source={{ uri: src }}
+          style={{
+            width: maxWidth,
+            height: 200,
+            borderRadius: 8,
+            marginVertical: 8,
           }}
-        >
-          <Image
-            source={{ uri: src }}
-            style={{
-              width: maxWidth,
-              height: 200,
-              borderRadius: 8,
-              marginVertical: 8,
-            }}
-            resizeMode="cover"
-          />
-        </TouchableOpacity>
+          resizeMode="cover"
+        />
       );
     },
   };
