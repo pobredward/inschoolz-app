@@ -11,6 +11,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { updateGameScore, getUserGameStats } from '../../lib/games';
 import { useAuthStore } from '../../store/authStore';
 
@@ -33,6 +35,7 @@ const tileSize = Math.floor(availableWidth / tilesPerRow);
 
 export default function TileGameScreen() {
   const { user } = useAuthStore();
+  const insets = useSafeAreaInsets();
   const [gameState, setGameState] = useState<GameState>('waiting');
   const [tiles, setTiles] = useState<Tile[]>([]);
   const [flippedTiles, setFlippedTiles] = useState<number[]>([]);
@@ -280,29 +283,37 @@ export default function TileGameScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
       
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* 헤더 */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backButtonText}>← 게임 홈</Text>
-          </TouchableOpacity>
-          <View style={styles.headerContent}>
-            <Text style={styles.title}>🧩 타일 매칭 게임</Text>
-            <Text style={styles.subtitle}>같은 그림의 타일을 찾아 매칭하세요!</Text>
-          </View>
-          <View style={styles.attemptsInfo}>
-            {isLoadingStats ? (
-              <Text style={styles.loadingText}>로딩중...</Text>
-            ) : (
-              <>
-                <Text style={styles.attemptsLabel}>오늘 남은 기회</Text>
-                <Text style={styles.attemptsValue}>{remainingAttempts}/{maxAttempts}</Text>
-              </>
-            )}
-          </View>
+      {/* 고정 헤더 */}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={20} color="#111827" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>타일 매칭 게임</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      {/* 스크롤 가능한 컨텐츠 */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollViewContent,
+          { paddingTop: insets.top + 56 } // 헤더 높이만큼 상단 패딩
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        
+        {/* 남은 기회 표시 */}
+        <View style={styles.attemptsContainer}>
+          {isLoadingStats ? (
+            <Text style={styles.loadingText}>로딩중...</Text>
+          ) : (
+            <Text style={styles.attemptsText}>
+              오늘 남은 기회: {remainingAttempts}/{maxAttempts}
+            </Text>
+          )}
         </View>
 
         {/* 게임 상태 */}
@@ -447,78 +458,87 @@ export default function TileGameScreen() {
           </Text>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F9FAFB',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollViewContent: {
+    flexGrow: 1,
   },
   header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
+    paddingVertical: 8,
+    backgroundColor: '#f9fafb',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
+    borderBottomColor: '#e5e7eb',
+    elevation: 10,
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    zIndex: 1000,
   },
   backButton: {
-    flexDirection: 'row',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
-  backButtonText: {
-    fontSize: 16,
-    color: '#3b82f6',
-    fontWeight: '600',
-  },
-  headerContent: {
+  headerTitle: {
     flex: 1,
+    textAlign: 'center',
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#111827',
+    marginHorizontal: 8,
+  },
+  headerSpacer: {
+    width: 36,
+    height: 36,
+  },
+  attemptsContainer: {
     alignItems: 'center',
+    marginBottom: 15,
+    marginTop: 20,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    textAlign: 'center',
+  attemptsText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2563EB',
   },
-  subtitle: {
+  loadingText: {
     fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  attemptsInfo: {
-    alignItems: 'flex-end',
-  },
-  attemptsLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    textAlign: 'right',
-  },
-  attemptsValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#3b82f6',
+    color: '#6B7280',
   },
   statusContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginTop: 16,
+    backgroundColor: 'white',
+    marginHorizontal: 20,
+    marginBottom: 20,
     padding: 16,
     borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   statusItem: {
     alignItems: 'center',
@@ -534,15 +554,16 @@ const styles = StyleSheet.create({
     color: '#1f2937',
   },
   gameContainer: {
-    margin: 16,
-    backgroundColor: '#fff',
+    backgroundColor: 'white',
+    marginHorizontal: 20,
+    marginBottom: 20,
     borderRadius: 12,
     padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   waitingContainer: {
     alignItems: 'center',
@@ -750,64 +771,60 @@ const styles = StyleSheet.create({
   disabledButtonText: {
     color: '#6b7280',
   },
-  // 경험치 정보 스타일
   xpContainer: {
-    margin: 16,
-    backgroundColor: '#fff',
+    backgroundColor: 'white',
+    marginHorizontal: 20,
+    marginBottom: 20,
     borderRadius: 12,
     padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2.22,
     elevation: 3,
   },
   xpTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 12,
+    fontWeight: '600',
+    marginBottom: 16,
     textAlign: 'center',
   },
   xpDescription: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#6B7280',
     textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 20,
+    marginBottom: 12,
   },
   xpItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: '#f8fafc',
-    borderRadius: 8,
-    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
   xpText: {
     fontSize: 14,
-    color: '#374151',
-    fontWeight: '500',
+    color: '#4B5563',
   },
   xpBadge: {
-    backgroundColor: '#fef3c7',
-    paddingHorizontal: 12,
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
   },
   xpBadgeText: {
     fontSize: 12,
-    color: '#92400e',
     fontWeight: '600',
+    color: '#6B7280',
   },
   xpTip: {
     fontSize: 12,
-    color: '#6b7280',
-    textAlign: 'center',
-    fontStyle: 'italic',
+    color: '#6B7280',
     marginTop: 12,
-    lineHeight: 16,
+    textAlign: 'center',
   },
 }); 
