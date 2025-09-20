@@ -57,7 +57,7 @@ export default function AnonymousCommentForm({
       return false;
     }
     if (!content.trim()) {
-      Alert.alert('알림', '댓글 내용을 입력해주세요.');
+      // 빈 댓글 내용은 조용히 처리 - 사용자가 실수로 제출 버튼을 눌렀을 수 있음
       return false;
     }
     if (content.length > 1000) {
@@ -93,9 +93,8 @@ export default function AnonymousCommentForm({
         ipAddress,
       });
 
-      Alert.alert('성공', '댓글이 작성되었습니다.', [
-        { text: '확인', onPress: onSuccess }
-      ]);
+      // 댓글 작성 완료 alert 제거 - 바로 성공 콜백 호출
+      onSuccess();
 
       // 폼 초기화
       setNickname('');

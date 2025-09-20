@@ -522,6 +522,14 @@ export default function PostDetailScreen() {
       for (const commentDoc of commentsSnapshot.docs) {
         const commentData = { id: commentDoc.id, ...commentDoc.data() } as Comment;
         
+        // status 객체가 없는 경우 기본값으로 초기화
+        if (!commentData.status) {
+          commentData.status = {
+            isDeleted: false,
+            isBlocked: false
+          };
+        }
+        
         // 삭제된 댓글이지만 대댓글이 없는 경우 건너뛰기
         if (commentData.status.isDeleted && commentData.content !== '삭제된 댓글입니다.') {
           continue;
@@ -568,6 +576,14 @@ export default function PostDetailScreen() {
         
         for (const replyDoc of repliesSnapshot.docs) {
           const replyData = { id: replyDoc.id, ...replyDoc.data() } as Comment;
+          
+          // status 객체가 없는 경우 기본값으로 초기화
+          if (!replyData.status) {
+            replyData.status = {
+              isDeleted: false,
+              isBlocked: false
+            };
+          }
           
           // 삭제된 대댓글이지만 내용이 "삭제된 댓글입니다."가 아닌 경우 건너뛰기
           if (replyData.status.isDeleted && replyData.content !== '삭제된 댓글입니다.') {
@@ -993,7 +1009,7 @@ export default function PostDetailScreen() {
 
   const handleCommentSubmit = async () => {
     if (!newComment.trim()) {
-      Alert.alert('알림', '댓글을 입력해주세요.');
+      // 빈 댓글 제출 시 조용히 리턴 - 사용자가 입력하지 않은 상태에서 실수로 눌렀을 가능성 고려
       return;
     }
 
@@ -1016,11 +1032,24 @@ export default function PostDetailScreen() {
     try {
       // 댓글 작성 (로그인 사용자는 익명이어도 비밀번호 불필요)
       const { createComment } = await import('../../../../lib/boards');
-      const newCommentData = await createComment(post.id, newComment, user.uid, isAnonymous);
+      const newCommentId = await createComment(post.id, newComment, user.uid, isAnonymous);
       
       // 새 댓글을 로컬 상태에 즉시 추가 (페이지 refresh 없이)
       const newCommentWithAuthor: CommentWithAuthor = {
-        ...newCommentData,
+        id: newCommentId,
+        postId: post.id,
+        content: newComment,
+        authorId: user.uid,
+        isAnonymous: isAnonymous,
+        parentId: null,
+        createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any, // 임시 타임스탬프
+        stats: {
+          likeCount: 0
+        },
+        status: {
+          isDeleted: false,
+          isBlocked: false
+        },
         author: {
           userName: isAnonymous ? '익명' : (user.profile?.userName || '사용자'),
           profileImageUrl: isAnonymous ? '' : (user.profile?.profileImageUrl || '')
@@ -1065,7 +1094,7 @@ export default function PostDetailScreen() {
         // 경험치 부여 실패는 댓글 작성 성공에 영향을 주지 않음
       }
       
-      Alert.alert('성공', '댓글이 작성되었습니다.');
+      // 댓글 작성 완료 alert 제거 - 경험치 창이 이미 표시되므로 불필요
     } catch (error) {
       console.error('댓글 작성 실패:', error);
       Alert.alert('오류', '댓글 작성에 실패했습니다.');
@@ -1102,6 +1131,14 @@ export default function PostDetailScreen() {
         if (!latestSnapshot.empty) {
           const latestCommentDoc = latestSnapshot.docs[0];
           const latestCommentData = { id: latestCommentDoc.id, ...latestCommentDoc.data() } as Comment;
+          
+          // status 객체가 없는 경우 기본값으로 초기화
+          if (!latestCommentData.status) {
+            latestCommentData.status = {
+              isDeleted: false,
+              isBlocked: false
+            };
+          }
           
           const newCommentWithAuthor: CommentWithAuthor = {
             ...latestCommentData,
@@ -1554,7 +1591,9 @@ export default function PostDetailScreen() {
   }, [router]);
 
   const renderComment = (comment: CommentWithAuthor, level: number = 0, parentAuthor?: string) => {
-    const isDeleted = comment.status.isDeleted && comment.content === '삭제된 댓글입니다.';
+    // status 객체가 없는 경우 기본값으로 처리
+    const commentStatus = comment.status || { isDeleted: false, isBlocked: false };
+    const isDeleted = commentStatus.isDeleted && comment.content === '삭제된 댓글입니다.';
     const isReply = level > 0;
     const authorName = isDeleted ? '삭제된 사용자' : 
       (comment.isAnonymous ? 
