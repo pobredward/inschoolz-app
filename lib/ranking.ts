@@ -13,7 +13,7 @@ import { db } from './firebase';
 import { logger } from '../utils/logger';
 
 // 랭킹 타입 정의
-export type RankingType = 'national' | 'regional' | 'school';
+export type RankingType = 'national' | 'regional' | 'school' | 'regional_aggregated' | 'school_aggregated';
 
 // 랭킹 사용자 타입
 export interface RankingUser {
@@ -296,6 +296,190 @@ export async function getRankingStats(options: Omit<RankingQueryOptions, 'limit'
 /**
  * 홈 화면용 랭킹 미리보기 (5등까지)
  */
+// 집계된 지역 랭킹 타입
+export interface AggregatedRegion {
+  id: string; // "sido-sigungu" 형태
+  sido: string;
+  sigungu: string;
+  totalExperience: number;
+  userCount: number;
+  averageExperience: number;
+}
+
+// 집계된 학교 랭킹 타입
+export interface AggregatedSchool {
+  id: string;
+  name: string;
+  totalExperience: number;
+  userCount: number;
+  averageExperience: number;
+  regions?: {
+    sido: string;
+    sigungu: string;
+  };
+}
+
+// 집계된 랭킹 응답 타입
+export interface AggregatedRankingResponse {
+  regions?: AggregatedRegion[];
+  schools?: AggregatedSchool[];
+  hasMore: boolean;
+}
+
+/**
+ * 지역별 집계 랭킹을 조회합니다.
+ */
+export async function getAggregatedRegionalRankings(limit: number = 20): Promise<AggregatedRegion[]> {
+  try {
+    logger.debug('getAggregatedRegionalRankings 호출:', { limit });
+    
+    // Firebase의 '!=' 제한을 피하기 위해 모든 사용자를 가져온 후 클라이언트에서 필터링
+    const usersQuery = query(collection(db, 'users'));
+    
+    const querySnapshot = await getDocs(usersQuery);
+    const regionMap = new Map<string, {
+      sido: string;
+      sigungu: string;
+      totalExperience: number;
+      userCount: number;
+    }>();
+
+    querySnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const regions = data.regions;
+      const experience = data.stats?.totalExperience || 0;
+      
+      // 클라이언트에서 지역 정보가 있는 사용자만 필터링
+      if (regions?.sido && regions?.sigungu) {
+        const regionKey = `${regions.sido}-${regions.sigungu}`;
+        
+        if (regionMap.has(regionKey)) {
+          const existing = regionMap.get(regionKey)!;
+          existing.totalExperience += experience;
+          existing.userCount += 1;
+        } else {
+          regionMap.set(regionKey, {
+            sido: regions.sido,
+            sigungu: regions.sigungu,
+            totalExperience: experience,
+            userCount: 1,
+          });
+        }
+      }
+    });
+
+    // 지역별 데이터를 배열로 변환하고 총 경험치 순으로 정렬
+    const aggregatedRegions: AggregatedRegion[] = Array.from(regionMap.entries()).map(([key, data]) => ({
+      id: key,
+      sido: data.sido,
+      sigungu: data.sigungu,
+      totalExperience: data.totalExperience,
+      userCount: data.userCount,
+      averageExperience: Math.round(data.totalExperience / data.userCount),
+    })).sort((a, b) => b.totalExperience - a.totalExperience);
+
+    const result = aggregatedRegions.slice(0, limit);
+    logger.debug('getAggregatedRegionalRankings 결과:', { count: result.length });
+    
+    return result;
+  } catch (error) {
+    logger.error('getAggregatedRegionalRankings 오류:', error);
+    throw error;
+  }
+}
+
+/**
+ * 학교별 집계 랭킹을 조회합니다.
+ */
+export async function getAggregatedSchoolRankings(limit: number = 20): Promise<AggregatedSchool[]> {
+  try {
+    logger.debug('getAggregatedSchoolRankings 호출:', { limit });
+    
+    // 모든 사용자 데이터를 가져온 후 클라이언트에서 학교 정보가 있는 사용자만 필터링
+    const usersQuery = query(collection(db, 'users'));
+    
+    const querySnapshot = await getDocs(usersQuery);
+    const schoolMap = new Map<string, {
+      name: string;
+      totalExperience: number;
+      userCount: number;
+      regions?: {
+        sido: string;
+        sigungu: string;
+      };
+    }>();
+
+    querySnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const school = data.school;
+      const experience = data.stats?.totalExperience || 0;
+      
+      // 클라이언트에서 학교 정보가 있는 사용자만 필터링
+      if (school?.id && school?.name) {
+        if (schoolMap.has(school.id)) {
+          const existing = schoolMap.get(school.id)!;
+          existing.totalExperience += experience;
+          existing.userCount += 1;
+        } else {
+          schoolMap.set(school.id, {
+            name: school.name,
+            totalExperience: experience,
+            userCount: 1,
+            regions: data.regions ? {
+              sido: data.regions.sido,
+              sigungu: data.regions.sigungu,
+            } : undefined,
+          });
+        }
+      }
+    });
+
+    // 학교별 데이터를 배열로 변환하고 총 경험치 순으로 정렬
+    const aggregatedSchools: AggregatedSchool[] = Array.from(schoolMap.entries()).map(([id, data]) => ({
+      id,
+      name: data.name,
+      totalExperience: data.totalExperience,
+      userCount: data.userCount,
+      averageExperience: Math.round(data.totalExperience / data.userCount),
+      regions: data.regions,
+    })).sort((a, b) => b.totalExperience - a.totalExperience);
+
+    const result = aggregatedSchools.slice(0, limit);
+    logger.debug('getAggregatedSchoolRankings 결과:', { count: result.length });
+    
+    return result;
+  } catch (error) {
+    logger.error('getAggregatedSchoolRankings 오류:', error);
+    throw error;
+  }
+}
+
+/**
+ * 집계된 랭킹 데이터를 조회합니다.
+ */
+export async function getAggregatedRankings(type: 'regional_aggregated' | 'school_aggregated', limit: number = 20): Promise<AggregatedRankingResponse> {
+  try {
+    logger.debug('getAggregatedRankings 호출:', { type, limit });
+    
+    if (type === 'regional_aggregated') {
+      const regions = await getAggregatedRegionalRankings(limit);
+      return {
+        regions,
+        hasMore: regions.length === limit,
+      };
+    } else {
+      const schools = await getAggregatedSchoolRankings(limit);
+      return {
+        schools,
+        hasMore: schools.length === limit,
+      };
+    }
+  } catch (error) {
+    logger.error('getAggregatedRankings 오류:', error);
+    throw error;
+  }
+}
+
 export async function getRankingPreview(
   userId?: string,
   schoolId?: string,
@@ -347,6 +531,72 @@ export async function getRankingPreview(
     return result;
   } catch (error) {
     logger.error('getRankingPreview 오류:', error);
+    throw error;
+  }
+}
+
+// 지역 검색 함수
+export async function searchRegions(keyword: string, limit: number = 20): Promise<AggregatedRegion[]> {
+  try {
+    logger.debug('지역 검색 시작:', { keyword, limit });
+    
+    // 전체 지역 랭킹을 가져온 후 키워드로 필터링
+    const allRegions = await getAggregatedRegionalRankings(1000); // 충분히 큰 수로 설정
+    
+    if (!keyword.trim()) {
+      return allRegions.slice(0, limit);
+    }
+    
+    const searchKeyword = keyword.toLowerCase().trim();
+    
+    const filteredRegions = allRegions.filter(region => {
+      const sidoMatch = region.sido.toLowerCase().includes(searchKeyword);
+      const sigunguMatch = region.sigungu.toLowerCase().includes(searchKeyword);
+      const fullNameMatch = `${region.sido} ${region.sigungu}`.toLowerCase().includes(searchKeyword);
+      
+      return sidoMatch || sigunguMatch || fullNameMatch;
+    });
+    
+    logger.debug('지역 검색 완료:', { 
+      keyword, 
+      totalRegions: allRegions.length, 
+      filteredCount: filteredRegions.length 
+    });
+    
+    return filteredRegions.slice(0, limit);
+  } catch (error) {
+    logger.error('지역 검색 오류:', error);
+    throw error;
+  }
+}
+
+// 학교 검색 함수
+export async function searchSchools(keyword: string, limit: number = 20): Promise<AggregatedSchool[]> {
+  try {
+    logger.debug('학교 검색 시작:', { keyword, limit });
+    
+    // 전체 학교 랭킹을 가져온 후 키워드로 필터링
+    const allSchools = await getAggregatedSchoolRankings(1000); // 충분히 큰 수로 설정
+    
+    if (!keyword.trim()) {
+      return allSchools.slice(0, limit);
+    }
+    
+    const searchKeyword = keyword.toLowerCase().trim();
+    
+    const filteredSchools = allSchools.filter(school => {
+      return school.name.toLowerCase().includes(searchKeyword);
+    });
+    
+    logger.debug('학교 검색 완료:', { 
+      keyword, 
+      totalSchools: allSchools.length, 
+      filteredCount: filteredSchools.length 
+    });
+    
+    return filteredSchools.slice(0, limit);
+  } catch (error) {
+    logger.error('학교 검색 오류:', error);
     throw error;
   }
 }
