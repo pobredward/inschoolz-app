@@ -7,7 +7,6 @@ import {
   StyleSheet,
   TextInput,
   Alert,
-  SafeAreaView,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -17,6 +16,7 @@ import {
   Modal,
   Linking
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Hyperlink from 'react-native-hyperlink';
 
 const { width } = Dimensions.get('window');
@@ -151,6 +151,7 @@ export default function PostDetailScreen() {
   }>();
   
   const { user } = useAuthStore();
+  const insets = useSafeAreaInsets();
   const [post, setPost] = useState<Post | null>(null);
   const [board, setBoard] = useState<Board | null>(null);
   const [comments, setComments] = useState<CommentWithAuthor[]>([]);
@@ -1776,6 +1777,26 @@ export default function PostDetailScreen() {
                 <Ionicons name="close" size={16} color="#6b7280" />
               </TouchableOpacity>
             </View>
+
+            {/* 익명 모드 토글 */}
+            <View style={styles.inlineReplyOptions}>
+              <TouchableOpacity
+                style={styles.anonymousToggle}
+                onPress={() => toggleReplyAnonymous(comment.id)}
+              >
+                <Ionicons 
+                  name={replyingToComments[comment.id]?.isAnonymous ? "checkbox" : "square-outline"} 
+                  size={16} 
+                  color={replyingToComments[comment.id]?.isAnonymous ? "#10b981" : "#6b7280"} 
+                />
+                <Text style={[
+                  styles.anonymousToggleText,
+                  replyingToComments[comment.id]?.isAnonymous && styles.anonymousToggleTextActive
+                ]}>
+                  익명
+                </Text>
+              </TouchableOpacity>
+            </View>
             
             <View style={styles.inlineReplyInputWrapper}>
               {!replyingToComments[comment.id]?.isAnonymous && renderProfileImage(
@@ -1807,26 +1828,6 @@ export default function PostDetailScreen() {
                   size={18} 
                   color={replyingToComments[comment.id]?.content?.trim() ? "#10b981" : "#9ca3af"} 
                 />
-              </TouchableOpacity>
-            </View>
-
-            {/* 익명 모드 토글 */}
-            <View style={styles.inlineReplyOptions}>
-              <TouchableOpacity
-                style={styles.anonymousToggle}
-                onPress={() => toggleReplyAnonymous(comment.id)}
-              >
-                <Ionicons 
-                  name={replyingToComments[comment.id]?.isAnonymous ? "checkbox" : "square-outline"} 
-                  size={16} 
-                  color={replyingToComments[comment.id]?.isAnonymous ? "#10b981" : "#6b7280"} 
-                />
-                <Text style={[
-                  styles.anonymousToggleText,
-                  replyingToComments[comment.id]?.isAnonymous && styles.anonymousToggleTextActive
-                ]}>
-                  익명으로 작성
-                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1897,7 +1898,10 @@ export default function PostDetailScreen() {
         >
           <ScrollView 
             style={styles.scrollView}
-            contentContainerStyle={styles.scrollViewContent}
+            contentContainerStyle={[
+              styles.scrollViewContent,
+              { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom + 20, 40) : 40 }
+            ]}
             showsVerticalScrollIndicator={false}
           >
             {/* 게시글 내용 */}
@@ -2053,11 +2057,34 @@ export default function PostDetailScreen() {
             </View>
           </ScrollView>
 
-          {/* 댓글 작성 */}
+          {/* 댓글 작성 - 하단 고정 */}
           {user ? (
             (() => {
               return (
-                <>
+                <View style={[
+                  styles.commentInputContainer,
+                  { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 16) : insets.bottom + 16 }
+                ]}>
+                  {/* 익명 모드 토글 */}
+                  <View style={styles.commentOptions}>
+                    <TouchableOpacity
+                      style={styles.anonymousToggle}
+                      onPress={() => setIsAnonymous(!isAnonymous)}
+                    >
+                      <Ionicons 
+                        name={isAnonymous ? "checkbox" : "square-outline"} 
+                        size={20} 
+                        color={isAnonymous ? "#10b981" : "#6b7280"} 
+                      />
+                      <Text style={[
+                        styles.anonymousToggleText,
+                        isAnonymous && styles.anonymousToggleTextActive
+                      ]}>
+                        익명
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
                   <View style={styles.commentInputWrapper}>
                     {!isAnonymous && renderProfileImage(
                       user?.profile?.profileImageUrl,
@@ -2084,32 +2111,15 @@ export default function PostDetailScreen() {
                       <Ionicons name="send" size={20} color="#10b981" />
                     </TouchableOpacity>
                   </View>
-
-                  {/* 익명 모드 토글 */}
-                  <View style={styles.commentOptions}>
-                    <TouchableOpacity
-                      style={styles.anonymousToggle}
-                      onPress={() => setIsAnonymous(!isAnonymous)}
-                    >
-                      <Ionicons 
-                        name={isAnonymous ? "checkbox" : "square-outline"} 
-                        size={20} 
-                        color={isAnonymous ? "#10b981" : "#6b7280"} 
-                      />
-                      <Text style={[
-                        styles.anonymousToggleText,
-                        isAnonymous && styles.anonymousToggleTextActive
-                      ]}>
-                        익명으로 작성
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
+                </View>
               );
             })()
           ) : (
             // 비로그인 사용자용 익명 댓글 작성
-            <View style={styles.anonymousCommentContainer}>
+            <View style={[
+              styles.anonymousCommentContainer,
+              { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 16) : insets.bottom + 16 }
+            ]}>
               <View style={styles.anonymousCommentButton}>
                 <TouchableOpacity 
                   style={styles.anonymousButton}
@@ -2334,7 +2344,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollViewContent: {
-    paddingBottom: Platform.OS === 'ios' ? 100 : 80,
+    // paddingBottom은 동적으로 적용됨
   },
   postContainer: {
     backgroundColor: '#fff',
@@ -2661,14 +2671,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
+    borderTopColor: '#f3f4f6',
   },
   commentInputWrapper: {
     flexDirection: 'row',
@@ -2696,14 +2700,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     paddingHorizontal: 16,
     paddingVertical: 16,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
+    borderTopColor: '#f3f4f6',
   },
   anonymousCommentButton: {
     marginBottom: 8,
