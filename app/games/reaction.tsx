@@ -435,6 +435,66 @@ export default function ReactionGameScreen() {
             </View>
           </View>
 
+          {/* TOP 10 랭킹 */}
+          <View style={styles.rankingContainer}>
+            <Text style={styles.rankingTitle}>🏆 TOP 10 랭킹</Text>
+            {rankings.length > 0 ? (
+              rankings.map((rankUser, index) => (
+                <View 
+                  key={rankUser.id} 
+                  style={[
+                    styles.rankingItem,
+                    user?.uid === rankUser.id && styles.myRankingItem
+                  ]}
+                >
+                  <View style={styles.rankingLeft}>
+                    <View style={[
+                      styles.rankBadge,
+                      index === 0 ? styles.goldBadge :
+                      index === 1 ? styles.silverBadge :
+                      index === 2 ? styles.bronzeBadge :
+                      styles.defaultBadge
+                    ]}>
+                      <Text style={[
+                        styles.rankText,
+                        index < 3 ? styles.medalText : styles.defaultRankText
+                      ]}>
+                        {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                      </Text>
+                    </View>
+                    <View style={styles.userInfo}>
+                      <Text 
+                        style={[
+                          styles.userName, 
+                          user?.uid === rankUser.id && styles.myUserName
+                        ]} 
+                        numberOfLines={1}
+                      >
+                        {rankUser.nickname}
+                        {user?.uid === rankUser.id && (
+                          <Text style={styles.myIndicator}> (나)</Text>
+                        )}
+                      </Text>
+                      {rankUser.schoolName && (
+                        <Text style={styles.schoolName} numberOfLines={1}>{rankUser.schoolName}</Text>
+                      )}
+                    </View>
+                  </View>
+                  <View style={styles.rankingRight}>
+                    <Text style={[
+                      styles.reactionTime,
+                      user?.uid === rankUser.id && styles.myReactionTime
+                    ]}>
+                      {rankUser.bestReactionTime.toFixed(2)}ms
+                    </Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.noDataText}>아직 랭킹 데이터가 없습니다.</Text>
+            )}
+          </View>
+
           {/* 경험치 정보 */}
           {experienceThresholds.length > 0 && (
             <View style={styles.xpContainer}>
@@ -457,44 +517,6 @@ export default function ReactionGameScreen() {
               </Text>
             </View>
           )}
-
-          {/* TOP 10 랭킹 */}
-          <View style={styles.rankingContainer}>
-            <Text style={styles.rankingTitle}>🏆 TOP 10 랭킹</Text>
-            {rankings.length > 0 ? (
-              rankings.map((user, index) => (
-                <View key={user.id} style={styles.rankingItem}>
-                  <View style={styles.rankingLeft}>
-                    <View style={[
-                      styles.rankBadge,
-                      index === 0 ? styles.goldBadge :
-                      index === 1 ? styles.silverBadge :
-                      index === 2 ? styles.bronzeBadge :
-                      styles.defaultBadge
-                    ]}>
-                      <Text style={[
-                        styles.rankText,
-                        index < 3 ? styles.medalText : styles.defaultRankText
-                      ]}>
-                        {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
-                      </Text>
-                    </View>
-                    <View style={styles.userInfo}>
-                      <Text style={styles.userName} numberOfLines={1}>{user.nickname}</Text>
-                      {user.schoolName && (
-                        <Text style={styles.schoolName} numberOfLines={1}>{user.schoolName}</Text>
-                      )}
-                    </View>
-                  </View>
-                  <View style={styles.rankingRight}>
-                    <Text style={styles.reactionTime}>{user.bestReactionTime.toFixed(2)}ms</Text>
-                  </View>
-                </View>
-              ))
-            ) : (
-              <Text style={styles.noDataText}>아직 랭킹 데이터가 없습니다.</Text>
-            )}
-          </View>
       </ScrollView>
     </View>
   );
@@ -810,6 +832,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#6B7280',
     paddingVertical: 20,
+  },
+  // 사용자 강조 스타일
+  myRankingItem: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#bfdbfe',
+    borderWidth: 1,
+    borderRadius: 8,
+    marginHorizontal: -8,
+    paddingHorizontal: 8,
+  },
+  myUserName: {
+    color: '#1d4ed8',
+    fontWeight: 'bold',
+  },
+  myIndicator: {
+    color: '#2563eb',
+    fontSize: 12,
+  },
+  myReactionTime: {
+    color: '#1d4ed8',
   },
   loginPrompt: {
     flex: 1,

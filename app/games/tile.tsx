@@ -15,6 +15,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { updateGameScore, getUserGameStats } from '../../lib/games';
 import { useAuthStore } from '../../store/authStore';
+import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 type GameState = 'waiting' | 'playing' | 'finished';
 
@@ -23,6 +25,13 @@ interface Tile {
   value: number;
   isFlipped: boolean;
   isMatched: boolean;
+}
+
+interface RankingUser {
+  id: string;
+  nickname: string;
+  bestMoves: number; // 최소 움직임 횟수
+  schoolName?: string;
 }
 
 const { width } = Dimensions.get('window');
@@ -45,6 +54,7 @@ export default function TileGameScreen() {
   const [gameStartTime, setGameStartTime] = useState<number>(0);
   const [remainingAttempts, setRemainingAttempts] = useState(3);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [rankings, setRankings] = useState<RankingUser[]>([]);
 
   const totalPairs = 6; // 3x4 grid with 6 pairs
   const maxTime = 120; // 2 minutes
@@ -69,6 +79,39 @@ export default function TileGameScreen() {
       console.error('게임 통계 로드 실패:', error);
     } finally {
       setIsLoadingStats(false);
+    }
+  };
+
+  // 랭킹 데이터 로드 (최소 움직임 횟수 기준)
+  const loadRankings = async () => {
+    try {
+      const usersQuery = query(
+        collection(db, 'users'),
+        where('gameStats.tileGame.bestReactionTime', '>', 0),
+        orderBy('gameStats.tileGame.bestReactionTime', 'asc'),
+        limit(10)
+      );
+      
+      const querySnapshot = await getDocs(usersQuery);
+      const rankingData: RankingUser[] = [];
+      
+      querySnapshot.forEach((doc) => {
+        const userData = doc.data();
+        const bestMoves = userData.gameStats?.tileGame?.bestReactionTime;
+        
+        if (bestMoves) {
+          rankingData.push({
+            id: doc.id,
+            nickname: userData.profile?.userName || '익명',
+            bestMoves: bestMoves,
+            schoolName: userData.school?.name
+          });
+        }
+      });
+      
+      setRankings(rankingData);
+    } catch (error) {
+      console.error('랭킹 데이터 로드 실패:', error);
     }
   };
   
@@ -223,6 +266,7 @@ export default function TileGameScreen() {
         
         // 성공 시 남은 기회 업데이트
         loadRemainingAttempts();
+        loadRankings(); // 랭킹 데이터 새로고침
       } else {
         Alert.alert('오류', result.message);
       }
@@ -262,6 +306,7 @@ export default function TileGameScreen() {
   // 게임 초기화 및 사용자 데이터 로드 (컴포넌트 마운트 시) - 무한 루프 방지
   useEffect(() => {
     initializeGame();
+    loadRankings(); // 랭킹 데이터 로드
     if (user?.uid) {
       loadRemainingAttempts();
     }
@@ -420,6 +465,66 @@ export default function TileGameScreen() {
                 </TouchableOpacity>
               </View>
             </View>
+          )}
+        </View>
+
+        {/* TOP 10 랭킹 */}
+        <View style={styles.rankingContainer}>
+          <Text style={styles.rankingTitle}>🏆 TOP 10 랭킹</Text>
+          {rankings.length > 0 ? (
+            rankings.map((rankUser, index) => (
+              <View 
+                key={rankUser.id} 
+                style={[
+                  styles.rankingItem,
+                  user?.uid === rankUser.id && styles.myRankingItem
+                ]}
+              >
+                <View style={styles.rankingLeft}>
+                  <View style={[
+                    styles.rankBadge,
+                    index === 0 ? styles.goldBadge :
+                    index === 1 ? styles.silverBadge :
+                    index === 2 ? styles.bronzeBadge :
+                    styles.defaultBadge
+                  ]}>
+                    <Text style={[
+                      styles.rankText,
+                      index < 3 ? styles.medalText : styles.defaultRankText
+                    ]}>
+                      {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                    </Text>
+                  </View>
+                  <View style={styles.userInfo}>
+                    <Text 
+                      style={[
+                        styles.userName, 
+                        user?.uid === rankUser.id && styles.myUserName
+                      ]} 
+                      numberOfLines={1}
+                    >
+                      {rankUser.nickname}
+                      {user?.uid === rankUser.id && (
+                        <Text style={styles.myIndicator}> (나)</Text>
+                      )}
+                    </Text>
+                    {rankUser.schoolName && (
+                      <Text style={styles.schoolName} numberOfLines={1}>{rankUser.schoolName}</Text>
+                    )}
+                  </View>
+                </View>
+                <View style={styles.rankingRight}>
+                  <Text style={[
+                    styles.bestMoves,
+                    user?.uid === rankUser.id && styles.myBestMoves
+                  ]}>
+                    {rankUser.bestMoves}번
+                  </Text>
+                </View>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.noDataText}>아직 랭킹 데이터가 없습니다.</Text>
           )}
         </View>
 
@@ -826,5 +931,116 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 12,
     textAlign: 'center',
+  },
+  // 랭킹 스타일
+  rankingContainer: {
+    backgroundColor: '#fff',
+    margin: 16,
+    marginTop: 8,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  rankingTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  rankingItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  myRankingItem: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#bfdbfe',
+    borderWidth: 1,
+    borderRadius: 8,
+    marginHorizontal: -8,
+    paddingHorizontal: 8,
+  },
+  rankingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  rankBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  goldBadge: {
+    backgroundColor: '#eab308',
+  },
+  silverBadge: {
+    backgroundColor: '#9ca3af',
+  },
+  bronzeBadge: {
+    backgroundColor: '#d97706',
+  },
+  defaultBadge: {
+    backgroundColor: '#f3f4f6',
+  },
+  rankText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  medalText: {
+    color: '#fff',
+    fontSize: 8,
+  },
+  defaultRankText: {
+    color: '#6b7280',
+    fontSize: 10,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1f2937',
+  },
+  myUserName: {
+    color: '#1d4ed8',
+    fontWeight: 'bold',
+  },
+  myIndicator: {
+    color: '#2563eb',
+    fontSize: 12,
+  },
+  schoolName: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  rankingRight: {
+    alignItems: 'flex-end',
+  },
+  bestMoves: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  myBestMoves: {
+    color: '#1d4ed8',
+  },
+  noDataText: {
+    textAlign: 'center',
+    color: '#9ca3af',
+    fontSize: 14,
+    paddingVertical: 16,
   },
 }); 
