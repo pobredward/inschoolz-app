@@ -2,7 +2,7 @@
   "expo": {
     "name": "인스쿨즈",
     "slug": "inschoolz-app",
-    "version": "1.1.4",
+    "version": "1.1.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "inschoolzapp",
@@ -12,7 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.onmindlab.inschoolz",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "buildNumber": "10",
+      "buildNumber": "11",
       "displayName": "인스쿨즈",
       "infoPlist": {
         "UIBackgroundModes": [
