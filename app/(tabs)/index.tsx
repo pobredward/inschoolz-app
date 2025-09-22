@@ -273,7 +273,7 @@ export default function HomeScreen() {
       setLoading(true);
       
       // 인기 게시글을 먼저 로드하여 빠른 UI 표시
-      const posts = await getPopularPostsForHome(3);
+      const posts = await getPopularPostsForHome(2);
       setPopularPosts(posts);
       
       // 로그인된 경우에만 개인 데이터 로드
@@ -443,6 +443,8 @@ export default function HomeScreen() {
   const navigateToGame = (gameId: string) => {
     if (gameId === 'reaction') {
       router.push('/games/reaction' as any);
+    } else if (gameId === 'tile') {
+      router.push('/games/tile' as any);
     } else {
       Alert.alert('준비 중', '곧 출시될 예정입니다! 🚀');
     }
@@ -568,16 +570,22 @@ export default function HomeScreen() {
             >
               <Text style={styles.gameIcon}>⚡</Text>
               <Text style={styles.gameTitle}>반응속도</Text>
-              <Text style={styles.gameDesc}>로그인 후 플레이</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.gameCard}
-              onPress={() => Alert.alert('준비 중', '곧 출시될 예정입니다! 🚀')}
+              onPress={() => Alert.alert('로그인 필요', '게임을 플레이하려면 로그인해주세요.')}
             >
               <Text style={styles.gameIcon}>🧩</Text>
               <Text style={styles.gameTitle}>타일 맞추기</Text>
-              <Text style={styles.gameDesc}>준비 중</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.gameCard}
+              onPress={() => Alert.alert('준비 중', '곧 출시될 예정입니다! 🚀')}
+            >
+              <Text style={styles.gameIcon}>🧮</Text>
+              <Text style={styles.gameTitle}>빠른 계산</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -876,24 +884,22 @@ export default function HomeScreen() {
           >
             <Text style={styles.gameIcon}>⚡</Text>
             <Text style={styles.gameTitle}>반응속도</Text>
-            <Text style={styles.gameDesc}>
-              {gameStats.bestReactionTimes.reactionGame 
-                                        ? `최고: ${gameStats.bestReactionTimes.reactionGame.toFixed(2)}ms` 
-                : '도전해보세요!'
-              }
-            </Text>
-            <Text style={styles.gamePlayCount}>
-              오늘 {gameStats.todayPlays.reactionGame || 0}/{gameStats.maxPlays || 5} 플레이
-            </Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
             style={styles.gameCard}
-            onPress={() => Alert.alert('준비 중', '곧 출시될 예정입니다! 🚀')}
+            onPress={() => navigateToGame('tile')}
           >
             <Text style={styles.gameIcon}>🧩</Text>
             <Text style={styles.gameTitle}>타일 맞추기</Text>
-            <Text style={styles.gameDesc}>준비 중</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.gameCard}
+            onPress={() => Alert.alert('준비 중', '곧 출시될 예정입니다! 🚀')}
+          >
+            <Text style={styles.gameIcon}>🧮</Text>
+            <Text style={styles.gameTitle}>빠른 계산</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1278,7 +1284,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
-    width: '48%',
+    width: '31%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -1308,12 +1314,6 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
   },
   // 급식 관련 스타일
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
   viewAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
