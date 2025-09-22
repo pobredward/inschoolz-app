@@ -8,7 +8,8 @@ import { getMainSchool } from '../../lib/schools';
 import { getUserGameStats } from '../../lib/games';
 import { getPopularPostsForHome } from '../../lib/boards';
 import { getRankingPreview } from '../../lib/ranking';
-import { School, Post } from '../../types';
+import { getTodayMeals } from '../../lib/meals';
+import { School, Post, MealInfo } from '../../types';
 import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { syncUserExperienceData } from '../../lib/experience';
@@ -33,6 +34,7 @@ interface RankingPreview {
 export default function HomeScreen() {
   const { user, isLoading: authLoading } = useAuthStore();
   const [refreshing, setRefreshing] = useState(false);
+  const [todayMeals, setTodayMeals] = useState<MealInfo[]>([]);
   // 리워드 광고 완료 시 경험치 추가
   const handleRewardEarned = async (reward: any) => {
     if (!user?.uid) return;
@@ -301,7 +303,16 @@ export default function HomeScreen() {
             }
           }).catch(error => {
             console.error('게임 통계 로드 실패:', error);
-          })
+          }),
+
+          // 급식 정보 로드
+          user.school?.id ? getTodayMeals(user.school.id).then(mealsResponse => {
+            if (mealsResponse.success) {
+              setTodayMeals(mealsResponse.data);
+            }
+          }).catch(error => {
+            console.error('급식 정보 로드 실패:', error);
+          }) : Promise.resolve()
         ]);
         
         // TODO: 추후 다른 데이터들도 로드 구현
@@ -781,6 +792,80 @@ export default function HomeScreen() {
         )}
       </View>
 
+      {/* 급식 정보 */}
+      {user?.school?.id && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>🍽️ 오늘의 급식</Text>
+            <TouchableOpacity 
+              onPress={() => router.push('/meals')}
+              style={styles.viewAllButton}
+            >
+              <Text style={styles.viewAllText}>전체보기</Text>
+              <Ionicons name="chevron-forward" size={16} color="#22c55e" />
+            </TouchableOpacity>
+          </View>
+          
+          {todayMeals.length > 0 ? (
+            <View style={styles.mealsContainer}>
+              {todayMeals.map((meal, index) => (
+                <TouchableOpacity 
+                  key={meal.id}
+                  style={[styles.mealCard, index > 0 && styles.mealCardMargin]}
+                  onPress={() => router.push('/meals')}
+                >
+                  <View style={styles.mealCardContent}>
+                    <View style={styles.mealHeader}>
+                      <View style={styles.mealTypeContainer}>
+                        <Ionicons 
+                          name={meal.mealType === 'breakfast' ? 'sunny-outline' : 
+                                meal.mealType === 'lunch' ? 'restaurant-outline' : 'moon-outline'} 
+                          size={20} 
+                          color="#22c55e" 
+                        />
+                        <Text style={styles.mealType}>
+                          {meal.mealType === 'breakfast' ? '조식' : 
+                           meal.mealType === 'lunch' ? '중식' : '석식'}
+                        </Text>
+                      </View>
+                      {meal.calories && (
+                        <View style={styles.caloriesContainer}>
+                          <Ionicons name="flash-outline" size={14} color="#6B7280" />
+                          <Text style={styles.calories}>{meal.calories}</Text>
+                        </View>
+                      )}
+                    </View>
+                    
+                    <View style={styles.menuContainer}>
+                      {meal.menu.map((menuItem, menuIndex) => (
+                        <View key={menuIndex} style={styles.menuItem}>
+                          <View style={styles.bulletPoint} />
+                          <Text style={styles.menuText}>{menuItem}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <TouchableOpacity 
+              style={styles.mealCard}
+              onPress={() => router.push('/meals')}
+            >
+              <View style={styles.mealCardContent}>
+                <Ionicons name="restaurant-outline" size={24} color="#22c55e" />
+                <View style={styles.mealTextContent}>
+                  <Text style={styles.mealTitle}>{user.school.name} 급식</Text>
+                  <Text style={styles.mealSubtitle}>오늘의 메뉴를 확인해보세요</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+              </View>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
       {/* 미니게임 */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>🎮 미니게임</Text>
@@ -1221,5 +1306,110 @@ const styles = StyleSheet.create({
   gamePlayCount: {
     fontSize: 11,
     color: '#9ca3af',
+  },
+  // 급식 관련 스타일
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  viewAllText: {
+    fontSize: 14,
+    color: '#22c55e',
+    fontWeight: '500',
+  },
+  mealsContainer: {
+    gap: 12,
+  },
+  mealCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  mealCardMargin: {
+    marginTop: 12,
+  },
+  mealCardContent: {
+    gap: 12,
+  },
+  mealHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  mealTypeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  mealType: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  caloriesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  calories: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  menuContainer: {
+    gap: 6,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  bulletPoint: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#22c55e',
+    marginTop: 6,
+  },
+  menuText: {
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 20,
+    flex: 1,
+  },
+  moreMenuText: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  mealTextContent: {
+    flex: 1,
+  },
+  mealTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  mealSubtitle: {
+    fontSize: 14,
+    color: '#6b7280',
   },
 });

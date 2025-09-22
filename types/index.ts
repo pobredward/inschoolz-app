@@ -529,4 +529,77 @@ export interface Appeal {
   createdAt: FirebaseTimestamp;
   updatedAt?: FirebaseTimestamp;
   resolvedAt?: FirebaseTimestamp;
+}
+
+// 급식 정보 관련 타입 정의
+export interface MealInfo {
+  id: string;
+  schoolId: string;
+  schoolName: string;
+  date: string; // YYYY-MM-DD 형식
+  mealType: 'breakfast' | 'lunch' | 'dinner'; // 조식, 중식, 석식
+  menu: string[]; // 메뉴 항목들
+  calories?: string; // 칼로리 정보
+  nutrition?: {
+    protein?: string; // 단백질
+    fat?: string; // 지방
+    carbohydrate?: string; // 탄수화물
+    sodium?: string; // 나트륨
+  };
+  allergyInfo?: string[]; // 알레르기 정보
+  origin?: string; // 원산지 정보
+  price?: number; // 급식비
+  createdAt: FirebaseTimestamp;
+  updatedAt: FirebaseTimestamp;
+}
+
+// 급식 정보 요청 파라미터
+export interface MealRequestParams {
+  schoolId: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  mealType?: 'breakfast' | 'lunch' | 'dinner';
+}
+
+// 급식 정보 응답
+export interface MealResponse {
+  success: boolean;
+  data: MealInfo[];
+  message?: string;
+  totalCount: number;
+}
+
+// 주간/월간 급식 정보
+export interface WeeklyMealPlan {
+  weekStart: string; // YYYY-MM-DD
+  weekEnd: string; // YYYY-MM-DD
+  meals: {
+    [date: string]: {
+      breakfast?: MealInfo;
+      lunch?: MealInfo;
+      dinner?: MealInfo;
+    };
+  };
+}
+
+// 급식 설정 (사용자별)
+export interface MealSettings {
+  userId: string;
+  schoolId: string;
+  preferences: {
+    showBreakfast: boolean;
+    showLunch: boolean;
+    showDinner: boolean;
+    showAllergyInfo: boolean;
+    showNutritionInfo: boolean;
+    showCalories: boolean;
+  };
+  allergyFilters: string[]; // 알레르기 필터링
+  notifications: {
+    dailyMealNotification: boolean;
+    weeklyMenuNotification: boolean;
+    notificationTime: string; // HH:MM 형식
+  };
+  createdAt: FirebaseTimestamp;
+  updatedAt: FirebaseTimestamp;
 } 

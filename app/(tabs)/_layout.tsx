@@ -334,6 +334,13 @@ export default function TabLayout() {
             ),
           }}
         />
+        {/* 급식 탭을 독립 페이지로 이동 */}
+        <Tabs.Screen
+          name="meals"
+          options={{
+            href: null, // 탭에서 숨김
+          }}
+        />
         <Tabs.Screen
           name="ranking"
           options={{
