@@ -50,10 +50,11 @@ const truncateText = (text: string, maxLength: number = 100) => {
 // timeUtils에서 가져온 함수를 사용하므로 여기서는 중복 정의 제거
 import { getBoardsByType, getPostsByBoardType, getAllPostsByType, getAllPostsBySchool, getAllPostsByRegion } from '@/lib/boards';
 import { getUserById, getBlockedUserIds } from '@/lib/users';
+import { getPopularSchools, getSchoolById } from '@/lib/schools';
 import { BlockedUserContent } from '../../components/ui/BlockedUserContent';
 import { useAuthStore } from '../../store/authStore';
 import { useScrollStore } from '../../store/scrollStore';
-import { Board, BoardType, Post } from '../../types';
+import { Board, BoardType, Post, School } from '../../types';
 import BoardSelector from '@/components/board/BoardSelector';
 import SchoolSelector, { SchoolSelectorRef } from '@/components/board/SchoolSelector';
 import { SafeScreenContainer } from '../../components/SafeScreenContainer';
@@ -94,6 +95,10 @@ export default function CommunityScreen() {
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
   const [showRegionSetupModal, setShowRegionSetupModal] = useState(false);
   const [showSchoolSetupModal, setShowSchoolSetupModal] = useState(false);
+  const [popularSchools, setPopularSchools] = useState<School[]>([]);
+  const [popularSchoolsLoading, setPopularSchoolsLoading] = useState(false);
+  const [currentSchoolInfo, setCurrentSchoolInfo] = useState<School | null>(null);
+  const [currentSchoolId, setCurrentSchoolId] = useState<string | undefined>(undefined);
   
   // 스크롤 위치 관리를 위한 ref와 상태
   const scrollViewRef = useRef<ScrollView>(null);
@@ -176,6 +181,37 @@ export default function CommunityScreen() {
     }
   }, [user?.uid]);
 
+  // 인기 학교 목록 로드
+  const loadPopularSchools = useCallback(async () => {
+    try {
+      setPopularSchoolsLoading(true);
+      const schools = await getPopularSchools(12); // 12개 학교 로드
+      setPopularSchools(schools);
+    } catch (error) {
+      console.error('인기 학교 목록 로드 실패:', error);
+    } finally {
+      setPopularSchoolsLoading(false);
+    }
+  }, []);
+
+  // 현재 학교 정보 로드
+  const loadCurrentSchoolInfo = useCallback(async (schoolId: string) => {
+    try {
+      console.log('현재 학교 정보 로드:', schoolId);
+      const school = await getSchoolById(schoolId);
+      if (school) {
+        setCurrentSchoolInfo(school);
+        console.log('현재 학교 정보 로드 완료:', school.KOR_NAME);
+      } else {
+        console.log('학교 정보를 찾을 수 없음:', schoolId);
+        setCurrentSchoolInfo(null);
+      }
+    } catch (error) {
+      console.error('현재 학교 정보 로드 실패:', error);
+      setCurrentSchoolInfo(null);
+    }
+  }, []);
+
   // URL 파라미터에서 탭 정보를 받아서 초기 탭 설정
   useEffect(() => {
     if (tab && typeof tab === 'string') {
@@ -186,12 +222,18 @@ export default function CommunityScreen() {
         const schoolId = tab.split('/')[1];
         console.log('학교 탭 - schoolId:', schoolId);
         setSelectedTab('school');
+        setCurrentSchoolId(schoolId);
       } else if (tab.startsWith('regional/')) {
         const parts = tab.split('/');
         const sido = decodeURIComponent(parts[1]);
         const sigungu = decodeURIComponent(parts[2]);
         console.log('지역 탭 - sido:', sido, 'sigungu:', sigungu);
         setSelectedTab('regional');
+      } else if (tab === 'school') {
+        // /community?tab=school (학교 ID 없음) - 인기 학교 목록 표시
+        console.log('학교 탭이지만 특정 학교 ID 없음 - 인기 학교 목록 표시');
+        setSelectedTab('school');
+        setCurrentSchoolId(undefined);
       } else {
         // 기존 단순 탭 이름 (national 등)
         const validTabs: BoardType[] = ['national', 'regional', 'school'];
@@ -201,6 +243,23 @@ export default function CommunityScreen() {
       }
     }
   }, [tab]);
+
+  // currentSchoolId 변경 시 학교 정보 로드
+  useEffect(() => {
+    if (currentSchoolId) {
+      loadCurrentSchoolInfo(currentSchoolId);
+    } else {
+      setCurrentSchoolInfo(null);
+    }
+  }, [currentSchoolId, loadCurrentSchoolInfo]);
+
+  // 학교 탭에서 로그인하지 않은 사용자를 위한 인기 학교 로드
+  useEffect(() => {
+    if (selectedTab === 'school' && !user && !currentSchoolId && popularSchools.length === 0) {
+      console.log('인기 학교 목록 로드 조건 충족');
+      loadPopularSchools();
+    }
+  }, [selectedTab, user, currentSchoolId, popularSchools.length, loadPopularSchools]);
 
   useEffect(() => {
     loadBoards();
@@ -214,7 +273,7 @@ export default function CommunityScreen() {
 
   useEffect(() => {
     loadPosts();
-  }, [selectedTab, selectedBoard, sortBy, boards]);
+  }, [selectedTab, selectedBoard, sortBy, boards, currentSchoolId]);
 
   // 사용자 정보 변경 시 차단된 사용자 목록 로드 - 무한 루프 방지 수정
   useEffect(() => {
@@ -296,10 +355,14 @@ export default function CommunityScreen() {
       if (selectedBoard === 'all') {
         // 전체 게시글 가져오기 - 새로운 필터링 로직 적용
         if (selectedTab === 'school') {
-          // 학교 탭: URL에서 schoolId 추출
-          if (tab && typeof tab === 'string' && tab.startsWith('school/')) {
+          // 학교 탭: currentSchoolId 사용
+          if (currentSchoolId) {
+            console.log('학교 전체 게시글 로딩 - currentSchoolId:', currentSchoolId);
+            postsData = await getAllPostsBySchool(currentSchoolId);
+          } else if (tab && typeof tab === 'string' && tab.startsWith('school/')) {
+            // fallback: URL에서 schoolId 추출
             const schoolId = tab.split('/')[1];
-            console.log('학교 전체 게시글 로딩 - schoolId:', schoolId);
+            console.log('학교 전체 게시글 로딩 - URL schoolId:', schoolId);
             postsData = await getAllPostsBySchool(schoolId);
           } else if (user?.school?.id) {
             // fallback: 사용자의 학교 ID 사용
@@ -326,9 +389,11 @@ export default function CommunityScreen() {
       } else {
         // 특정 게시판 게시글 가져오기 - 새로운 필터링 로직 적용
         if (selectedTab === 'school') {
-          // 학교 탭: URL에서 schoolId 추출
+          // 학교 탭: currentSchoolId 사용
           let schoolId = '';
-          if (tab && typeof tab === 'string' && tab.startsWith('school/')) {
+          if (currentSchoolId) {
+            schoolId = currentSchoolId;
+          } else if (tab && typeof tab === 'string' && tab.startsWith('school/')) {
             schoolId = tab.split('/')[1];
           } else if (user?.school?.id) {
             schoolId = user.school.id;
@@ -423,9 +488,9 @@ export default function CommunityScreen() {
     
     // 새로운 라우팅 구조로 리다이렉트
     if (newTab === 'school') {
-      // 사용자 정보가 없는 경우 - 로그인 안내 화면 표시
+      // 사용자 정보가 없는 경우 - 인기 학교 목록 표시
       if (!user?.uid) {
-        console.log('사용자 정보 없음, 로그인 안내 화면 표시');
+        console.log('사용자 정보 없음, 인기 학교 목록 표시');
         // URL만 업데이트하고 리다이렉트하지 않음
         router.setParams({ tab: 'school' });
         return;
@@ -750,13 +815,91 @@ export default function CommunityScreen() {
     );
   };
 
-  const renderEmptyState = () => (
-    <View style={styles.emptyState}>
-      <Text style={styles.emptyIcon}>📝</Text>
-      <Text style={styles.emptyTitle}>게시글이 없습니다.</Text>
-      <Text style={styles.emptySubtitle}>첫 번째 게시글을 작성해보세요!</Text>
-    </View>
-  );
+  const renderEmptyState = () => {
+    // 학교 탭에서 로그인하지 않은 사용자이고 특정 학교가 선택되지 않은 경우 인기 학교 목록 표시
+    if (selectedTab === 'school' && !user && !currentSchoolId) {
+      return (
+        <View style={styles.popularSchoolsContainer}>
+          <View style={styles.popularSchoolsHeader}>
+            <Text style={styles.popularSchoolsIcon}>🏫</Text>
+            <Text style={styles.popularSchoolsTitle}>인기 학교 커뮤니티</Text>
+            <Text style={styles.popularSchoolsSubtitle}>
+              활발한 활동이 이루어지고 있는 학교 커뮤니티를 둘러보세요
+            </Text>
+          </View>
+          
+          {popularSchoolsLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#10B981" />
+              <Text style={styles.loadingText}>인기 학교를 불러오는 중...</Text>
+            </View>
+          ) : popularSchools.length > 0 ? (
+            <View style={styles.popularSchoolsGrid}>
+              {popularSchools.map((school) => (
+                <TouchableOpacity
+                  key={school.id}
+                  style={styles.popularSchoolCard}
+                  onPress={() => {
+                    router.push(`/(tabs)/community?tab=school/${school.id}`);
+                  }}
+                >
+                  <View style={styles.schoolCardHeader}>
+                    <View style={styles.schoolIconContainer}>
+                      <Text style={styles.schoolIcon}>🏫</Text>
+                    </View>
+                    <View style={styles.schoolInfo}>
+                      <Text style={styles.schoolName} numberOfLines={2}>
+                        {school.KOR_NAME}
+                      </Text>
+                      <Text style={styles.schoolDistrict}>{school.REGION}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.schoolStats}>
+                    <Text style={styles.schoolStat}>멤버 {school.memberCount || 0}명</Text>
+                    <Text style={styles.schoolStat}>즐겨찾기 {school.favoriteCount || 0}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>🏫</Text>
+              <Text style={styles.emptyTitle}>인기 학교 목록을 불러올 수 없습니다.</Text>
+            </View>
+          )}
+          
+          <View style={styles.loginPrompt}>
+            <Text style={styles.loginPromptText}>더 많은 기능을 이용하려면 로그인하세요</Text>
+            <View style={styles.loginPromptButtons}>
+              <TouchableOpacity 
+                style={styles.loginPromptButton}
+                onPress={() => router.push('/login')}
+              >
+                <Text style={styles.loginPromptButtonText}>로그인하기</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.loginPromptButton, styles.loginPromptButtonSecondary]}
+                onPress={() => handleTabChange('national')}
+              >
+                <Text style={[styles.loginPromptButtonText, styles.loginPromptButtonSecondaryText]}>
+                  전국 커뮤니티 보기
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    // 기본 빈 상태
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyIcon}>📝</Text>
+        <Text style={styles.emptyTitle}>게시글이 없습니다.</Text>
+        <Text style={styles.emptySubtitle}>첫 번째 게시글을 작성해보세요!</Text>
+      </View>
+    );
+  };
 
   // 로그인이 필요한 탭에서 로그인 안내 화면
   const renderLoginRequired = () => (
@@ -764,7 +907,7 @@ export default function CommunityScreen() {
       <Text style={styles.loginRequiredIcon}>🔒</Text>
       <Text style={styles.loginRequiredTitle}>로그인이 필요합니다</Text>
       <Text style={styles.loginRequiredSubtitle}>
-        {selectedTab === 'school' ? '학교' : '지역'} 게시판을 보려면 로그인해주세요.
+        지역 게시판을 보려면 로그인해주세요.
       </Text>
       <TouchableOpacity 
         style={styles.loginButton}
@@ -775,8 +918,8 @@ export default function CommunityScreen() {
     </View>
   );
 
-  // 로그인이 필요한 탭인지 확인
-  const isLoginRequired = (selectedTab === 'school' || selectedTab === 'regional') && !user;
+  // 로그인이 필요한 탭인지 확인 (학교 탭은 로그인 없이도 접근 가능)
+  const isLoginRequired = selectedTab === 'regional' && !user;
 
   return (
     <View style={styles.container}>
@@ -805,23 +948,71 @@ export default function CommunityScreen() {
             {renderTabs()}
             
             {selectedTab === 'school' && (
-              <SchoolSelector 
-                ref={schoolSelectorRef}
-                style={styles.schoolSelector}
-                onSchoolChange={async (school: any) => {
-                  // 학교 변경 시 URL 업데이트
-                  console.log('학교 변경됨:', school);
-                  const schoolId = school?.id || school;
-                  router.push(`/(tabs)/community?tab=school/${schoolId}`);
-                  // 게시글 다시 로드
-                  loadBoards();
-                  loadPosts();
-                }}
-              />
+              user ? (
+                // 로그인한 사용자: 기존 SchoolSelector
+                <SchoolSelector 
+                  ref={schoolSelectorRef}
+                  style={styles.schoolSelector}
+                  onSchoolChange={async (school: any) => {
+                    // 학교 변경 시 URL 업데이트
+                    console.log('학교 변경됨:', school);
+                    const schoolId = school?.id || school;
+                    router.push(`/(tabs)/community?tab=school/${schoolId}`);
+                    // 게시글 다시 로드
+                    loadBoards();
+                    loadPosts();
+                  }}
+                />
+              ) : (
+                // 로그인하지 않은 사용자: 현재 학교 정보 표시
+                <View style={styles.guestSchoolInfo}>
+                  {currentSchoolInfo ? (
+                    <View style={styles.guestSchoolContent}>
+                      <TouchableOpacity 
+                        style={styles.backButton}
+                        onPress={() => {
+                          // 인기 학교 목록으로 돌아가기
+                          router.push('/(tabs)/community?tab=school');
+                        }}
+                      >
+                        <Ionicons name="chevron-back" size={20} color="#6B7280" />
+                      </TouchableOpacity>
+                      <Text style={styles.guestSchoolIcon}>🏫</Text>
+                      <View style={styles.guestSchoolText}>
+                        <Text style={styles.guestSchoolName}>{currentSchoolInfo.KOR_NAME}</Text>
+                        <Text style={styles.guestSchoolSubtext}>
+                          {currentSchoolInfo.REGION} • 게스트로 방문 중
+                        </Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.guestSchoolContent}>
+                      <Text style={styles.guestSchoolIcon}>🏫</Text>
+                      <View style={styles.guestSchoolText}>
+                        <Text style={styles.guestSchoolName}>학교 커뮤니티 탐색</Text>
+                        <Text style={styles.guestSchoolSubtext}>
+                          아래에서 원하는 학교를 선택해보세요
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                  <TouchableOpacity 
+                    style={styles.guestLoginButton}
+                    onPress={() => router.push('/login')}
+                  >
+                    <Text style={styles.guestLoginButtonText}>로그인</Text>
+                  </TouchableOpacity>
+                </View>
+              )
             )}
             
-            {renderCategoryFilter()}
-            {renderSortHeader()}
+            {/* 카테고리 필터와 정렬 헤더는 인기 학교 목록이 아닐 때만 표시 */}
+            {!(selectedTab === 'school' && !user && !currentSchoolId) && (
+              <>
+                {renderCategoryFilter()}
+                {renderSortHeader()}
+              </>
+            )}
             
             {isLoading && (
               <View style={styles.loadingContainer}>
@@ -1338,6 +1529,188 @@ const styles = StyleSheet.create({
   activeSortOptionText: {
     color: '#10B981',
     fontWeight: '500',
+  },
+
+  // 인기 학교 목록 스타일
+  popularSchoolsContainer: {
+    padding: 16,
+    backgroundColor: '#F9FAFB',
+  },
+  popularSchoolsHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  popularSchoolsIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  popularSchoolsTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  popularSchoolsSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  popularSchoolsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  popularSchoolCard: {
+    width: '48%',
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  schoolCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  schoolIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#DBEAFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  schoolIcon: {
+    fontSize: 16,
+  },
+  schoolInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  schoolName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  schoolDistrict: {
+    fontSize: 11,
+    color: '#6B7280',
+  },
+  schoolStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  schoolStat: {
+    fontSize: 10,
+    color: '#9CA3AF',
+  },
+  loginPrompt: {
+    alignItems: 'center',
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  loginPromptText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 16,
+  },
+  loginPromptButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  loginPromptButton: {
+    backgroundColor: '#10B981',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  loginPromptButtonSecondary: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#10B981',
+  },
+  loginPromptButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  loginPromptButtonSecondaryText: {
+    color: '#10B981',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 8,
+  },
+
+  // 게스트 학교 정보 스타일
+  guestSchoolInfo: {
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  guestSchoolContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 4,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 32,
+    height: 32,
+  },
+  guestSchoolIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  guestSchoolText: {
+    flex: 1,
+  },
+  guestSchoolName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  guestSchoolSubtext: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  guestLoginButton: {
+    backgroundColor: '#10B981',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+  },
+  guestLoginButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
   },
 
 }); 

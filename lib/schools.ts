@@ -447,6 +447,91 @@ export const getMainSchool = async (userId: string): Promise<School | null> => {
   }
 }; 
 
+/**
+ * 게시글 수 기준으로 인기 학교 목록 가져오기
+ */
+export const getPopularSchools = async (limit = 10): Promise<School[]> => {
+  try {
+    // posts 컬렉션에서 학교별 게시글 수 집계
+    const postsRef = collection(db, 'posts');
+    const postsQuery = query(postsRef, where('type', '==', 'school'));
+    const postsSnapshot = await getDocs(postsQuery);
+    
+    // 학교별 게시글 수 카운트
+    const schoolPostCounts = new Map<string, number>();
+    
+    postsSnapshot.forEach((doc) => {
+      const postData = doc.data();
+      const schoolId = postData.schoolId;
+      
+      if (schoolId) {
+        const currentCount = schoolPostCounts.get(schoolId) || 0;
+        schoolPostCounts.set(schoolId, currentCount + 1);
+      }
+    });
+    
+    // 게시글 수 기준으로 정렬 (내림차순)
+    const sortedSchoolIds = Array.from(schoolPostCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+      .map(([schoolId]) => schoolId);
+    
+    // 학교 정보 조회
+    const popularSchools: School[] = [];
+    
+    for (const schoolId of sortedSchoolIds) {
+      const school = await getSchoolById(schoolId);
+      if (school) {
+        // 앱의 School 타입에 맞게 변환
+        popularSchools.push({
+          id: school.id,
+          KOR_NAME: school.KOR_NAME,
+          ADDRESS: school.ADDRESS,
+          REGION: school.REGION,
+          HOMEPAGE: school.HOMEPAGE,
+          memberCount: school.memberCount,
+          favoriteCount: school.favoriteCount
+        });
+      }
+    }
+    
+    return popularSchools;
+  } catch (error) {
+    console.error('인기 학교 목록 조회 오류:', error);
+    // 오류 발생 시 memberCount 기준으로 인기 학교 반환
+    try {
+      const schoolsRef = collection(db, 'schools');
+      const q = query(
+        schoolsRef,
+        orderBy('memberCount', 'desc'),
+        limit(limit)
+      );
+      const querySnapshot = await getDocs(q);
+      const schools: School[] = [];
+      
+      querySnapshot.forEach((doc) => {
+        const schoolData = doc.data();
+        if (schoolData.memberCount > 0) {
+          schools.push({
+            id: doc.id,
+            KOR_NAME: schoolData.KOR_NAME,
+            ADDRESS: schoolData.ADDRESS,
+            REGION: schoolData.REGION,
+            HOMEPAGE: schoolData.HOMEPAGE,
+            memberCount: schoolData.memberCount || 0,
+            favoriteCount: schoolData.favoriteCount || 0
+          });
+        }
+      });
+      
+      return schools;
+    } catch (fallbackError) {
+      console.error('인기 학교 fallback 조회 오류:', fallbackError);
+      return [];
+    }
+  }
+};
+
 // 관리자용 학교 관리 함수들
 export const adminGetAllSchools = async (): Promise<School[]> => {
   try {
