@@ -823,9 +823,9 @@ export default function CommunityScreen() {
           <View style={styles.popularSchoolsHeader}>
             <Text style={styles.popularSchoolsIcon}>🏫</Text>
             <Text style={styles.popularSchoolsTitle}>인기 학교 커뮤니티</Text>
-            <Text style={styles.popularSchoolsSubtitle}>
+            {/* <Text style={styles.popularSchoolsSubtitle}>
               활발한 활동이 이루어지고 있는 학교 커뮤니티를 둘러보세요
-            </Text>
+            </Text> */}
           </View>
           
           {popularSchoolsLoading ? (
