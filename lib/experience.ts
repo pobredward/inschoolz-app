@@ -5,52 +5,30 @@ import { getKoreanDateString } from '../utils/timeUtils';
 
 // 레벨별 필요 경험치 (1→2레벨 10exp, 2→3레벨 20exp, 오름차순)
 // 각 레벨에서 다음 레벨로 가기 위해 필요한 경험치
-export const LEVEL_REQUIREMENTS = {
-  1: 10,   // 1레벨 → 2레벨
-  2: 20,   // 2레벨 → 3레벨
-  3: 30,   // 3레벨 → 4레벨
-  4: 40,   // 4레벨 → 5레벨
-  5: 50,   // 5레벨 → 6레벨
-  6: 60,   // 6레벨 → 7레벨
-  7: 70,   // 7레벨 → 8레벨
-  8: 80,   // 8레벨 → 9레벨
-  9: 90,   // 9레벨 → 10레벨
-  10: 100, // 10레벨 → 11레벨
-  11: 110, // 11레벨 → 12레벨
-  12: 120, // 12레벨 → 13레벨
-  13: 130,
-  14: 140,
-  15: 150,
-  16: 160,
-  17: 170,
-  18: 180,
-  19: 190,
-  20: 200
-};
+// 패턴: 레벨 * 10 (100레벨까지 확장)
+export const LEVEL_REQUIREMENTS: Record<number, number> = (() => {
+  const requirements: Record<number, number> = {};
+  for (let level = 1; level <= 100; level++) {
+    requirements[level] = level * 10;
+  }
+  return requirements;
+})();
 
 // 레벨별 누적 경험치 (총 경험치로 레벨 계산용)
-export const CUMULATIVE_REQUIREMENTS = {
-  1: 0,    // 1레벨 시작
-  2: 10,   // 1→2레벨 10exp
-  3: 30,   // 10 + 20 = 30
-  4: 60,   // 30 + 30 = 60
-  5: 100,  // 60 + 40 = 100
-  6: 150,  // 100 + 50 = 150
-  7: 210,  // 150 + 60 = 210
-  8: 280,  // 210 + 70 = 280
-  9: 360,  // 280 + 80 = 360
-  10: 450, // 360 + 90 = 450
-  11: 550, // 450 + 100 = 550
-  12: 660, // 550 + 110 = 660
-  13: 780, // 660 + 120 = 780
-  14: 910, // 780 + 130 = 910
-  15: 1050, // 910 + 140 = 1050
-  16: 1200, // 1050 + 150 = 1200
-  17: 1360, // 1200 + 160 = 1360
-  18: 1530, // 1360 + 170 = 1530
-  19: 1710, // 1530 + 180 = 1710
-  20: 1900  // 1710 + 190 = 1900
-};
+// 100레벨까지 자동 계산
+export const CUMULATIVE_REQUIREMENTS: Record<number, number> = (() => {
+  const cumulative: Record<number, number> = { 1: 0 };
+  let totalExp = 0;
+  
+  for (let level = 1; level <= 100; level++) {
+    if (level > 1) {
+      totalExp += LEVEL_REQUIREMENTS[level - 1];
+      cumulative[level] = totalExp;
+    }
+  }
+  
+  return cumulative;
+})();
 
 /**
  * 시스템 설정 캐시 무효화
@@ -250,22 +228,30 @@ export const calculateExpToNextLevel = async (currentLevel: number): Promise<num
  */
 export const calculateLevelFromTotalExp = (totalExp: number): number => {
   let level = 1;
-  for (const [levelStr, requiredExp] of Object.entries(CUMULATIVE_REQUIREMENTS)) {
-    const levelNum = parseInt(levelStr);
+  
+  // 100레벨까지 확인
+  for (let checkLevel = 1; checkLevel <= 100; checkLevel++) {
+    const requiredExp = CUMULATIVE_REQUIREMENTS[checkLevel];
     if (totalExp >= requiredExp) {
-      level = levelNum;
+      level = checkLevel;
     } else {
       break;
     }
   }
-  return level;
+  
+  // 최대 레벨 제한
+  return Math.min(level, 100);
 };
 
 /**
  * 현재 레벨에서 다음 레벨로 가기 위해 필요한 경험치
  */
 export const getExpRequiredForNextLevel = (currentLevel: number): number => {
-  return LEVEL_REQUIREMENTS[currentLevel as keyof typeof LEVEL_REQUIREMENTS] || (currentLevel * 10);
+  // 100레벨이 최대이므로 100레벨에서는 다음 레벨이 없음
+  if (currentLevel >= 100) {
+    return 0;
+  }
+  return LEVEL_REQUIREMENTS[currentLevel] || (currentLevel * 10);
 };
 
 /**
@@ -279,12 +265,25 @@ export const calculateCurrentLevelProgress = (totalExp: number): {
   progressPercentage: number;
 } => {
   const level = calculateLevelFromTotalExp(totalExp);
-  const currentLevelStartExp = CUMULATIVE_REQUIREMENTS[level as keyof typeof CUMULATIVE_REQUIREMENTS] || 0;
+  const currentLevelStartExp = CUMULATIVE_REQUIREMENTS[level] || 0;
   const currentExp = totalExp - currentLevelStartExp;
   const currentLevelRequiredXp = getExpRequiredForNextLevel(level);
-  const expToNextLevel = currentLevelRequiredXp - currentExp;
   
-  const progressPercentage = Math.min(100, Math.floor((currentExp / currentLevelRequiredXp) * 100));
+  // 100레벨(최대 레벨)에 도달한 경우
+  if (level >= 100) {
+    return {
+      level: 100,
+      currentExp: totalExp - (CUMULATIVE_REQUIREMENTS[100] || 0),
+      expToNextLevel: 0,
+      currentLevelRequiredXp: 0,
+      progressPercentage: 100
+    };
+  }
+  
+  const expToNextLevel = currentLevelRequiredXp - currentExp;
+  const progressPercentage = currentLevelRequiredXp > 0 
+    ? Math.min(100, Math.floor((currentExp / currentLevelRequiredXp) * 100))
+    : 100;
   
   return {
     level,
@@ -310,11 +309,18 @@ export const checkLevelUp = (currentLevel: number, currentExp: number, currentLe
   let shouldLevelUp = false;
   
   // 레벨업 조건: 현재 경험치가 필요 경험치보다 크거나 같을 때
-  while (newCurrentExp >= newCurrentLevelRequiredXp) {
+  // 최대 레벨(100레벨) 제한
+  while (newCurrentExp >= newCurrentLevelRequiredXp && newLevel < 100) {
     shouldLevelUp = true;
     newCurrentExp -= newCurrentLevelRequiredXp; // 레벨업 후 남은 경험치
     newLevel++;
     newCurrentLevelRequiredXp = getExpRequiredForNextLevel(newLevel);
+  }
+  
+  // 100레벨에 도달한 경우
+  if (newLevel >= 100) {
+    newLevel = 100;
+    newCurrentLevelRequiredXp = 0;
   }
   
   return {
