@@ -1278,16 +1278,17 @@ export const createComment = async (
           
           // 자기 자신에게는 알림 보내지 않음
           if (parentAuthorId && parentAuthorId !== userId) {
-            const { createCommentReplyNotification } = await import('./notifications');
-            await createCommentReplyNotification(
-              parentAuthorId,
-              postId,
-              postData.title || '게시글',
-              parentId,
-              commenterName,
-              content,
-              commentId
-            );
+          const { createCommentReplyNotification } = await import('./notifications');
+          await createCommentReplyNotification(
+            parentAuthorId,
+            postId,
+            postData.title || '게시글',
+            parentId,
+            commenterName,
+            content,
+            commentId,
+            isAnonymous
+          );
           }
         }
       } else {
@@ -1303,7 +1304,8 @@ export const createComment = async (
             postId,
             commentId,
             postData.title || '게시글',
-            content
+            content,
+            isAnonymous
           );
         }
       }
@@ -1412,16 +1414,17 @@ export const createAnonymousComment = async ({
           
           // 익명 댓글에 대한 답글이므로 원 댓글 작성자가 존재하는 경우에만 알림 발송
           if (parentAuthorId) {
-            const { createCommentReplyNotification } = await import('./notifications');
-            await createCommentReplyNotification(
-              parentAuthorId,
-              postId,
-              postData.title || '게시글',
-              parentId,
-              nickname,
-              content,
-              commentRef.id
-            );
+          const { createCommentReplyNotification } = await import('./notifications');
+          await createCommentReplyNotification(
+            parentAuthorId,
+            postId,
+            postData.title || '게시글',
+            parentId,
+            nickname,
+            content,
+            commentRef.id,
+            true // 익명 댓글이므로 true
+          );
           }
         }
       } else {
@@ -1436,7 +1439,8 @@ export const createAnonymousComment = async ({
             postId,
             commentRef.id,
             postData.title || '게시글',
-            content
+            content,
+            true // 익명 댓글이므로 true
           );
         }
       }
