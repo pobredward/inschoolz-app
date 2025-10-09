@@ -289,7 +289,7 @@ export default function ProfileEditScreen() {
                 {
                   text: '삭제',
                   style: 'destructive',
-                  onPress: async (password) => {
+                  onPress: async (password: string) => {
                     if (!password || password.trim() === '') {
                       Alert.alert('오류', '비밀번호를 입력해주세요.');
                       return;

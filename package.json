@@ -1,7 +1,7 @@
 {
   "name": "inschoolz-app",
   "main": "expo-router/entry",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
@@ -19,7 +19,7 @@
     "@react-navigation/bottom-tabs": "^7.3.10",
     "@react-navigation/elements": "^2.3.8",
     "@react-navigation/native": "^7.1.6",
-    "expo": "54.0.6",
+    "expo": "54.0.12",
     "expo-apple-authentication": "~8.0.7",
     "expo-blur": "~15.0.7",
     "expo-build-properties": "~1.0.8",
@@ -64,7 +64,6 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
-    "@expo/metro-config": "~54.0.2",
     "@types/node": "^24.0.10",
     "@types/react": "~19.1.10",
     "eslint": "^9.25.0",

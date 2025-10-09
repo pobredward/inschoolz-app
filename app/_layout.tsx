@@ -2,8 +2,10 @@ import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import 'react-native-reanimated';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
+import { View } from 'react-native';
 import { useAuthStore } from '../store/authStore';
 import { initializeKakaoSDK } from '@react-native-kakao/core';
 import Constants from 'expo-constants';
@@ -18,6 +20,9 @@ import {
   handleNotificationResponse,
   updateNotificationBadge,
 } from '../lib/notification-handlers';
+
+// 스플래시 스크린이 자동으로 숨겨지지 않도록 설정
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -121,21 +126,30 @@ export default function RootLayout() {
 
 
 
+  const onLayoutRootView = useCallback(async () => {
+    if (loaded) {
+      // 폰트 로딩이 완료되면 스플래시 스크린을 숨김
+      await SplashScreen.hideAsync();
+    }
+  }, [loaded]);
+
   if (!loaded) {
-    // Async font loading only occurs in development.
+    // 폰트 로딩 중에는 null을 반환하여 스플래시 스크린이 계속 표시되도록 함
     return null;
   }
 
   return (
-    <ThemeProvider value={DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="auth" options={{ headerShown: false }} />
-        <Stack.Screen name="login" options={{ headerShown: false }} />
-        <Stack.Screen name="signup" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" options={{ headerShown: false }} />
-      </Stack>
-      <StatusBar style="dark" />
-    </ThemeProvider>
+    <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
+      <ThemeProvider value={DefaultTheme}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="auth" options={{ headerShown: false }} />
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="signup" options={{ headerShown: false }} />
+          <Stack.Screen name="+not-found" options={{ headerShown: false }} />
+        </Stack>
+        <StatusBar style="dark" />
+      </ThemeProvider>
+    </View>
   );
 }

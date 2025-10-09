@@ -103,7 +103,7 @@ function AggregatedRegionItem({ region, index, onPress }: {
 
   return (
     <TouchableOpacity style={styles.aggregatedRankItem} onPress={onPress}>
-      <View style={styles.rankIconContainer}>
+      <View style={styles.rankContainer}>
         {getRankIcon(rank)}
       </View>
       
@@ -172,7 +172,7 @@ function AggregatedSchoolItem({ school, index, onPress }: {
 
   return (
     <TouchableOpacity style={styles.aggregatedRankItem} onPress={onPress}>
-      <View style={styles.rankIconContainer}>
+      <View style={styles.rankContainer}>
         {getRankIcon(rank)}
       </View>
       
@@ -478,7 +478,7 @@ export default function RankingScreen() {
   // 인증 로딩 중
   if (authLoading) {
     return (
-      <SafeScreenContainer style={styles.container}>
+      <SafeScreenContainer style={styles.centerContainer}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#10B981" />
           <Text style={styles.loadingText}>로딩 중...</Text>
@@ -893,7 +893,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     marginBottom: 4,
   },
-  rankNumber: {
+  rankNumberFirst: {
     fontSize: 14,
     fontWeight: 'bold',
   },
@@ -1059,5 +1059,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#10B981',
+  },
+  experienceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  experienceLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginRight: 4,
   },
 }); 
