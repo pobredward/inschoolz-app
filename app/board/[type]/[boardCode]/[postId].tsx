@@ -93,6 +93,23 @@ import {
   createCommentReplyNotification 
 } from '../../../../lib/notifications';
 
+// 게시글 내용 컴포넌트 (메모이제이션으로 불필요한 리렌더링 방지)
+const PostContent = React.memo(({ 
+  post, 
+  width, 
+  styles 
+}: { 
+  post: Post; 
+  width: number; 
+  styles: any; 
+}) => (
+  <HtmlRenderer 
+    html={post.content} 
+    contentWidth={width - 32}
+    baseStyle={styles.postContent}
+  />
+));
+
 // 파스텔 그린 색상 팔레트
 const pastelGreenColors = {
   50: '#f0fdf4',
@@ -1975,10 +1992,10 @@ export default function PostDetailScreen() {
               )}
 
               {/* 내용 (HTML 렌더링으로 인라인 이미지 포함) */}
-              <HtmlRenderer 
-                html={post.content} 
-                contentWidth={width - 32}
-                baseStyle={styles.postContent}
+              <PostContent 
+                post={post}
+                width={width}
+                styles={styles}
               />
 
               {/* 투표 */}

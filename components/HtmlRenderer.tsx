@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Dimensions, Image } from 'react-native';
 import RenderHtml from 'react-native-render-html';
 
@@ -7,10 +7,10 @@ const { width } = Dimensions.get('window');
 interface HtmlRendererProps {
   html: string;
   contentWidth?: number;
-  baseStyle?: any;
+  baseStyle?: Record<string, string | number>;
 }
 
-export default function HtmlRenderer({ 
+const HtmlRenderer = React.memo(function HtmlRenderer({ 
   html, 
   contentWidth = width - 32, 
   baseStyle = {} 
@@ -120,19 +120,52 @@ export default function HtmlRenderer({
       // 이미지 크기 계산
       const maxWidth = contentWidth - 32;
       
-      return (
-        <Image
-          key={props.key}
-          source={{ uri: src }}
-          style={{
-            width: maxWidth,
-            height: 200,
-            borderRadius: 8,
-            marginVertical: 8,
-          }}
-          resizeMode="cover"
-        />
-      );
+      // 이미지 비율을 유지하면서 표시하는 컴포넌트
+      const ResponsiveImage = React.memo(function ResponsiveImage() {
+        const [imageSize, setImageSize] = useState({ width: maxWidth, height: 200 });
+        const [isLoaded, setIsLoaded] = useState(false);
+        
+        const handleImageLoad = (event: { nativeEvent: { source: { width: number; height: number } } }) => {
+          const { width: imgWidth, height: imgHeight } = event.nativeEvent.source;
+          
+          if (imgWidth && imgHeight) {
+            // 이미지의 실제 비율 계산
+            const aspectRatio = imgHeight / imgWidth;
+            const calculatedHeight = maxWidth * aspectRatio;
+            
+            // 최대 높이 제한 (너무 긴 이미지 방지)
+            const finalHeight = Math.min(calculatedHeight, 600);
+            
+            setImageSize({
+              width: maxWidth,
+              height: finalHeight
+            });
+            setIsLoaded(true);
+          }
+        };
+        
+        return (
+          <Image
+            key={`${src}-${maxWidth}`}
+            source={{ uri: src }}
+            style={{
+              width: imageSize.width,
+              height: imageSize.height,
+              borderRadius: 8,
+              marginVertical: 8,
+              opacity: isLoaded ? 1 : 0.8,
+            }}
+            resizeMode="contain"
+            onLoad={handleImageLoad}
+            onError={() => {
+              console.log('이미지 로드 실패:', src);
+              setIsLoaded(true);
+            }}
+          />
+        );
+      });
+      
+      return <ResponsiveImage />;
     },
   };
 
@@ -152,4 +185,6 @@ export default function HtmlRenderer({
       enableExperimentalMarginCollapsing={false}
     />
   );
-} 
+});
+
+export default HtmlRenderer; 
