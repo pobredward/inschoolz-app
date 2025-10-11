@@ -16,26 +16,25 @@ import { registerWithEmail, checkUserNameAvailability, checkEmailExists } from '
 import { loginWithKakaoOptimized } from '../lib/kakao';
 import { router } from 'expo-router';
 import { ReferralSearch } from '../components/ReferralSearch';
+import { generateNickname } from '../utils/nickname-generator';
 
 export default function SignupScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   
-  // 이메일 폼 상태
+  // 이메일 폼 상태 (userName 제거)
   const [emailForm, setEmailForm] = useState({
     email: '',
     password: '',
     passwordConfirm: '',
-    userName: '',
     referral: ''
   });
   
   // 추천인 검색 상태
   const [selectedReferralUser, setSelectedReferralUser] = useState<any>(null);
   
-  // 중복 확인 상태
-  const [emailUserNameStatus, setEmailUserNameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
-  const [emailExists, setEmailExists] = useState<boolean>(false);
+  // 자동 생성된 닉네임 상태
+  const [generatedNickname, setGeneratedNickname] = useState<string>('');
   
   const { setUser, setLoading, isLoading } = useAuthStore();
 
@@ -57,36 +56,30 @@ export default function SignupScreen() {
     }
   };
 
-  // 이메일 닉네임 중복 확인
-  const checkEmailUserName = async () => {
-    const userName = emailForm.userName?.trim();
+  // 닉네임 자동 생성 및 중복 확인
+  const generateAndCheckNickname = async (): Promise<string> => {
+    let attempts = 0;
+    let nickname: string;
     
-    if (!userName || userName.length < 2) {
-      Alert.alert('오류', '닉네임은 최소 2자 이상이어야 합니다.');
-      return;
-    }
-
-    try {
-      setEmailUserNameStatus('checking');
-      const isAvailable = await checkUserNameAvailability(userName);
-      setEmailUserNameStatus(isAvailable ? 'available' : 'taken');
+    do {
+      nickname = generateNickname('middle'); // 기본값으로 중학교 설정
+      attempts++;
       
+      const isAvailable = await checkUserNameAvailability(nickname);
       if (isAvailable) {
-        Alert.alert('성공', '사용 가능한 닉네임입니다.');
-      } else {
-        Alert.alert('오류', '이미 사용 중인 닉네임입니다.');
+        return nickname;
       }
-    } catch {
-      setEmailUserNameStatus('idle');
-      Alert.alert('오류', '중복 확인 중 오류가 발생했습니다.');
-    }
+    } while (attempts < 10);
+    
+    // 10번 시도해도 실패하면 타임스탬프 추가
+    return generateNickname('middle') + '_' + Date.now().toString().slice(-4);
   };
 
 
 
   // 이메일 회원가입
   const handleEmailSignup = async () => {
-    if (!emailForm.email?.trim() || !emailForm.password?.trim() || !emailForm.passwordConfirm?.trim() || !emailForm.userName?.trim()) {
+    if (!emailForm.email?.trim() || !emailForm.password?.trim() || !emailForm.passwordConfirm?.trim()) {
       Alert.alert('오류', '모든 필드를 입력해주세요.');
       return;
     }
@@ -101,39 +94,24 @@ export default function SignupScreen() {
       return;
     }
 
-    if (emailForm.userName.trim().length < 2) {
-      Alert.alert('오류', '닉네임은 최소 2자 이상이어야 합니다.');
-      return;
-    }
-
-    if (emailUserNameStatus !== 'available') {
-      Alert.alert('오류', '닉네임 중복 확인을 해주세요.');
-      return;
-    }
-
     try {
       setLoading(true);
       
       // 이메일 중복 확인
       const emailExistsResult = await checkEmailExists(emailForm.email);
       if (emailExistsResult) {
-        setEmailExists(true);
         Alert.alert('오류', '이미 가입된 이메일입니다. 로그인 화면에서 로그인 바랍니다.');
         return;
       }
 
-      // 최종 userName 중복 확인 (동시 가입 방지)
-      const isUserNameAvailable = await checkUserNameAvailability(emailForm.userName);
-      if (!isUserNameAvailable) {
-        Alert.alert('오류', '죄송합니다. 해당 닉네임이 방금 다른 사용자에 의해 사용되었습니다.');
-        setEmailUserNameStatus('taken');
-        return;
-      }
+      // 닉네임 자동 생성 및 중복 확인
+      const userName = await generateAndCheckNickname();
+      setGeneratedNickname(userName);
 
       const user = await registerWithEmail(
         emailForm.email, 
         emailForm.password, 
-        emailForm.userName.trim(),
+        userName,
         {
           referral: selectedReferralUser?.userName || emailForm.referral.trim()
         }
@@ -240,41 +218,6 @@ export default function SignupScreen() {
                       />
                     </TouchableOpacity>
                   </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>닉네임</Text>
-                  <View style={styles.userNameContainer}>
-                    <TextInput
-                      style={[styles.userNameInput, emailUserNameStatus === 'available' && styles.inputSuccess, emailUserNameStatus === 'taken' && styles.inputError]}
-                      placeholder="닉네임 (2자 이상)"
-                      value={emailForm.userName}
-                      onChangeText={(text) => {
-                        setEmailForm(prev => ({ ...prev, userName: text }));
-                        setEmailUserNameStatus('idle');
-                      }}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                    <TouchableOpacity
-                      style={[
-                        styles.checkButton,
-                        (emailUserNameStatus === 'checking' || !emailForm.userName?.trim() || emailForm.userName.trim().length < 2) && styles.checkButtonDisabled
-                      ]}
-                      onPress={checkEmailUserName}
-                      disabled={emailUserNameStatus === 'checking' || !emailForm.userName?.trim() || emailForm.userName.trim().length < 2}
-                    >
-                      <Text style={styles.checkButtonText}>
-                        {emailUserNameStatus === 'checking' ? '확인중' : '중복확인'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                  {emailUserNameStatus === 'available' && (
-                    <Text style={styles.successText}>사용 가능한 닉네임입니다.</Text>
-                  )}
-                  {emailUserNameStatus === 'taken' && (
-                    <Text style={styles.errorText}>이미 사용 중인 닉네임입니다.</Text>
-                  )}
                 </View>
 
                 {/* 추천인 아이디 */}
