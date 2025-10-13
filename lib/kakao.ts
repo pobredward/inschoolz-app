@@ -4,6 +4,7 @@ import { signInWithCustomToken, updateProfile } from 'firebase/auth';
 import { db, auth } from './firebase';
 import { logger } from '../utils/logger';
 import { login, logout, unlink } from '@react-native-kakao/user';
+import { generateUserSearchTokens } from '../utils/search-tokens';
 
 // 카카오 사용자 정보 인터페이스
 export interface KakaoUserInfo {
@@ -112,6 +113,7 @@ export const convertKakaoUserToFirebaseUser = (kakaoUser: KakaoUserInfo, uid: st
   const profile = kakaoUser.kakao_account.profile;
   const birthday = kakaoUser.kakao_account.birthday;
   const birthyear = kakaoUser.kakao_account.birthyear;
+  const userName = profile?.nickname || `카카오사용자${kakaoUser.id}`;
   
   // 카카오 HTTP URL을 HTTPS로 변환
   const convertKakaoUrlToHttps = (url?: string): string => {
@@ -136,14 +138,19 @@ export const convertKakaoUserToFirebaseUser = (kakaoUser: KakaoUserInfo, uid: st
     wasConverted: originalImageUrl !== profileImageUrl
   });
 
+  // 검색 토큰 생성
+  const searchTokens = generateUserSearchTokens(userName);
+
   return {
     uid,
     email: kakaoUser.kakao_account.email || '',
     role: 'student',
     status: 'active',
     isVerified: true,
+    fake: false, // 실제 사용자 표시
+    searchTokens, // 검색 토큰 추가
     profile: {
-      userName: profile?.nickname || `카카오사용자${kakaoUser.id}`,
+      userName,
       realName: '',
       gender: kakaoUser.kakao_account.gender === 'female' ? '여성' : 
               kakaoUser.kakao_account.gender === 'male' ? '남성' : '',

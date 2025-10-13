@@ -20,6 +20,7 @@ import { logger } from '../utils/logger';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
 import { Platform } from 'react-native';
+import { generateUserSearchTokens } from '../utils/search-tokens';
 
 /**
  * 추천인 아이디 검증 함수
@@ -121,6 +122,13 @@ export const registerWithEmail = async (
     await updateProfile(firebaseUser, { displayName: userName });
     logger.debug('프로필 업데이트 완료');
     
+    // 검색 토큰 생성
+    const searchTokens = generateUserSearchTokens(
+      userName,
+      extraProfile?.realName,
+      extraProfile?.schoolName
+    );
+    
     // Firestore에 사용자 정보 저장 (통일된 구조 - Timestamp 사용)
     
     // 기본 사용자 데이터 구조 (undefined 필드 제거, Timestamp 사용)
@@ -130,6 +138,8 @@ export const registerWithEmail = async (
       role: 'student',
       status: 'active', // 기본 상태를 'active'로 설정
       isVerified: false,
+      fake: false, // 실제 사용자 표시
+      searchTokens, // 검색 토큰 추가
       
       // 프로필 정보 (선택사항 필드들은 값이 있을 때만 저장)
       profile: {
@@ -779,6 +789,9 @@ const createAppleUser = async (
       attempts++;
     }
     
+    // 검색 토큰 생성
+    const searchTokens = generateUserSearchTokens(userName, displayName);
+    
     // 새 사용자 데이터 생성
     const newUser: any = {
       uid: firebaseUser.uid,
@@ -786,6 +799,8 @@ const createAppleUser = async (
       role: 'student',
       status: 'active',
       isVerified: true, // Apple 로그인은 검증된 것으로 간주
+      fake: false, // 실제 사용자 표시
+      searchTokens, // 검색 토큰 추가
       
       profile: {
         userName: userName,

@@ -127,6 +127,8 @@ export interface User {
   role: UserRole;
   isVerified: boolean;
   status?: 'active' | 'inactive' | 'suspended';
+  fake?: boolean; // 봇 여부 (true: 봇, false: 실제 사용자)
+  searchTokens?: string[]; // 검색용 토큰 배열
   
   // 프로필 정보
   profile: UserProfile;
