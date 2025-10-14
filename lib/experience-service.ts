@@ -76,7 +76,7 @@ export const awardPostExperience = async (userId: string): Promise<ExperienceRes
       newLevel: expResult.newLevel,
       currentExp: levelProgress.currentExp,
       expToNextLevel: levelProgress.currentLevelRequiredXp,
-      remainingCount: limitCheck.limit - limitCheck.currentCount - 1,
+      remainingCount: Math.max(0, limitCheck.limit - limitCheck.currentCount - 1),
       totalDailyLimit: settings.dailyLimits.postsForReward
     };
 
@@ -150,7 +150,7 @@ export const awardCommentExperience = async (userId: string): Promise<Experience
       newLevel: expResult.newLevel,
       currentExp: levelProgress.currentExp,
       expToNextLevel: levelProgress.currentLevelRequiredXp,
-      remainingCount: limitCheck.limit - limitCheck.currentCount - 1,
+      remainingCount: Math.max(0, limitCheck.limit - limitCheck.currentCount - 1),
       totalDailyLimit: settings.dailyLimits.commentsForReward
     };
 
