@@ -106,10 +106,6 @@ function AggregatedRegionItem({ region, index, onPress }: {
       <View style={styles.rankContainer}>
         {getRankIcon(rank)}
       </View>
-      
-      <View style={styles.regionIcon}>
-        <Ionicons name="location" size={24} color="#3B82F6" />
-      </View>
 
       <View style={styles.aggregatedUserInfo}>
         <Text style={styles.aggregatedUserName} numberOfLines={1}>
@@ -175,10 +171,6 @@ function AggregatedSchoolItem({ school, index, onPress }: {
       <View style={styles.rankContainer}>
         {getRankIcon(rank)}
       </View>
-      
-      <View style={styles.schoolIcon}>
-        <Ionicons name="school" size={24} color="#10B981" />
-      </View>
 
       <View style={styles.aggregatedUserInfo}>
         <Text style={styles.aggregatedUserName} numberOfLines={1}>
@@ -228,13 +220,6 @@ export default function RankingScreen() {
   const { user, isLoading: authLoading } = useAuthStore();
   const [selectedType, setSelectedType] = useState<RankingType>('national');
   const [searchQuery, setSearchQuery] = useState('');
-
-  // 비회원이 로그아웃하면 전국 탭으로 돌아가기
-  useEffect(() => {
-    if (!user && selectedType !== 'national') {
-      setSelectedType('national');
-    }
-  }, [user, selectedType]);
 
   const [rankingState, setRankingState] = useState<RankingState>({
     users: [],
@@ -347,12 +332,6 @@ export default function RankingScreen() {
 
   // 랭킹 데이터 로드
   const loadRankings = async (reset = false) => {
-    // 비회원인 경우 전국 랭킹만 허용
-    if (!user && selectedType !== 'national') {
-      console.log('비회원은 전국 랭킹만 조회 가능합니다.');
-      return;
-    }
-
     try {
       logger.debug('랭킹 데이터 로드 시작:', { type: selectedType, reset, searchQuery });
       
@@ -415,7 +394,7 @@ export default function RankingScreen() {
   };
 
   const handleLoadMore = () => {
-    if (!rankingState.isLoading && rankingState.hasMore && (user || selectedType === 'national')) {
+    if (!rankingState.isLoading && rankingState.hasMore) {
       loadRankings(false);
     }
   };
@@ -443,31 +422,11 @@ export default function RankingScreen() {
   };
 
   const canShowRanking = () => {
-    if (selectedType === 'national') {
-      return true; // 전국은 항상 표시 (비회원도 가능)
-    }
-    
-    if (!user) return false;
-    
-    if (selectedType === 'school') {
-      return user?.school?.id;
-    }
-    if (selectedType === 'regional') {
-      return user?.regions?.sido && user?.regions?.sigungu;
-    }
-    return false;
+    // 모든 탭은 비회원도 접근 가능 (집계된 데이터 표시)
+    return true;
   };
 
   const getEmptyMessage = () => {
-    if (!user && selectedType !== 'national') {
-      return `${selectedType === 'school' ? '학교' : '지역'} 랭킹을 보려면 로그인이 필요합니다.`;
-    }
-    if (selectedType === 'school' && !user?.school?.id) {
-      return '학교 정보를 설정하면 학교 랭킹을 확인할 수 있습니다.';
-    }
-    if (selectedType === 'regional' && (!user?.regions?.sido || !user?.regions?.sigungu)) {
-      return '지역 정보를 설정하면 지역 랭킹을 확인할 수 있습니다.';
-    }
     return searchQuery ? '검색 결과가 없습니다.' : '랭킹 데이터가 없습니다.';
   };
 
@@ -985,24 +944,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
-  },
-  regionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#DBEAFE',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  schoolIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#ECFDF5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
   },
   aggregatedUserInfo: {
     flex: 1,
