@@ -1453,14 +1453,11 @@ export const getUserPosts = async (
       }
     });
     
-    // 전체 개수는 로드된 게시글 수로 근사치 사용 (성능 최적화)
-    const totalCount = posts.length;
-    
     const hasMore = postsSnapshot.docs.length > pageSize;
     
     return {
       posts,
-      totalCount,
+      totalCount: 0, // totalCount는 비용이 많이 들므로 제공하지 않음
       hasMore
     };
   } catch (error) {
