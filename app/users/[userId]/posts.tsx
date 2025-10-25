@@ -53,8 +53,12 @@ export default function UserPostsScreen() {
   const [filteredPosts, setFilteredPosts] = useState<UserPost[]>([]);
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedType, setSelectedType] = useState<BoardType>('all');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const ITEMS_PER_PAGE = 10;
 
   const filterPosts = (posts: UserPost[], type: BoardType) => {
     if (type === 'all') return posts;
@@ -72,29 +76,47 @@ export default function UserPostsScreen() {
     }
   };
 
-  const loadPosts = async () => {
+  const loadPosts = async (pageNum: number = 1, isLoadMore: boolean = false) => {
     if (!userId) return;
 
     try {
-      setLoading(true);
+      if (isLoadMore) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
       
-      const result = await getUserPosts(userId, 1, 50, 'latest');
+      const result = await getUserPosts(userId, pageNum, ITEMS_PER_PAGE, 'latest');
       
-      setPosts(result.posts);
-      setFilteredPosts(filterPosts(result.posts, selectedType));
+      if (isLoadMore) {
+        setPosts(prev => [...prev, ...result.posts]);
+      } else {
+        setPosts(result.posts);
+      }
+      
+      setHasMore(result.hasMore);
+      setPage(pageNum);
     } catch (error) {
       console.error('게시글 로드 오류:', error);
       Alert.alert('오류', '게시글을 불러오는 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadPosts();
+    setPage(1);
+    await loadPosts(1, false);
     setRefreshing(false);
   }, [userId]);
+
+  const handleLoadMore = () => {
+    if (!loadingMore && hasMore) {
+      loadPosts(page + 1, true);
+    }
+  };
 
   useEffect(() => {
     loadUser();
@@ -274,10 +296,6 @@ export default function UserPostsScreen() {
         </View>
 
         {renderFilterTabs()}
-        
-        <View style={styles.countContainer}>
-          <Text style={styles.countText}>총 {filteredPosts.length}개</Text>
-        </View>
 
         <FlatList
           data={filteredPosts}
@@ -292,6 +310,23 @@ export default function UserPostsScreen() {
             />
           }
           ListEmptyComponent={renderEmptyState}
+          ListFooterComponent={() => {
+            if (!hasMore || filteredPosts.length === 0) return null;
+            
+            return (
+              <View style={styles.loadMoreContainer}>
+                <TouchableOpacity 
+                  style={[styles.loadMoreButton, loadingMore && styles.loadMoreButtonDisabled]}
+                  onPress={handleLoadMore}
+                  disabled={loadingMore}
+                >
+                  <Text style={styles.loadMoreButtonText}>
+                    {loadingMore ? '로딩 중...' : '더보기'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            );
+          }}
           contentContainerStyle={filteredPosts.length === 0 ? styles.emptyListContainer : styles.listContent}
           showsVerticalScrollIndicator={false}
         />
@@ -359,16 +394,6 @@ const styles = StyleSheet.create({
   filterButtonTextActive: {
     color: '#FFFFFF',
   },
-  countContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#F9FAFB',
-  },
-  countText: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
   listContent: {
     paddingBottom: 20,
   },
@@ -407,5 +432,26 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 24,
+  },
+  loadMoreContainer: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  loadMoreButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  loadMoreButtonDisabled: {
+    opacity: 0.5,
+  },
+  loadMoreButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
   },
 });

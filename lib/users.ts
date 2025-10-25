@@ -1505,6 +1505,9 @@ export const getUserComments = async (
       
       const comments: any[] = [];
       
+      // 게시글 정보 캐시 (중복 조회 방지)
+      const postCache: { [key: string]: any } = {};
+      
       // 댓글 데이터와 실제 게시글 정보 함께 처리
       for (let i = 0; i < Math.min(commentsSnapshot.docs.length, pageSize); i++) {
         const commentDoc = commentsSnapshot.docs[i];
@@ -1513,30 +1516,39 @@ export const getUserComments = async (
         // postId는 댓글 문서의 부모 경로에서 추출
         const postId = commentDoc.ref.parent.parent?.id;
         
+        if (!postId) continue;
+        
         try {
-          // 실제 게시글 정보 가져오기
-          const postRef = doc(db, 'posts', postId);
-          const postDoc = await getDoc(postRef);
+          // 캐시에서 먼저 확인
+          let postData = postCache[postId];
           
-          let postData = null;
-          if (postDoc.exists()) {
-            const post = postDoc.data();
-            postData = {
-              title: post.title,
-              type: post.type || 'national',
-              boardCode: post.boardCode,
-              boardName: post.boardName || post.boardCode || '게시판',
-              schoolId: post.schoolId,
-              regions: post.regions
-            };
-          } else {
-            console.warn('게시글이 존재하지 않음:', postId);
-            postData = {
-              title: '삭제된 게시글',
-              type: 'national',
-              boardCode: 'free',
-              boardName: '게시판'
-            };
+          if (!postData) {
+            // 실제 게시글 정보 가져오기
+            const postRef = doc(db, 'posts', postId);
+            const postDoc = await getDoc(postRef);
+            
+            if (postDoc.exists()) {
+              const post = postDoc.data();
+              postData = {
+                title: post.title,
+                type: post.type || 'national',
+                boardCode: post.boardCode,
+                boardName: post.boardName || post.boardCode || '게시판',
+                schoolId: post.schoolId,
+                regions: post.regions
+              };
+            } else {
+              console.warn('게시글이 존재하지 않음:', postId);
+              postData = {
+                title: '삭제된 게시글',
+                type: 'national',
+                boardCode: 'free',
+                boardName: '게시판'
+              };
+            }
+            
+            // 캐시에 저장
+            postCache[postId] = postData;
           }
           
           const comment = {

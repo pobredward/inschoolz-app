@@ -44,8 +44,12 @@ export default function UserCommentsScreen() {
   const [filteredComments, setFilteredComments] = useState<Comment[]>([]);
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedType, setSelectedType] = useState<CommentType>('all');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const ITEMS_PER_PAGE = 10;
 
   const filterComments = (comments: Comment[], type: CommentType) => {
     if (type === 'all') return comments;
@@ -63,26 +67,46 @@ export default function UserCommentsScreen() {
     }
   };
 
-  const loadComments = async () => {
+  const loadComments = async (pageNum: number = 1, isLoadMore: boolean = false) => {
     if (!userId) return;
 
     try {
-      setLoading(true);
-      const result = await getUserComments(userId, 1, 50);
-      setComments(result.comments);
-      setFilteredComments(filterComments(result.comments, selectedType));
+      if (isLoadMore) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+      
+      const result = await getUserComments(userId, pageNum, ITEMS_PER_PAGE);
+      
+      if (isLoadMore) {
+        setComments(prev => [...prev, ...result.comments]);
+      } else {
+        setComments(result.comments);
+      }
+      
+      setHasMore(result.hasMore);
+      setPage(pageNum);
     } catch (error) {
       console.error('댓글 로드 오류:', error);
       Alert.alert('오류', '댓글을 불러오는 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadComments();
+    setPage(1);
+    await loadComments(1, false);
     setRefreshing(false);
+  };
+
+  const handleLoadMore = () => {
+    if (!loadingMore && hasMore) {
+      loadComments(page + 1, true);
+    }
   };
 
   useEffect(() => {
@@ -285,10 +309,6 @@ export default function UserCommentsScreen() {
         </View>
 
         {renderFilterTabs()}
-        
-        <View style={styles.countContainer}>
-          <Text style={styles.countText}>총 {filteredComments.length}개</Text>
-        </View>
 
         <FlatList
           data={filteredComments}
@@ -296,8 +316,30 @@ export default function UserCommentsScreen() {
           keyExtractor={(item) => item.id}
           ListEmptyComponent={renderEmptyState}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh}
+              colors={['#10B981']}
+              tintColor="#10B981"
+            />
           }
+          ListFooterComponent={() => {
+            if (!hasMore || filteredComments.length === 0) return null;
+            
+            return (
+              <View style={styles.loadMoreContainer}>
+                <TouchableOpacity 
+                  style={[styles.loadMoreButton, loadingMore && styles.loadMoreButtonDisabled]}
+                  onPress={handleLoadMore}
+                  disabled={loadingMore}
+                >
+                  <Text style={styles.loadMoreButtonText}>
+                    {loadingMore ? '로딩 중...' : '더보기'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            );
+          }}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
         />
@@ -376,16 +418,6 @@ const styles = StyleSheet.create({
   filterButtonTextActive: {
     color: 'white',
     fontWeight: '600',
-  },
-  countContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#F9FAFB',
-  },
-  countText: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
   },
   safeArea: {
     flex: 1,
@@ -498,5 +530,26 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: '#6B7280',
+  },
+  loadMoreContainer: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  loadMoreButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  loadMoreButtonDisabled: {
+    opacity: 0.5,
+  },
+  loadMoreButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
   },
 });
