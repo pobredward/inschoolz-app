@@ -1082,6 +1082,24 @@ export const updateUserProfile = async (
       }
     }
     
+    // searchTokens 업데이트 (닉네임, 실명 변경 시)
+    if (profileData.userName !== undefined || profileData.realName !== undefined) {
+      const userData = userDoc.data();
+      const currentUserName = profileData.userName || userData?.profile?.userName;
+      const currentRealName = profileData.realName !== undefined ? profileData.realName : userData?.profile?.realName;
+      const currentSchoolName = userData?.school?.name;
+      
+      // 검색 토큰 재생성
+      const { generateUserSearchTokens } = await import('../utils/search-tokens');
+      const newSearchTokens = generateUserSearchTokens(
+        currentUserName,
+        currentRealName,
+        currentSchoolName
+      );
+      
+      updates['searchTokens'] = newSearchTokens;
+    }
+    
     // 변경된 필드가 있는 경우에만 업데이트
     if (Object.keys(updates).length > 0) {
       updates.updatedAt = serverTimestamp();

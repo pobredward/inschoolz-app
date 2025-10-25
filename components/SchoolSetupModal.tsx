@@ -81,6 +81,14 @@ export default function SchoolSetupModal({ visible, onClose, onComplete }: Schoo
     try {
       setIsAdding(true);
 
+      // 검색 토큰 재생성 (학교명이 변경되므로)
+      const { generateUserSearchTokens } = await import('../utils/search-tokens');
+      const newSearchTokens = generateUserSearchTokens(
+        user.profile?.userName,
+        user.profile?.realName,
+        school.name
+      );
+
       // Firestore 업데이트
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
@@ -88,6 +96,7 @@ export default function SchoolSetupModal({ visible, onClose, onComplete }: Schoo
         'school.name': school.name,
         'school.address': school.address,
         'school.schoolType': school.schoolType,
+        searchTokens: newSearchTokens,
         updatedAt: new Date()
       });
 
@@ -99,7 +108,8 @@ export default function SchoolSetupModal({ visible, onClose, onComplete }: Schoo
           name: school.name,
           address: school.address,
           schoolType: school.schoolType,
-        }
+        },
+        searchTokens: newSearchTokens
       });
 
       Alert.alert('완료', '학교 정보가 저장되었습니다.');
