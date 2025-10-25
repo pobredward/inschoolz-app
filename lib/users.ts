@@ -1106,6 +1106,18 @@ export const updateUserProfile = async (
       await updateDoc(userRef, updates);
     }
     
+    // 닉네임이 변경된 경우, 해당 사용자의 모든 게시물의 작성자 정보 업데이트
+    if (profileData.userName !== undefined) {
+      const userData = userDoc.data();
+      const newUserName = profileData.userName;
+      
+      // 익명이 아닌 게시물의 작성자 정보 업데이트
+      await updateUserPostsAuthorInfo(userId, newUserName, userData?.profile?.profileImageUrl);
+      
+      // 댓글의 작성자 정보도 업데이트 (필요시 주석 해제)
+      // await updateUserCommentsAuthorInfo(userId, newUserName, userData?.profile?.profileImageUrl);
+    }
+    
     return true;
   } catch (error) {
     console.error('사용자 프로필 업데이트 오류:', error);
@@ -1752,6 +1764,79 @@ export const checkReferralExists = async (userName: string): Promise<{
     console.error('추천 아이디 확인 오류:', error);
     return { exists: false };
   }
-}; 
+};
 
- 
+/**
+ * 사용자의 모든 게시물의 작성자 정보 업데이트
+ */
+const updateUserPostsAuthorInfo = async (
+  userId: string,
+  newUserName: string,
+  profileImageUrl?: string
+): Promise<void> => {
+  try {
+    const postsRef = collection(db, 'posts');
+    
+    // 해당 사용자의 익명이 아닌 모든 게시물 조회
+    const q = query(
+      postsRef,
+      where('authorId', '==', userId),
+      where('authorInfo.isAnonymous', '==', false)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    
+    // 배치 업데이트
+    const updatePromises = querySnapshot.docs.map((postDoc) => {
+      const postRef = doc(db, 'posts', postDoc.id);
+      return updateDoc(postRef, {
+        'authorInfo.displayName': newUserName,
+        'authorInfo.profileImageUrl': profileImageUrl || '',
+        'updatedAt': serverTimestamp()
+      });
+    });
+    
+    await Promise.all(updatePromises);
+    
+    console.log(`✅ ${querySnapshot.size}개의 게시물 작성자 정보 업데이트 완료`);
+  } catch (error) {
+    console.error('게시물 작성자 정보 업데이트 오류:', error);
+    // 에러가 발생해도 프로필 업데이트는 성공한 것으로 처리
+  }
+};
+
+/**
+ * 사용자의 모든 댓글의 작성자 정보 업데이트
+ */
+const updateUserCommentsAuthorInfo = async (
+  userId: string,
+  newUserName: string,
+  profileImageUrl?: string
+): Promise<void> => {
+  try {
+    // collectionGroup을 사용해서 모든 posts의 comments 서브컬렉션에서 한 번에 조회
+    const q = query(
+      collectionGroup(db, 'comments'),
+      where('authorId', '==', userId),
+      where('authorInfo.isAnonymous', '==', false)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    
+    // 배치 업데이트
+    const updatePromises = querySnapshot.docs.map((commentDoc) => {
+      return updateDoc(commentDoc.ref, {
+        'authorInfo.displayName': newUserName,
+        'authorInfo.profileImageUrl': profileImageUrl || '',
+        'updatedAt': serverTimestamp()
+      });
+    });
+    
+    await Promise.all(updatePromises);
+    
+    console.log(`✅ ${querySnapshot.size}개의 댓글 작성자 정보 업데이트 완료`);
+  } catch (error) {
+    console.error('댓글 작성자 정보 업데이트 오류:', error);
+    // 에러가 발생해도 프로필 업데이트는 성공한 것으로 처리
+  }
+};
