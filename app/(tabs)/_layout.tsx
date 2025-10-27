@@ -31,6 +31,7 @@ const pastelGreenColors = {
 
 function CustomHeader() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const insets = useSafeAreaInsets(); // Safe Area 인셋 추가
   const { 
     user, 
     clearAuth, 
@@ -157,7 +158,7 @@ function CustomHeader() {
   };
 
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
       <View style={styles.headerLeft}>
         <Text style={styles.logo}>InSchoolz</Text>
       </View>
@@ -204,7 +205,7 @@ function CustomHeader() {
         onRequestClose={handleCloseDropdown}
       >
         <TouchableOpacity
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, { paddingTop: insets.top + 70 }]}
           activeOpacity={1}
           onPress={handleCloseDropdown}
         >
@@ -400,7 +401,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 50 : 30,
+    // paddingTop은 동적으로 설정됨 (insets.top + 10)
     paddingBottom: 10,
     backgroundColor: 'white',
     borderBottomWidth: 1,
@@ -494,7 +495,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     justifyContent: 'flex-start',
     alignItems: 'flex-end',
-    paddingTop: Platform.OS === 'ios' ? 90 : 70,
+    // paddingTop은 동적으로 설정됨 (insets.top + 70)
     paddingRight: 16,
   },
   dropdownContainer: {
