@@ -466,10 +466,10 @@ export default function CommunityScreen() {
     return formatRelativeTime(timestamp);
   };
 
-  const handlePostPress = (post: CommunityPost) => {
+  const handlePostPress = useCallback((post: CommunityPost) => {
     // onScroll에서 이미 스크롤 위치가 저장되므로 바로 이동
     router.push(`/board/${selectedTab}/${post.boardCode}/${post.id}` as any);
-  };
+  }, [selectedTab, router]);
 
   const handleWritePress = () => {
     setShowBoardSelector(true);
@@ -561,7 +561,7 @@ export default function CommunityScreen() {
     }
   };
 
-  const renderTabs = () => (
+  const renderTabs = useCallback(() => (
     <View style={styles.tabContainer}>
       {[
         { value: 'national', label: '전국' },
@@ -585,7 +585,7 @@ export default function CommunityScreen() {
         </TouchableOpacity>
       ))}
     </View>
-  );
+  ), [selectedTab]);
 
   const renderCategoryFilter = () => (
     <View style={styles.categoryContainer}>
@@ -712,7 +712,7 @@ export default function CommunityScreen() {
     // 정렬 변경 후 게시글 다시 로드 (이미 loadPosts의 useEffect에서 sortBy 변경 시 자동으로 실행됨)
   };
 
-  const renderSortHeader = () => (
+  const renderSortHeader = useCallback(() => (
     <View style={styles.sortContainer}>
       <Text style={styles.postCount}>총 {posts.length}개</Text>
       <TouchableOpacity 
@@ -725,7 +725,7 @@ export default function CommunityScreen() {
         <Ionicons name="chevron-down" size={16} color="#6B7280" />
       </TouchableOpacity>
     </View>
-  );
+  ), [posts.length, sortBy]);
 
   // 정렬 선택 모달 렌더링 함수 추가
   const renderSortModal = () => (
@@ -772,7 +772,7 @@ export default function CommunityScreen() {
     </Modal>
   );
 
-  const renderPostCard = ({ item: post }: { item: CommunityPost }) => {
+  const renderPostCard = useCallback(({ item: post }: { item: CommunityPost }) => {
     const getTabName = () => {
       switch (selectedTab) {
         case 'national': return '전국';
@@ -813,7 +813,7 @@ export default function CommunityScreen() {
         variant="community"
       />
     );
-  };
+  }, [selectedTab, blockedUserIds, handleUnblock, handlePostPress]);
 
   const renderEmptyState = () => {
     // 학교 탭에서 로그인하지 않은 사용자이고 특정 학교가 선택되지 않은 경우 인기 학교 목록 표시
@@ -923,128 +923,143 @@ export default function CommunityScreen() {
 
   return (
     <View style={styles.container}>
-      <SafeScreenContainer 
-        scrollable={true}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#10B981']}
-          />
-        }
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-        scrollViewRef={scrollViewRef as React.RefObject<ScrollView>}
-        onLayout={handleLayout}
-      >
-        {/* 로그인이 필요한 탭에서는 로그인 안내 화면 표시 */}
-        {isLoginRequired ? (
-          <View style={styles.loginRequiredWrapper}>
-            {renderTabs()}
-            {renderLoginRequired()}
-          </View>
-        ) : (
-          <View style={styles.contentContainer}>
-            {renderTabs()}
-            
-            {selectedTab === 'school' && (
-              user ? (
-                // 로그인한 사용자: 기존 SchoolSelector
-                <SchoolSelector 
-                  ref={schoolSelectorRef}
-                  style={styles.schoolSelector}
-                  onSchoolChange={async (school: any) => {
-                    // 학교 변경 시 URL 업데이트
-                    console.log('학교 변경됨:', school);
-                    const schoolId = school?.id || school;
-                    router.push(`/(tabs)/community?tab=school/${schoolId}`);
-                    // 게시글 다시 로드
-                    loadBoards();
-                    loadPosts();
-                  }}
-                />
-              ) : (
-                // 로그인하지 않은 사용자: 현재 학교 정보 표시
-                <View style={styles.guestSchoolInfo}>
-                  {currentSchoolInfo ? (
-                    <View style={styles.guestSchoolContent}>
-                      <TouchableOpacity 
-                        style={styles.backButton}
-                        onPress={() => {
-                          // 인기 학교 목록으로 돌아가기
-                          router.push('/(tabs)/community?tab=school');
-                        }}
-                      >
-                        <Ionicons name="chevron-back" size={20} color="#6B7280" />
-                      </TouchableOpacity>
-                      <Text style={styles.guestSchoolIcon}>🏫</Text>
-                      <View style={styles.guestSchoolText}>
-                        <Text style={styles.guestSchoolName}>{currentSchoolInfo.KOR_NAME}</Text>
-                        <Text style={styles.guestSchoolSubtext}>
-                          {currentSchoolInfo.REGION} • 게스트로 방문 중
-                        </Text>
-                      </View>
-                    </View>
-                  ) : (
-                    <View style={styles.guestSchoolContent}>
-                      <Text style={styles.guestSchoolIcon}>🏫</Text>
-                      <View style={styles.guestSchoolText}>
-                        <Text style={styles.guestSchoolName}>학교 커뮤니티 탐색</Text>
-                        <Text style={styles.guestSchoolSubtext}>
-                          아래에서 원하는 학교를 선택해보세요
-                        </Text>
-                      </View>
-                    </View>
-                  )}
+      <View style={styles.headerContainer}>
+        {renderTabs()}
+        
+        {selectedTab === 'school' && (
+          user ? (
+            // 로그인한 사용자: 기존 SchoolSelector
+            <SchoolSelector 
+              ref={schoolSelectorRef}
+              style={styles.schoolSelector}
+              onSchoolChange={async (school: any) => {
+                // 학교 변경 시 URL 업데이트
+                console.log('학교 변경됨:', school);
+                const schoolId = school?.id || school;
+                router.push(`/(tabs)/community?tab=school/${schoolId}`);
+                // 게시글 다시 로드
+                loadBoards();
+                loadPosts();
+              }}
+            />
+          ) : (
+            // 로그인하지 않은 사용자: 현재 학교 정보 표시
+            <View style={styles.guestSchoolInfo}>
+              {currentSchoolInfo ? (
+                <View style={styles.guestSchoolContent}>
                   <TouchableOpacity 
-                    style={styles.guestLoginButton}
-                    onPress={() => router.push('/login')}
+                    style={styles.backButton}
+                    onPress={() => {
+                      // 인기 학교 목록으로 돌아가기
+                      router.push('/(tabs)/community?tab=school');
+                    }}
                   >
-                    <Text style={styles.guestLoginButtonText}>로그인</Text>
+                    <Ionicons name="chevron-back" size={20} color="#6B7280" />
                   </TouchableOpacity>
-                </View>
-              )
-            )}
-            
-            {/* 카테고리 필터와 정렬 헤더는 인기 학교 목록이 아닐 때만 표시 */}
-            {!(selectedTab === 'school' && !user && !currentSchoolId) && (
-              <>
-                {renderCategoryFilter()}
-                {renderSortHeader()}
-              </>
-            )}
-            
-            {isLoading && (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#10B981" />
-              </View>
-            )}
-            
-            {/* 게시글 목록 */}
-            <View style={styles.postsContainer}>
-              {posts.length > 0 ? (
-                posts.map((post) => (
-                  <View key={post.id}>
-                    {renderPostCard({ item: post })}
+                  <Text style={styles.guestSchoolIcon}>🏫</Text>
+                  <View style={styles.guestSchoolText}>
+                    <Text style={styles.guestSchoolName}>{currentSchoolInfo.KOR_NAME}</Text>
+                    <Text style={styles.guestSchoolSubtext}>
+                      {currentSchoolInfo.REGION} • 게스트로 방문 중
+                    </Text>
                   </View>
-                ))
+                </View>
               ) : (
-                !isLoading && renderEmptyState()
+                <View style={styles.guestSchoolContent}>
+                  <Text style={styles.guestSchoolIcon}>🏫</Text>
+                  <View style={styles.guestSchoolText}>
+                    <Text style={styles.guestSchoolName}>학교 커뮤니티 탐색</Text>
+                    <Text style={styles.guestSchoolSubtext}>
+                      아래에서 원하는 학교를 선택해보세요
+                    </Text>
+                  </View>
+                </View>
               )}
+              <TouchableOpacity 
+                style={styles.guestLoginButton}
+                onPress={() => router.push('/login')}
+              >
+                <Text style={styles.guestLoginButtonText}>로그인</Text>
+              </TouchableOpacity>
             </View>
-          </View>
+          )
         )}
+        
+        {/* 카테고리 필터와 정렬 헤더는 인기 학교 목록이 아닐 때만 표시 */}
+        {!(selectedTab === 'school' && !user && !currentSchoolId) && (
+          <>
+            {renderCategoryFilter()}
+            {renderSortHeader()}
+          </>
+        )}
+      </View>
 
-        {/* 게시판 선택 모달 */}
-        <BoardSelector
-          isVisible={showBoardSelector}
-          onClose={() => setShowBoardSelector(false)}
-          type={selectedTab}
-        />
+      {/* 로그인이 필요한 탭에서는 로그인 안내 화면 표시 */}
+      {isLoginRequired ? (
+        <View style={styles.loginRequiredWrapper}>
+          {renderLoginRequired()}
+        </View>
+      ) : (
+        <>
+          {/* 게시글 목록 - FlatList로 변경하여 성능 개선 */}
+          {isLoading && posts.length === 0 ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#10B981" />
+            </View>
+          ) : (selectedTab === 'school' && !user && !currentSchoolId) ? (
+            // 인기 학교 목록 표시
+            <ScrollView
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  colors={['#10B981']}
+                />
+              }
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 140 }}
+            >
+              {renderEmptyState()}
+            </ScrollView>
+          ) : (
+            <FlatList
+              ref={scrollViewRef as any}
+              data={posts}
+              keyExtractor={(item) => item.id}
+              renderItem={renderPostCard}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  colors={['#10B981']}
+                />
+              }
+              onScroll={handleScroll}
+              scrollEventThrottle={16}
+              onLayout={handleLayout}
+              contentContainerStyle={styles.flatListContent}
+              ListEmptyComponent={!isLoading ? renderEmptyState : null}
+              showsVerticalScrollIndicator={false}
+              // 성능 최적화 옵션
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={10}
+              updateCellsBatchingPeriod={50}
+              initialNumToRender={10}
+              windowSize={10}
+            />
+          )}
+        </>
+      )}
 
-        {/* 정렬 선택 모달 */}
-        {renderSortModal()}
-      </SafeScreenContainer>
+      {/* 게시판 선택 모달 */}
+      <BoardSelector
+        isVisible={showBoardSelector}
+        onClose={() => setShowBoardSelector(false)}
+        type={selectedTab}
+      />
+
+      {/* 정렬 선택 모달 */}
+      {renderSortModal()}
 
       {/* 글쓰기 버튼 - SafeScreenContainer 외부에 배치하여 고정 */}
       {user && (
@@ -1115,12 +1130,19 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
   },
+  headerContainer: {
+    backgroundColor: 'white',
+  },
   contentContainer: {
     paddingBottom: 100, // 글쓰기 버튼과의 간격을 위한 여백
   },
   postsContainer: {
     paddingHorizontal: 6,
     paddingBottom: 20,
+  },
+  flatListContent: {
+    paddingHorizontal: 6,
+    paddingBottom: 140, // 글쓰기 버튼과의 간격을 위한 여백
   },
   tabContainer: {
     flexDirection: 'row',

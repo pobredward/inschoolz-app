@@ -287,10 +287,26 @@ const styles = StyleSheet.create({
   },
 });
 
-// React.memo로 불필요한 리렌더링 방지
+// React.memo로 불필요한 리렌더링 방지 - 더 엄격한 비교
 export default React.memo(PostListItem, (prevProps, nextProps) => {
-  return prevProps.post.id === nextProps.post.id &&
-         prevProps.post.updatedAt === nextProps.post.updatedAt &&
-         prevProps.post.stats?.likeCount === nextProps.post.stats?.likeCount &&
-         prevProps.post.stats?.commentCount === nextProps.post.stats?.commentCount;
+  // ID가 다르면 다른 아이템
+  if (prevProps.post.id !== nextProps.post.id) return false;
+  
+  // 통계 변경 확인
+  if (prevProps.post.stats?.likeCount !== nextProps.post.stats?.likeCount) return false;
+  if (prevProps.post.stats?.commentCount !== nextProps.post.stats?.commentCount) return false;
+  if (prevProps.post.stats?.viewCount !== nextProps.post.stats?.viewCount) return false;
+  if (prevProps.post.stats?.scrapCount !== nextProps.post.stats?.scrapCount) return false;
+  
+  // 내용 변경 확인
+  if (prevProps.post.title !== nextProps.post.title) return false;
+  if (prevProps.post.content !== nextProps.post.content) return false;
+  if (prevProps.post.previewContent !== nextProps.post.previewContent) return false;
+  
+  // 뱃지 텍스트 변경 확인
+  if (prevProps.typeBadgeText !== nextProps.typeBadgeText) return false;
+  if (prevProps.boardBadgeText !== nextProps.boardBadgeText) return false;
+  
+  // 모든 확인을 통과하면 리렌더링하지 않음
+  return true;
 }); 
