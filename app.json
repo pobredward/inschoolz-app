@@ -28,6 +28,12 @@
             "CFBundleURLSchemes": [
               "kakao380177b185226c4935a7f293190afc46"
             ]
+          },
+          {
+            "CFBundleURLName": "google",
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.702584515843-mt6584jc65q4e02qq6snip7qi12fpe2t"
+            ]
           }
         ],
         "LSApplicationQueriesSchemes": [

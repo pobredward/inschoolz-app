@@ -15,6 +15,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { useAuthStore } from '../store/authStore';
 import { loginWithEmail, loginWithApple, isAppleAuthenticationAvailable } from '../lib/auth';
 import { loginWithKakaoOptimized } from '../lib/kakao';
+import { loginWithGoogle } from '../lib/google';
 import { router } from 'expo-router';
 
 export default function LoginScreen() {
@@ -96,6 +97,28 @@ export default function LoginScreen() {
       // 사용자가 취소한 경우는 알림을 표시하지 않음
       if (!error.message?.includes('취소')) {
         Alert.alert('Apple 로그인 실패', error.message || 'Apple 로그인 중 오류가 발생했습니다.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Google 로그인
+  const handleGoogleLogin = async () => {
+    try {
+      setLoading(true);
+      const user = await loginWithGoogle();
+      setUser(user);
+      
+      Alert.alert('성공', 'Google 로그인이 완료되었습니다!', [
+        { text: '확인', onPress: () => router.replace('/(tabs)') }
+      ]);
+    } catch (error: any) {
+      console.error('Google 로그인 오류:', error);
+      
+      // 사용자가 취소한 경우는 알림을 표시하지 않음
+      if (!error.message?.includes('취소')) {
+        Alert.alert('Google 로그인 실패', error.message || 'Google 로그인 중 오류가 발생했습니다.');
       }
     } finally {
       setLoading(false);
@@ -188,6 +211,18 @@ export default function LoginScreen() {
                   <Ionicons name="chatbubble" size={20} color="#000" style={styles.kakaoIcon} />
                   <Text style={styles.kakaoButtonText}>
                     카카오로 로그인
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Google 로그인 버튼 */}
+                <TouchableOpacity 
+                  style={[styles.googleButton, isLoading && styles.submitButtonDisabled]}
+                  onPress={handleGoogleLogin}
+                  disabled={isLoading}
+                >
+                  <Ionicons name="logo-google" size={20} color="#fff" style={styles.googleIcon} />
+                  <Text style={styles.googleButtonText}>
+                    Google로 로그인
                   </Text>
                 </TouchableOpacity>
 
@@ -426,6 +461,23 @@ const styles = StyleSheet.create({
   },
   kakaoButtonText: {
     color: '#000',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  googleButton: {
+    backgroundColor: '#4285F4',
+    borderRadius: 8,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+  },
+  googleIcon: {
+    marginRight: 8,
+  },
+  googleButtonText: {
+    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
