@@ -60,15 +60,19 @@ export async function createNotification(data: {
     
     console.log('알림 생성 성공:', docRef.id);
     
-    // 푸시 알림 발송 (비동기로 처리하여 에러가 발생해도 알림 생성은 성공)
-    sendPushNotificationToUser(
-      data.userId,
-      data.type,
-      data.title,
-      data.message,
-      data.data
+    // 푸시 알림 발송 (완전히 비동기로 처리, await 하지 않음)
+    // Promise를 즉시 실행하지만 결과를 기다리지 않음 (fire-and-forget)
+    Promise.resolve().then(() => 
+      sendPushNotificationToUser(
+        data.userId,
+        data.type,
+        data.title,
+        data.message,
+        data.data
+      )
     ).catch(error => {
-      console.warn('푸시 알림 발송 실패 (무시하고 계속):', error);
+      // 푸시 토큰이 없거나 다른 이유로 실패해도 조용히 무시
+      console.log('📱 푸시 알림 발송 스킵 (토큰 없음 또는 실패):', error?.message || 'No push tokens');
     });
     
     return {

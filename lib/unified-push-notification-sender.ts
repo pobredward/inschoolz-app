@@ -82,27 +82,18 @@ export async function sendUnifiedPushNotification(
   data?: Record<string, any>
 ): Promise<{ success: boolean; error?: string; results?: any[] }> {
   try {
-    console.log('🔄 [DEBUG] 통합 푸시 발송 시작 (앱):', { userId, notificationType, title });
-    
     // 사용자의 푸시 토큰 가져오기
     const userDoc = await getDoc(doc(db, 'users', userId));
     if (!userDoc.exists()) {
-      console.error('❌ [DEBUG] 사용자를 찾을 수 없음:', userId);
+      console.log('📱 [INFO] 사용자를 찾을 수 없음:', userId);
       return { success: false, error: 'User not found' };
     }
 
     const userData = userDoc.data();
     const pushTokens = userData.pushTokens;
-    
-    console.log('👤 [DEBUG] 사용자 정보:', { 
-      userId, 
-      userName: userData?.profile?.userName,
-      hasPushTokens: !!pushTokens,
-      availableTokens: pushTokens ? Object.keys(pushTokens) : []
-    });
 
     if (!pushTokens || Object.keys(pushTokens).length === 0) {
-      console.error('❌ [DEBUG] 푸시 토큰이 없음:', userId);
+      console.log('📱 [INFO] 푸시 토큰이 없음 (정상 - 토큰 미등록 사용자):', userId);
       return { 
         success: false, 
         error: 'No push tokens found - user may not have app installed or push permission denied' 
@@ -121,13 +112,10 @@ export async function sendUnifiedPushNotification(
 
       // 웹 토큰은 앱에서 처리하지 않음
       if (platform === 'web') {
-        console.log('ℹ️ [DEBUG] 웹 토큰은 서버에서 처리됩니다:', platform);
         continue;
       }
 
       const token = (tokenData as any).token;
-      console.log(`🚀 [DEBUG] ${platform} 토큰으로 발송 준비:`, token.substring(0, 30) + '...');
-
       const channelId = getChannelIdForNotificationType(notificationType);
       const expoMessage: ExpoMessage = {
         to: token,
@@ -170,7 +158,6 @@ export async function sendUnifiedPushNotification(
     }
 
     if (sendPromises.length === 0) {
-      console.log('ℹ️ [DEBUG] 앱에서 발송할 토큰이 없음 (웹 토큰만 있을 수 있음)');
       return { success: false, error: 'No app push tokens found' };
     }
 
@@ -188,22 +175,17 @@ export async function sendUnifiedPushNotification(
         
         if (platformResult.success) {
           hasSuccess = true;
-          console.log(`✅ [DEBUG] ${platformResult.platform} 푸시 발송 성공`);
         } else {
-          console.warn(`⚠️ [DEBUG] ${platformResult.platform} 푸시 발송 실패:`, platformResult.error);
           errors.push(`${platformResult.platform}: ${platformResult.error}`);
         }
       } else {
-        console.error('❌ [DEBUG] 푸시 발송 중 예외:', result.reason);
         errors.push(`Exception: ${result.reason}`);
       }
     }
 
     if (hasSuccess) {
-      console.log('✅ [DEBUG] 앱 푸시 발송 성공');
       return { success: true, results };
     } else {
-      console.error('❌ [DEBUG] 모든 앱 푸시 발송 실패');
       return { 
         success: false, 
         error: errors.join(', '), 
@@ -212,7 +194,6 @@ export async function sendUnifiedPushNotification(
     }
 
   } catch (error) {
-    console.error('🚨 [DEBUG] 통합 푸시 발송 중 예외:', error);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error' 

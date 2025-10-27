@@ -12,10 +12,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import Constants from 'expo-constants';
 import { useAuthStore } from '../store/authStore';
 import { loginWithEmail, loginWithApple, isAppleAuthenticationAvailable } from '../lib/auth';
 import { loginWithKakaoOptimized } from '../lib/kakao';
-import { loginWithGoogle } from '../lib/google';
 import { router } from 'expo-router';
 
 export default function LoginScreen() {
@@ -29,6 +29,9 @@ export default function LoginScreen() {
   });
   
   const { setUser, setLoading, isLoading } = useAuthStore();
+
+  // Expo Go 환경 감지 (Expo Go에서는 Google 로그인 비활성화)
+  const isExpoGo = Constants.executionEnvironment === 'storeClient';
 
   // Apple 로그인 가능 여부 확인
   useEffect(() => {
@@ -103,10 +106,19 @@ export default function LoginScreen() {
     }
   };
 
-  // Google 로그인
+  // Google 로그인 (동적 import로 Expo Go 에러 방지)
   const handleGoogleLogin = async () => {
     try {
       setLoading(true);
+      
+      // Expo Go 환경에서는 실행되지 않도록 추가 체크
+      if (isExpoGo) {
+        Alert.alert('알림', 'Google 로그인은 Expo Go에서 지원되지 않습니다.');
+        return;
+      }
+      
+      // 동적 import로 네이티브 모듈 로드
+      const { loginWithGoogle } = await import('../lib/google');
       const user = await loginWithGoogle();
       setUser(user);
       
@@ -214,17 +226,19 @@ export default function LoginScreen() {
                   </Text>
                 </TouchableOpacity>
 
-                {/* Google 로그인 버튼 */}
-                <TouchableOpacity 
-                  style={[styles.googleButton, isLoading && styles.submitButtonDisabled]}
-                  onPress={handleGoogleLogin}
-                  disabled={isLoading}
-                >
-                  <Ionicons name="logo-google" size={20} color="#fff" style={styles.googleIcon} />
-                  <Text style={styles.googleButtonText}>
-                    Google로 로그인
-                  </Text>
-                </TouchableOpacity>
+                {/* Google 로그인 버튼 (Expo Go가 아닐 때만 표시) */}
+                {!isExpoGo && (
+                  <TouchableOpacity 
+                    style={[styles.googleButton, isLoading && styles.submitButtonDisabled]}
+                    onPress={handleGoogleLogin}
+                    disabled={isLoading}
+                  >
+                    <Ionicons name="logo-google" size={20} color="#fff" style={styles.googleIcon} />
+                    <Text style={styles.googleButtonText}>
+                      Google로 로그인
+                    </Text>
+                  </TouchableOpacity>
+                )}
 
                 {/* Apple 로그인 버튼 (iOS에서만 표시) */}
                 {isAppleLoginAvailable && (
