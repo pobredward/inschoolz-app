@@ -15,7 +15,9 @@ import {
   writeBatch,
   increment,
   serverTimestamp,
-  runTransaction
+  runTransaction,
+  startAfter,
+  DocumentSnapshot
 } from 'firebase/firestore';
 import { Board, BoardType, Post } from '../types';
 import { toTimestamp } from '../utils/timeUtils';
@@ -697,6 +699,139 @@ export const getAllPostsByRegion = async (
     console.error('지역 게시글 목록 가져오기 오류:', error);
     throw new Error('지역 게시글 목록을 가져오는 중 오류가 발생했습니다.');
   }
+};
+
+/**
+ * 페이지네이션과 서버 사이드 정렬을 지원하는 게시글 목록 가져오기
+ */
+type SortOption = 'latest' | 'popular' | 'views' | 'comments';
+
+interface GetPostsWithPaginationParams {
+  type: BoardType;
+  boardCode?: string; // 'all'이면 전체 게시판
+  pageSize?: number;
+  sortBy?: SortOption;
+  lastDoc?: DocumentSnapshot | null;
+  schoolId?: string;
+  regions?: { sido: string; sigungu: string };
+}
+
+export const getPostsWithPagination = async ({
+  type,
+  boardCode,
+  pageSize = 30,
+  sortBy = 'latest',
+  lastDoc = null,
+  schoolId,
+  regions
+}: GetPostsWithPaginationParams): Promise<{ posts: Post[], lastDoc: DocumentSnapshot | null, hasMore: boolean }> => {
+  try {
+    // 기본 where 조건
+    let constraints: any[] = [
+      where('type', '==', type),
+      where('status.isDeleted', '==', false),
+      where('status.isHidden', '==', false)
+    ];
+
+    // 특정 게시판인 경우
+    if (boardCode && boardCode !== 'all') {
+      constraints.push(where('boardCode', '==', boardCode));
+    }
+
+    // 학교 필터
+    if (type === 'school' && schoolId) {
+      constraints.push(where('schoolId', '==', schoolId));
+    }
+
+    // 지역 필터
+    if (type === 'regional' && regions?.sido && regions?.sigungu) {
+      constraints.push(where('regions.sido', '==', regions.sido));
+      constraints.push(where('regions.sigungu', '==', regions.sigungu));
+    }
+
+    // 고정 게시글은 항상 먼저
+    constraints.push(orderBy('status.isPinned', 'desc'));
+
+    // 정렬 조건 (서버 사이드 정렬)
+    switch (sortBy) {
+      case 'popular':
+        constraints.push(orderBy('stats.likeCount', 'desc'));
+        constraints.push(orderBy('createdAt', 'desc')); // 동일한 좋아요 수일 때 최신순
+        break;
+      case 'views':
+        constraints.push(orderBy('stats.viewCount', 'desc'));
+        constraints.push(orderBy('createdAt', 'desc'));
+        break;
+      case 'comments':
+        constraints.push(orderBy('stats.commentCount', 'desc'));
+        constraints.push(orderBy('createdAt', 'desc'));
+        break;
+      case 'latest':
+      default:
+        constraints.push(orderBy('createdAt', 'desc'));
+        break;
+    }
+
+    // 페이지네이션 커서
+    if (lastDoc) {
+      constraints.push(startAfter(lastDoc));
+    }
+
+    // limit 추가 (+ 1개 더 가져와서 hasMore 확인)
+    constraints.push(limit(pageSize + 1));
+
+    const q = query(collection(db, 'posts'), ...constraints);
+    const querySnapshot = await getDocs(q);
+    
+    const posts: Post[] = [];
+    let newLastDoc: DocumentSnapshot | null = null;
+    let hasMore = false;
+
+    // pageSize + 1개를 가져왔는지 확인
+    if (querySnapshot.docs.length > pageSize) {
+      hasMore = true;
+      querySnapshot.docs.slice(0, pageSize).forEach((doc) => {
+        posts.push(convertDocToPost(doc));
+      });
+      newLastDoc = querySnapshot.docs[pageSize - 1];
+    } else {
+      querySnapshot.forEach((doc) => {
+        posts.push(convertDocToPost(doc));
+      });
+      if (querySnapshot.docs.length > 0) {
+        newLastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
+      }
+    }
+
+    return { posts, lastDoc: newLastDoc, hasMore };
+  } catch (error) {
+    console.error('페이지네이션 게시글 로드 오류:', error);
+    throw new Error('게시글 목록을 가져오는 중 오류가 발생했습니다.');
+  }
+};
+
+// Document를 Post로 변환하는 헬퍼 함수
+const convertDocToPost = (doc: DocumentSnapshot): Post => {
+  const postData = doc.data();
+  return {
+    id: doc.id,
+    title: postData!.title,
+    content: postData!.content,
+    authorId: postData!.authorId,
+    authorInfo: postData!.authorInfo,
+    boardCode: postData!.boardCode || postData!.code,
+    type: postData!.type || postData!.boardType,
+    category: postData!.category,
+    createdAt: postData!.createdAt,
+    updatedAt: postData!.updatedAt,
+    schoolId: postData!.schoolId,
+    regions: postData!.regions,
+    attachments: postData!.attachments || [],
+    tags: postData!.tags || [],
+    stats: postData!.stats,
+    status: postData!.status,
+    poll: postData!.poll
+  } as Post;
 };
 
 /**

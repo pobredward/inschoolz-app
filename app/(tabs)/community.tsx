@@ -1,26 +1,34 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  SafeAreaView,
   ScrollView,
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
-  TextInput,
   Alert,
   ActivityIndicator,
   FlatList,
   Dimensions,
   Modal,
+  Animated,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { DocumentSnapshot } from 'firebase/firestore';
 import PostListItem from '../../components/PostListItem';
-// 광고 제거: 리워디드 광고만 사용
-import { Timestamp } from 'firebase/firestore';
-// 유틸리티 함수 import
-import { formatRelativeTime, getPostPreviewImages, toTimestamp } from '../../utils/timeUtils';
+import { formatRelativeTime } from '../../utils/timeUtils';
+import { getBoardsByType, getPostsWithPagination } from '@/lib/boards';
+import { getUserById, getBlockedUserIds } from '@/lib/users';
+import { getPopularSchools, getSchoolById } from '@/lib/schools';
+import { BlockedUserContent } from '../../components/ui/BlockedUserContent';
+import { useAuthStore } from '../../store/authStore';
+import { useScrollStore } from '../../store/scrollStore';
+import { Board, BoardType, Post, School } from '../../types';
+import BoardSelector from '@/components/board/BoardSelector';
+import SchoolSelector, { SchoolSelectorRef } from '@/components/board/SchoolSelector';
+import RegionSetupModal from '../../components/RegionSetupModal';
+import SchoolSetupModal from '../../components/SchoolSetupModal';
 
 const parseContentText = (content: string) => {
   if (!content) return '';
@@ -46,20 +54,6 @@ const truncateText = (text: string, maxLength: number = 100) => {
   if (!text) return '';
   return text.length > maxLength ? text.slice(0, maxLength) + '...' : text;
 };
-
-// timeUtils에서 가져온 함수를 사용하므로 여기서는 중복 정의 제거
-import { getBoardsByType, getPostsByBoardType, getAllPostsByType, getAllPostsBySchool, getAllPostsByRegion } from '@/lib/boards';
-import { getUserById, getBlockedUserIds } from '@/lib/users';
-import { getPopularSchools, getSchoolById } from '@/lib/schools';
-import { BlockedUserContent } from '../../components/ui/BlockedUserContent';
-import { useAuthStore } from '../../store/authStore';
-import { useScrollStore } from '../../store/scrollStore';
-import { Board, BoardType, Post, School } from '../../types';
-import BoardSelector from '@/components/board/BoardSelector';
-import SchoolSelector, { SchoolSelectorRef } from '@/components/board/SchoolSelector';
-import { SafeScreenContainer } from '../../components/SafeScreenContainer';
-import RegionSetupModal from '../../components/RegionSetupModal';
-import SchoolSetupModal from '../../components/SchoolSetupModal';
 
 interface CommunityPost extends Post {
   boardName: string;
@@ -100,26 +94,32 @@ export default function CommunityScreen() {
   const [currentSchoolInfo, setCurrentSchoolInfo] = useState<School | null>(null);
   const [currentSchoolId, setCurrentSchoolId] = useState<string | undefined>(undefined);
   
+  // 무한 스크롤 상태
+  const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  
   // 스크롤 위치 관리를 위한 ref와 상태
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<FlatList>(null);
   const schoolSelectorRef = useRef<SchoolSelectorRef>(null);
   const [shouldRestoreScroll, setShouldRestoreScroll] = useState(false);
-  const [isRestoringScroll, setIsRestoringScroll] = useState(false);
   const [isLayoutReady, setIsLayoutReady] = useState(false);
   
-  // 스크롤 키 생성 (탭, 게시판, 정렬 기준으로 구분)
-  const getScrollKey = () => {
-    return `community-${selectedTab}-${selectedBoard}-${sortBy}`;
-  };
+  // 스크롤 상태 관리 제거 - 이제 FlatList의 stickyHeaderIndices 사용
   
-  // 스크롤 위치 저장
-  const handleScroll = useCallback((event: any) => {
+  // 스크롤 키 생성 (탭, 게시판, 정렬 기준으로 구분)
+  const getScrollKey = useCallback(() => {
+    return `community-${selectedTab}-${selectedBoard}-${sortBy}`;
+  }, [selectedTab, selectedBoard, sortBy]);
+
+  // 스크롤 위치 저장 (간단하게)
+  const handleScroll = useCallback((event: {nativeEvent: {contentOffset: {y: number}}}) => {
     const { y } = event.nativeEvent.contentOffset;
     const scrollKey = getScrollKey();
     saveScrollPosition(scrollKey, y);
-  }, [selectedTab, selectedBoard, sortBy, saveScrollPosition]);
+  }, [getScrollKey, saveScrollPosition]);
   
-  // 스크롤 위치 복원
+  // 스크롤 위치 복원 (FlatList에서는 scrollToOffset 사용)
   const restoreScrollPosition = useCallback(() => {
     if (!shouldRestoreScroll) return;
     
@@ -127,47 +127,17 @@ export default function CommunityScreen() {
     const savedPosition = getScrollPosition(scrollKey);
     
     if (savedPosition > 0 && scrollViewRef.current) {
-      setIsRestoringScroll(true);
-      
-      // 약간의 지연을 두고 스크롤 위치 복원
-      // 여러 번 시도하여 안정성 향상
-      let attempts = 0;
-      const maxAttempts = 5;
-      
-      const tryRestore = () => {
-        attempts++;
-        if (scrollViewRef.current) {
-          scrollViewRef.current.scrollTo({
-            y: savedPosition,
-            animated: false,
-          });
-          
-          // 복원이 제대로 되었는지 확인
-          if (attempts < maxAttempts) {
-            setTimeout(() => {
-              if (scrollViewRef.current) {
-                scrollViewRef.current.scrollTo({
-                  y: savedPosition,
-                  animated: false,
-                });
-              }
-            }, 50 * attempts);
-          } else {
-            // 복원 완료
-            setTimeout(() => {
-              setIsRestoringScroll(false);
-            }, 100);
-          }
-        }
-      };
-      
-      setTimeout(tryRestore, 100);
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToOffset({
+          offset: savedPosition,
+          animated: false,
+        });
+      }, 100);
       setShouldRestoreScroll(false);
     } else {
       setShouldRestoreScroll(false);
-      setIsRestoringScroll(false);
     }
-  }, [shouldRestoreScroll, selectedTab, selectedBoard, sortBy, getScrollPosition]);
+  }, [shouldRestoreScroll, getScrollKey, getScrollPosition]);
 
   // 차단된 사용자 목록 로드 - useCallback으로 메모이제이션
   const loadBlockedUsers = useCallback(async () => {
@@ -297,8 +267,6 @@ export default function CommunityScreen() {
   // 화면이 포커스될 때마다 게시글 목록 및 차단 목록 새로고침
   useFocusEffect(
     useCallback(() => {
-      console.log('=== useFocusEffect 실행됨 ===');
-      
       // 차단 목록 새로고침
       if (user?.uid) {
         loadBlockedUsers();
@@ -309,14 +277,10 @@ export default function CommunityScreen() {
         schoolSelectorRef.current.refresh();
       }
       
-      // 게시글 새로고침 (항상 실행하여 새 게시글이 바로 나타나도록)
-      loadPosts();
-      
-      // 뒤로가기로 돌아온 경우 스크롤 위치 복원을 준비
-      if (posts.length > 0) {
-        setShouldRestoreScroll(true);
-      }
-    }, [user?.uid, selectedTab, loadBlockedUsers, posts.length])
+      // 게시글 새로고침은 초기 마운트 시에만 (뒤로가기 제외)
+      // posts.length를 의존성에서 제거하여 무한 루프 방지
+      setShouldRestoreScroll(true);
+    }, [user?.uid, selectedTab])
   );
 
   // 차단 해제 시 상태 업데이트
@@ -341,118 +305,109 @@ export default function CommunityScreen() {
     }
   };
 
-  const loadPosts = async () => {
-    // boards가 아직 로드되지 않았으면 대기
-    if (boards.length === 0 && selectedBoard !== 'all') {
-      return;
-    }
-
+  const loadPosts = async (isLoadMore = false) => {
     try {
-      setIsLoading(true);
+      console.log('loadPosts 호출:', { isLoadMore, hasMore, postsCount: posts.length });
+      
+      // 더 로드하기인데 더 이상 없으면 중단
+      if (isLoadMore && !hasMore) {
+        console.log('더 이상 로드할 게시글 없음');
+        return;
+      }
 
-      let postsData: Post[] = [];
-
-      if (selectedBoard === 'all') {
-        // 전체 게시글 가져오기 - 새로운 필터링 로직 적용
-        if (selectedTab === 'school') {
-          // 학교 탭: currentSchoolId 사용
-          if (currentSchoolId) {
-            console.log('학교 전체 게시글 로딩 - currentSchoolId:', currentSchoolId);
-            postsData = await getAllPostsBySchool(currentSchoolId);
-          } else if (tab && typeof tab === 'string' && tab.startsWith('school/')) {
-            // fallback: URL에서 schoolId 추출
-            const schoolId = tab.split('/')[1];
-            console.log('학교 전체 게시글 로딩 - URL schoolId:', schoolId);
-            postsData = await getAllPostsBySchool(schoolId);
-          } else if (user?.school?.id) {
-            // fallback: 사용자의 학교 ID 사용
-            console.log('학교 전체 게시글 로딩 - fallback schoolId:', user.school.id);
-            postsData = await getAllPostsBySchool(user.school.id);
-          }
-        } else if (selectedTab === 'regional') {
-          // 지역 탭: URL에서 sido, sigungu 추출
-          if (tab && typeof tab === 'string' && tab.startsWith('regional/')) {
-            const parts = tab.split('/');
-            const sido = decodeURIComponent(parts[1]);
-            const sigungu = decodeURIComponent(parts[2]);
-            console.log('지역 전체 게시글 로딩 - sido:', sido, 'sigungu:', sigungu);
-            postsData = await getAllPostsByRegion(sido, sigungu);
-          } else if (user?.regions?.sido && user?.regions?.sigungu) {
-            // fallback: 사용자의 지역 정보 사용
-            console.log('지역 전체 게시글 로딩 - fallback regions:', user.regions.sido, user.regions.sigungu);
-            postsData = await getAllPostsByRegion(user.regions.sido, user.regions.sigungu);
-          }
-        } else {
-          // 전국 탭
-          postsData = await getAllPostsByType(selectedTab);
-        }
+      if (isLoadMore) {
+        setIsLoadingMore(true);
+        console.log('더 많은 게시글 로딩 시작...');
       } else {
-        // 특정 게시판 게시글 가져오기 - 새로운 필터링 로직 적용
-        if (selectedTab === 'school') {
-          // 학교 탭: currentSchoolId 사용
-          let schoolId = '';
-          if (currentSchoolId) {
-            schoolId = currentSchoolId;
-          } else if (tab && typeof tab === 'string' && tab.startsWith('school/')) {
-            schoolId = tab.split('/')[1];
-          } else if (user?.school?.id) {
-            schoolId = user.school.id;
-          }
-          console.log('학교 특정 게시판 로딩 - schoolId:', schoolId, 'boardCode:', selectedBoard);
-          postsData = await getPostsByBoardType(selectedTab, selectedBoard, 20, schoolId);
-        } else if (selectedTab === 'regional') {
-          // 지역 탭: URL에서 sido, sigungu 추출
-          let regions = undefined;
-          if (tab && typeof tab === 'string' && tab.startsWith('regional/')) {
-            const parts = tab.split('/');
-            regions = {
-              sido: decodeURIComponent(parts[1]),
-              sigungu: decodeURIComponent(parts[2])
-            };
-          } else if (user?.regions?.sido && user?.regions?.sigungu) {
-            regions = {
-              sido: user.regions.sido,
-              sigungu: user.regions.sigungu
-            };
-          }
-          console.log('지역 특정 게시판 로딩 - regions:', regions, 'boardCode:', selectedBoard);
-          postsData = await getPostsByBoardType(selectedTab, selectedBoard, 20, undefined, regions);
-        } else {
-          // 전국 탭
-          postsData = await getPostsByBoardType(selectedTab, selectedBoard);
+        setIsLoading(true);
+        console.log('초기 게시글 로딩 시작...');
+        // 새로 로드할 때는 커서 초기화
+        setLastDoc(null);
+        setHasMore(true);
+      }
+
+      // 학교 ID 결정
+      let schoolId: string | undefined = undefined;
+      if (selectedTab === 'school') {
+        if (currentSchoolId) {
+          schoolId = currentSchoolId;
+        } else if (tab && typeof tab === 'string' && tab.startsWith('school/')) {
+          schoolId = tab.split('/')[1];
+        } else if (user?.school?.id) {
+          schoolId = user.school.id;
         }
       }
 
+      // 지역 정보 결정
+      let regions: { sido: string; sigungu: string } | undefined = undefined;
+      if (selectedTab === 'regional') {
+        if (tab && typeof tab === 'string' && tab.startsWith('regional/')) {
+          const parts = tab.split('/');
+          regions = {
+            sido: decodeURIComponent(parts[1]),
+            sigungu: decodeURIComponent(parts[2])
+          };
+        } else if (user?.regions?.sido && user?.regions?.sigungu) {
+          regions = {
+            sido: user.regions.sido,
+            sigungu: user.regions.sigungu
+          };
+        }
+      }
+
+      // 서버 사이드 정렬과 페이지네이션으로 게시글 가져오기
+      const result = await getPostsWithPagination({
+        type: selectedTab,
+        boardCode: selectedBoard,
+        pageSize: 30, // 30개씩 로드
+        sortBy: sortBy,
+        lastDoc: isLoadMore ? lastDoc : null,
+        schoolId,
+        regions
+      });
+
       // Post를 CommunityPost 형태로 변환
-      let communityPosts: CommunityPost[] = postsData.map(post => ({
-        ...post, // 모든 Post 필드를 복사
+      const communityPosts: CommunityPost[] = result.posts.map(post => ({
+        ...post,
         boardName: post.boardName || boards.find(b => b.code === post.boardCode)?.name || '게시판',
         previewContent: truncateText(parseContentText(post.content), 100)
       }));
 
-      // 정렬 적용
-      communityPosts = communityPosts.sort((a, b) => {
-        switch (sortBy) {
-          case 'latest':
-            return toTimestamp(b.createdAt) - toTimestamp(a.createdAt);
-          case 'popular':
-            return (b.stats?.likeCount || 0) - (a.stats?.likeCount || 0);
-          case 'views':
-            return (b.stats?.viewCount || 0) - (a.stats?.viewCount || 0);
-          case 'comments':
-            return (b.stats?.commentCount || 0) - (a.stats?.commentCount || 0);
-          default:
-            return toTimestamp(b.createdAt) - toTimestamp(a.createdAt);
-        }
+      console.log('로드 결과:', {
+        새로운게시글: communityPosts.length,
+        hasMore: result.hasMore,
+        lastDoc: !!result.lastDoc
       });
 
-      setPosts(communityPosts);
+      if (isLoadMore) {
+        // 더 로드하기: 기존 목록에 추가
+        setPosts(prev => {
+          console.log('기존:', prev.length, '+ 새로운:', communityPosts.length, '= 총:', prev.length + communityPosts.length);
+          return [...prev, ...communityPosts];
+        });
+      } else {
+        // 새로 로드: 기존 목록 교체
+        setPosts(communityPosts);
+        console.log('게시글 초기화:', communityPosts.length, '개');
+      }
+
+      setLastDoc(result.lastDoc);
+      setHasMore(result.hasMore);
+      console.log('hasMore 설정:', result.hasMore);
+
     } catch (error) {
       console.error('게시글 로드 실패:', error);
-      // 에러 발생 시 빈 배열로 설정
-      setPosts([]);
+      if (!isLoadMore) {
+        setPosts([]);
+      }
     } finally {
-      setIsLoading(false);
+      if (isLoadMore) {
+        setIsLoadingMore(false);
+        console.log('더 로드하기 완료');
+      } else {
+        setIsLoading(false);
+        console.log('초기 로드 완료');
+      }
     }
   };
 
@@ -460,10 +415,6 @@ export default function CommunityScreen() {
     setRefreshing(true);
     await Promise.all([loadBoards(), loadPosts()]);
     setRefreshing(false);
-  };
-
-  const formatDate = (timestamp: unknown) => {
-    return formatRelativeTime(timestamp);
   };
 
   const handlePostPress = useCallback((post: CommunityPost) => {
@@ -714,7 +665,6 @@ export default function CommunityScreen() {
 
   const renderSortHeader = useCallback(() => (
     <View style={styles.sortContainer}>
-      <Text style={styles.postCount}>총 {posts.length}개</Text>
       <TouchableOpacity 
         style={styles.sortButton}
         onPress={() => setShowSortSelector(true)}
@@ -725,7 +675,7 @@ export default function CommunityScreen() {
         <Ionicons name="chevron-down" size={16} color="#6B7280" />
       </TouchableOpacity>
     </View>
-  ), [posts.length, sortBy]);
+  ), [sortBy]);
 
   // 정렬 선택 모달 렌더링 함수 추가
   const renderSortModal = () => (
@@ -921,11 +871,10 @@ export default function CommunityScreen() {
   // 로그인이 필요한 탭인지 확인 (학교 탭은 로그인 없이도 접근 가능)
   const isLoginRequired = selectedTab === 'regional' && !user;
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.headerContainer}>
-        {renderTabs()}
-        
+  // ListHeaderComponent: 탭 아래 collapsible 컨텐츠
+  const renderListHeader = useCallback(() => {
+    return (
+      <View style={styles.listHeaderContainer}>
         {selectedTab === 'school' && (
           user ? (
             // 로그인한 사용자: 기존 SchoolSelector
@@ -993,6 +942,15 @@ export default function CommunityScreen() {
           </>
         )}
       </View>
+    );
+  }, [selectedTab, user, currentSchoolId, currentSchoolInfo, renderCategoryFilter, renderSortHeader]);
+
+  return (
+    <View style={styles.container}>
+      {/* Sticky Tab Header: 항상 최상단 고정 */}
+      <View style={styles.stickyTabHeader}>
+        {renderTabs()}
+      </View>
 
       {/* 로그인이 필요한 탭에서는 로그인 안내 화면 표시 */}
       {isLoginRequired ? (
@@ -1023,10 +981,12 @@ export default function CommunityScreen() {
             </ScrollView>
           ) : (
             <FlatList
-              ref={scrollViewRef as any}
+              ref={scrollViewRef}
               data={posts}
               keyExtractor={(item) => item.id}
               renderItem={renderPostCard}
+              // 헤더를 FlatList 안에 넣어서 자연스럽게 스크롤
+              ListHeaderComponent={renderListHeader}
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
@@ -1040,6 +1000,35 @@ export default function CommunityScreen() {
               contentContainerStyle={styles.flatListContent}
               ListEmptyComponent={!isLoading ? renderEmptyState : null}
               showsVerticalScrollIndicator={false}
+              // 무한 스크롤
+              onEndReached={() => {
+                console.log('onEndReached 트리거:', { isLoadingMore, hasMore, postsCount: posts.length });
+                if (!isLoadingMore && hasMore) {
+                  console.log('다음 페이지 로드 시작!');
+                  loadPosts(true);
+                } else {
+                  console.log('로드 안 함:', { isLoadingMore, hasMore });
+                }
+              }}
+              onEndReachedThreshold={0.5}
+              ListFooterComponent={() => {
+                if (isLoadingMore) {
+                  return (
+                    <View style={styles.loadingMoreContainer}>
+                      <ActivityIndicator size="small" color="#10B981" />
+                      <Text style={styles.loadingMoreText}>게시글 로딩 중...</Text>
+                    </View>
+                  );
+                }
+                if (!hasMore && posts.length > 0) {
+                  return (
+                    <View style={styles.endOfListContainer}>
+                      <Text style={styles.endOfListText}>모든 게시글을 불러왔습니다</Text>
+                    </View>
+                  );
+                }
+                return null;
+              }}
               // 성능 최적화 옵션
               removeClippedSubviews={true}
               maxToRenderPerBatch={10}
@@ -1130,7 +1119,16 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
   },
-  headerContainer: {
+  stickyTabHeader: {
+    backgroundColor: 'white',
+    zIndex: 10,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  listHeaderContainer: {
     backgroundColor: 'white',
   },
   contentContainer: {
@@ -1255,7 +1253,7 @@ const styles = StyleSheet.create({
   },
   sortContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 12,
@@ -1263,13 +1261,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
-  postCount: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
   sortButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
   },
   sortText: {
     fontSize: 14,
@@ -1733,6 +1731,26 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 12,
     fontWeight: '600',
+  },
+
+  // 무한 스크롤 스타일
+  loadingMoreContainer: {
+    paddingVertical: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingMoreText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  endOfListContainer: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  endOfListText: {
+    fontSize: 14,
+    color: '#9CA3AF',
   },
 
 }); 
