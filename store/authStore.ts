@@ -47,6 +47,8 @@ interface AuthActions {
   initializePushNotifications: () => Promise<void>;
   updatePushToken: (token: string) => Promise<void>;
   removePushToken: () => Promise<void>;
+  // Firebase Auth 동기화 대기 함수
+  waitForAuthSync: (timeoutMs?: number) => Promise<boolean>;
 }
 
 // 초기 상태
@@ -451,6 +453,36 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           logger.error('푸시 토큰 제거 실패:', error);
           throw error;
         }
+      },
+      
+      // Firebase Auth 동기화 대기 함수
+      waitForAuthSync: async (timeoutMs: number = 3000): Promise<boolean> => {
+        const startTime = Date.now();
+        
+        return new Promise((resolve) => {
+          const checkAuth = () => {
+            const { isAuthenticated, isLoading } = get();
+            
+            // 인증이 완료되고 로딩이 끝났으면 성공
+            if (isAuthenticated && !isLoading) {
+              logger.auth('Firebase Auth 동기화 완료');
+              resolve(true);
+              return;
+            }
+            
+            // 타임아웃 체크
+            if (Date.now() - startTime >= timeoutMs) {
+              logger.warn('Firebase Auth 동기화 타임아웃');
+              resolve(false);
+              return;
+            }
+            
+            // 100ms 후 다시 체크
+            setTimeout(checkAuth, 100);
+          };
+          
+          checkAuth();
+        });
       },
     }),
     {

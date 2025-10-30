@@ -99,18 +99,26 @@ export const loginWithGoogle = async (): Promise<User> => {
     // 1. Google Sign-In 초기화
     initializeGoogleSignIn();
 
-    // 2. Play Services 확인 (Android만)
-    if (Platform.OS === 'android') {
-      try {
-        await GoogleSignin.hasPlayServices({
-          showPlayServicesUpdateDialog: true,
-        });
-        logger.debug('Google Play Services 사용 가능');
-      } catch (playServicesError: any) {
-        logger.error('Google Play Services 오류:', playServicesError);
-        throw new Error('Google Play Services를 사용할 수 없습니다. Google Play를 업데이트해주세요.');
-      }
+  // 2. Play Services 확인 (Android만)
+  if (Platform.OS === 'android') {
+    try {
+      await GoogleSignin.hasPlayServices({
+        showPlayServicesUpdateDialog: true,
+      });
+      logger.debug('Google Play Services 사용 가능');
+    } catch (playServicesError: any) {
+      logger.error('Google Play Services 오류:', playServicesError);
+      
+      // ✅ 사용자 친화적인 에러 메시지 및 대안 제시
+      const errorMessage = 
+        'Google Play Services를 사용할 수 없습니다.\n\n' +
+        '다른 로그인 방법을 이용해주세요:\n' +
+        '• 카카오 로그인\n' +
+        '• 이메일 로그인';
+      
+      throw new Error(errorMessage);
     }
+  }
 
     // 3. Google 로그인 수행
     // 기존 로그인 상태 초기화 (계정 선택 가능하도록)

@@ -28,7 +28,7 @@ export default function LoginScreen() {
     password: ''
   });
   
-  const { setUser, setLoading, isLoading } = useAuthStore();
+  const { setUser, setLoading, isLoading, waitForAuthSync } = useAuthStore();
 
   // Expo Go 환경 감지 (Expo Go에서는 Google 로그인 비활성화)
   const isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -55,12 +55,18 @@ export default function LoginScreen() {
       const user = await loginWithEmail(emailForm.email.trim(), emailForm.password);
       setUser(user);
       
+      // Firebase Auth 상태 동기화 대기 (최대 3초)
+      const isSynced = await waitForAuthSync(3000);
+      if (!isSynced) {
+        console.warn('Auth 동기화 타임아웃, 그래도 진행합니다.');
+      }
+      
       Alert.alert('성공', '로그인되었습니다!', [
         { text: '확인', onPress: () => router.replace('/(tabs)') }
       ]);
-    } catch (error: any) {
+    } catch (error) {
       console.error('이메일 로그인 오류:', error);
-      Alert.alert('로그인 실패', error.message || '로그인 중 오류가 발생했습니다.');
+      Alert.alert('로그인 실패', error instanceof Error ? error.message : '로그인 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -73,12 +79,18 @@ export default function LoginScreen() {
       const user = await loginWithKakaoOptimized();
       setUser(user);
       
+      // Firebase Auth 상태 동기화 대기 (최대 3초)
+      const isSynced = await waitForAuthSync(3000);
+      if (!isSynced) {
+        console.warn('Auth 동기화 타임아웃, 그래도 진행합니다.');
+      }
+      
       Alert.alert('성공', '카카오 로그인이 완료되었습니다!', [
         { text: '확인', onPress: () => router.replace('/(tabs)') }
       ]);
-    } catch (error: any) {
+    } catch (error) {
       console.error('카카오 로그인 오류:', error);
-      Alert.alert('카카오 로그인 실패', error.message || '카카오 로그인 중 오류가 발생했습니다.');
+      Alert.alert('카카오 로그인 실패', error instanceof Error ? error.message : '카카오 로그인 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -91,15 +103,22 @@ export default function LoginScreen() {
       const user = await loginWithApple();
       setUser(user);
       
+      // Firebase Auth 상태 동기화 대기 (최대 3초)
+      const isSynced = await waitForAuthSync(3000);
+      if (!isSynced) {
+        console.warn('Auth 동기화 타임아웃, 그래도 진행합니다.');
+      }
+      
       Alert.alert('성공', 'Apple 로그인이 완료되었습니다!', [
         { text: '확인', onPress: () => router.replace('/(tabs)') }
       ]);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Apple 로그인 오류:', error);
       
       // 사용자가 취소한 경우는 알림을 표시하지 않음
-      if (!error.message?.includes('취소')) {
-        Alert.alert('Apple 로그인 실패', error.message || 'Apple 로그인 중 오류가 발생했습니다.');
+      const errorMessage = error instanceof Error ? error.message : '';
+      if (!errorMessage.includes('취소')) {
+        Alert.alert('Apple 로그인 실패', errorMessage || 'Apple 로그인 중 오류가 발생했습니다.');
       }
     } finally {
       setLoading(false);
@@ -122,15 +141,35 @@ export default function LoginScreen() {
       const user = await loginWithGoogle();
       setUser(user);
       
+      // Firebase Auth 상태 동기화 대기 (최대 3초)
+      const isSynced = await waitForAuthSync(3000);
+      if (!isSynced) {
+        console.warn('Auth 동기화 타임아웃, 그래도 진행합니다.');
+      }
+      
       Alert.alert('성공', 'Google 로그인이 완료되었습니다!', [
         { text: '확인', onPress: () => router.replace('/(tabs)') }
       ]);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Google 로그인 오류:', error);
       
+      // ✅ Google Play Services 오류 처리
+      const errorMessage = error instanceof Error ? error.message : '';
+      if (errorMessage.includes('Google Play Services')) {
+        Alert.alert(
+          'Google Play Services 필요',
+          errorMessage,
+          [
+            { text: '카카오 로그인', onPress: () => handleKakaoLogin() },
+            { text: '취소', style: 'cancel' }
+          ]
+        );
+        return;
+      }
+      
       // 사용자가 취소한 경우는 알림을 표시하지 않음
-      if (!error.message?.includes('취소')) {
-        Alert.alert('Google 로그인 실패', error.message || 'Google 로그인 중 오류가 발생했습니다.');
+      if (!errorMessage.includes('취소')) {
+        Alert.alert('Google 로그인 실패', errorMessage || 'Google 로그인 중 오류가 발생했습니다.');
       }
     } finally {
       setLoading(false);

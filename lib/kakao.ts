@@ -5,6 +5,7 @@ import { db, auth } from './firebase';
 import { logger } from '../utils/logger';
 import { login, logout, unlink } from '@react-native-kakao/user';
 import { generateUserSearchTokens } from '../utils/search-tokens';
+import { fetchJsonWithRetry } from '../utils/network-utils';
 
 // 카카오 사용자 정보 인터페이스
 export interface KakaoUserInfo {
@@ -63,34 +64,28 @@ export const getKakaoUserInfo = async (accessToken: string): Promise<KakaoUserIn
 
 /**
  * 카카오 액세스 토큰으로 서버에서 Firebase 커스텀 토큰 받기
+ * ✅ 재시도 로직 및 타임아웃 추가
  */
 export const getFirebaseTokenFromKakao = async (accessToken: string): Promise<string> => {
   try {
     logger.debug('🔗 Firebase 커스텀 토큰 요청 시작');
     logger.debug('🔑 액세스 토큰 길이:', accessToken?.length || 0);
     
-    // 웹 서버의 API 엔드포인트 호출 (www 포함)
-    const response = await fetch('https://www.inschoolz.com/api/auth/kakao/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ accessToken }),
-    });
+    // ✅ 재시도 로직이 포함된 fetch 사용
+    const data = await fetchJsonWithRetry<{ customToken: string }>(
+      'https://www.inschoolz.com/api/auth/kakao/token',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ accessToken }),
+        maxRetries: 3,        // 최대 3회 재시도
+        timeoutMs: 10000,     // 10초 타임아웃
+        retryDelay: 1000,     // 1초 기본 지연 (지수 백오프)
+      }
+    );
 
-    logger.debug('🌐 서버 응답 상태:', response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error('❌ 서버 응답 오류:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText
-      });
-      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
-    }
-
-    const data = await response.json();
     logger.debug('✅ 서버 응답 데이터 키:', Object.keys(data));
     
     if (!data.customToken) {
@@ -102,7 +97,19 @@ export const getFirebaseTokenFromKakao = async (accessToken: string): Promise<st
     return data.customToken;
   } catch (error) {
     logger.error('❌ Firebase 토큰 생성 실패:', error);
-    throw error;
+    
+    // 사용자 친화적인 에러 메시지
+    if (error instanceof Error) {
+      if (error.message.includes('abort')) {
+        throw new Error('서버 연결 시간이 초과되었습니다. 네트워크 상태를 확인해주세요.');
+      } else if (error.message.includes('Network')) {
+        throw new Error('네트워크 연결을 확인해주세요.');
+      } else if (error.message.includes('HTTP 5')) {
+        throw new Error('서버에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      }
+    }
+    
+    throw new Error('카카오 로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
   }
 };
 

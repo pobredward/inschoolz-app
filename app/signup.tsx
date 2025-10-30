@@ -36,7 +36,7 @@ export default function SignupScreen() {
   // 자동 생성된 닉네임 상태
   const [generatedNickname, setGeneratedNickname] = useState<string>('');
   
-  const { setUser, setLoading, isLoading } = useAuthStore();
+  const { setUser, setLoading, isLoading, waitForAuthSync } = useAuthStore();
 
   // 카카오 로그인
   const handleKakaoLogin = async () => {
@@ -45,8 +45,14 @@ export default function SignupScreen() {
       const user = await loginWithKakaoOptimized();
       setUser(user);
       
+      // Firebase Auth 상태 동기화 대기 (최대 3초)
+      const isSynced = await waitForAuthSync(3000);
+      if (!isSynced) {
+        console.warn('Auth 동기화 타임아웃, 그래도 진행합니다.');
+      }
+      
       Alert.alert('성공', '카카오 로그인이 완료되었습니다!', [
-        { text: '확인', onPress: () => router.replace('/(tabs)') }
+        { text: '확인', onPress: () => router.replace('/(tabs)/') }
       ]);
     } catch (error: any) {
       console.error('카카오 로그인 오류:', error);
@@ -118,8 +124,14 @@ export default function SignupScreen() {
       );
       setUser(user);
       
+      // Firebase Auth 상태 동기화 대기 (최대 3초)
+      const isSynced = await waitForAuthSync(3000);
+      if (!isSynced) {
+        console.warn('Auth 동기화 타임아웃, 그래도 진행합니다.');
+      }
+      
       Alert.alert('성공', '회원가입이 완료되었습니다!', [
-        { text: '확인', onPress: () => router.replace('/(tabs)') }
+        { text: '확인', onPress: () => router.replace('/(tabs)/') }
       ]);
     } catch (error: any) {
       console.error('이메일 회원가입 오류:', error);
