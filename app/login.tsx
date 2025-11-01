@@ -28,9 +28,9 @@ export default function LoginScreen() {
     password: ''
   });
   
-  const { setUser, setLoading, isLoading, waitForAuthSync } = useAuthStore();
+  const { setUser, setLoading, isLoading } = useAuthStore();
 
-  // Expo Go 환경 감지 (Expo Go에서는 Google 로그인 비활성화)
+  // Expo Go 환경 감지
   const isExpoGo = Constants.executionEnvironment === 'storeClient';
 
   // Apple 로그인 가능 여부 확인
@@ -53,22 +53,19 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       const user = await loginWithEmail(emailForm.email.trim(), emailForm.password);
+      
+      // ✅ 핵심: setUser 호출 시 isAuthenticated가 즉시 true로 변경됨
       setUser(user);
       
-      // ✅ iOS는 5초, Android는 3초 대기
-      const timeoutMs = Platform.OS === 'ios' ? 5000 : 3000;
-      const isSynced = await waitForAuthSync(timeoutMs);
+      // ✅ React state 업데이트를 위한 최소 딜레이 (300ms)
+      await new Promise(resolve => setTimeout(resolve, 300));
       
-      if (!isSynced) {
-        console.warn(`Auth 동기화 타임아웃 (${timeoutMs}ms), 그래도 진행합니다.`);
-      }
-      
-      // ✅ 즉시 라우팅
+      // ✅ 이제 Auth Guard가 isAuthenticated: true를 감지하고 통과시킴
       router.replace('/(tabs)');
       
       setTimeout(() => {
         Alert.alert('성공', '로그인되었습니다!');
-      }, 300);
+      }, 500);
     } catch (error) {
       console.error('이메일 로그인 오류:', error);
       Alert.alert('로그인 실패', error instanceof Error ? error.message : '로그인 중 오류가 발생했습니다.');
@@ -81,30 +78,25 @@ export default function LoginScreen() {
   const handleKakaoLogin = async () => {
     try {
       setLoading(true);
+      
+      // ✅ 이 함수는 이미 Firebase 인증 + Firestore 저장을 완료하고 User 객체를 반환
       const user = await loginWithKakaoOptimized();
+      
+      // ✅ 핵심: setUser 호출 시 isAuthenticated가 즉시 true로 변경됨
       setUser(user);
       
-      // ✅ iOS는 5초, Android는 3초 대기 (iOS가 더 느림)
-      const timeoutMs = Platform.OS === 'ios' ? 5000 : 3000;
-      const isSynced = await waitForAuthSync(timeoutMs);
+      // ✅ React state 업데이트를 위한 최소 딜레이 (300ms)
+      await new Promise(resolve => setTimeout(resolve, 300));
       
-      if (!isSynced) {
-        console.warn(`Auth 동기화 타임아웃 (${timeoutMs}ms), 그래도 진행합니다.`);
-      } else {
-        console.log('✅ Auth 동기화 완료, 안전하게 라우팅합니다.');
-      }
-      
-      // ✅ Alert 후가 아닌 즉시 라우팅 (Alert는 참고용)
+      // ✅ 이제 Auth Guard가 isAuthenticated: true를 감지하고 통과시킴
       router.replace('/(tabs)');
       
-      // Alert는 나중에 표시 (라우팅 블로킹 안 함)
       setTimeout(() => {
         Alert.alert('성공', '카카오 로그인이 완료되었습니다!');
-      }, 300);
+      }, 500);
     } catch (error) {
       console.error('카카오 로그인 오류:', error);
       
-      // ✅ keyHash 에러 감지
       const errorMessage = error instanceof Error ? error.message : '';
       if (errorMessage.includes('keyHash') || errorMessage.includes('validation failed')) {
         Alert.alert(
@@ -125,26 +117,18 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       const user = await loginWithApple();
+      
       setUser(user);
+      await new Promise(resolve => setTimeout(resolve, 300));
       
-      // ✅ iOS는 5초 대기
-      const timeoutMs = 5000;
-      const isSynced = await waitForAuthSync(timeoutMs);
-      
-      if (!isSynced) {
-        console.warn(`Auth 동기화 타임아웃 (${timeoutMs}ms), 그래도 진행합니다.`);
-      }
-      
-      // ✅ 즉시 라우팅
       router.replace('/(tabs)');
       
       setTimeout(() => {
         Alert.alert('성공', 'Apple 로그인이 완료되었습니다!');
-      }, 300);
+      }, 500);
     } catch (error) {
       console.error('Apple 로그인 오류:', error);
       
-      // 사용자가 취소한 경우는 알림을 표시하지 않음
       const errorMessage = error instanceof Error ? error.message : '';
       if (!errorMessage.includes('취소')) {
         Alert.alert('Apple 로그인 실패', errorMessage || 'Apple 로그인 중 오류가 발생했습니다.');
@@ -154,42 +138,32 @@ export default function LoginScreen() {
     }
   };
 
-  // Google 로그인 (동적 import로 Expo Go 에러 방지)
+  // Google 로그인
   const handleGoogleLogin = async () => {
     try {
       setLoading(true);
       
-      // Expo Go 환경에서는 실행되지 않도록 추가 체크
       if (isExpoGo) {
         Alert.alert('알림', 'Google 로그인은 Expo Go에서 지원되지 않습니다.');
         return;
       }
       
-      // 동적 import로 네이티브 모듈 로드
       const { loginWithGoogle } = await import('../lib/google');
       const user = await loginWithGoogle();
+      
       setUser(user);
+      await new Promise(resolve => setTimeout(resolve, 300));
       
-      // ✅ iOS는 5초, Android는 3초 대기
-      const timeoutMs = Platform.OS === 'ios' ? 5000 : 3000;
-      const isSynced = await waitForAuthSync(timeoutMs);
-      
-      if (!isSynced) {
-        console.warn(`Auth 동기화 타임아웃 (${timeoutMs}ms), 그래도 진행합니다.`);
-      }
-      
-      // ✅ 즉시 라우팅
       router.replace('/(tabs)');
       
       setTimeout(() => {
         Alert.alert('성공', 'Google 로그인이 완료되었습니다!');
-      }, 300);
+      }, 500);
     } catch (error) {
       console.error('Google 로그인 오류:', error);
       
       const errorMessage = error instanceof Error ? error.message : '';
       
-      // ✅ DEVELOPER_ERROR 감지
       if (errorMessage.includes('DEVELOPER_ERROR')) {
         Alert.alert(
           'Google 로그인 설정 오류',
@@ -203,7 +177,6 @@ export default function LoginScreen() {
         return;
       }
       
-      // ✅ Google Play Services 오류 처리
       if (errorMessage.includes('Google Play Services')) {
         Alert.alert(
           'Google Play Services 필요',
@@ -216,7 +189,6 @@ export default function LoginScreen() {
         return;
       }
       
-      // 사용자가 취소한 경우는 알림을 표시하지 않음
       if (!errorMessage.includes('취소')) {
         Alert.alert('Google 로그인 실패', errorMessage || 'Google 로그인 중 오류가 발생했습니다.');
       }
@@ -238,14 +210,11 @@ export default function LoginScreen() {
           <Text style={styles.subtitle}>학생들을 위한 스마트한 커뮤니티</Text>
         </View>
 
-        {/* 메인 카드 */}
         <View style={styles.card}>
-          {/* 헤더 */}
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>로그인</Text>
           </View>
           
-          {/* 폼 */}
           <View style={styles.form}>
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>이메일</Text>
@@ -295,14 +264,12 @@ export default function LoginScreen() {
                   </Text>
                 </TouchableOpacity>
 
-                {/* 구분선 */}
                 <View style={styles.divider}>
                   <View style={styles.dividerLine} />
                   <Text style={styles.dividerText}>또는</Text>
                   <View style={styles.dividerLine} />
                 </View>
 
-                {/* 카카오 로그인 버튼 */}
                 <TouchableOpacity 
                   style={[styles.kakaoButton, isLoading && styles.submitButtonDisabled]}
                   onPress={handleKakaoLogin}
@@ -314,7 +281,6 @@ export default function LoginScreen() {
                   </Text>
                 </TouchableOpacity>
 
-                {/* Google 로그인 버튼 (Expo Go가 아닐 때만 표시) */}
                 {!isExpoGo && (
                   <TouchableOpacity 
                     style={[styles.googleButton, isLoading && styles.submitButtonDisabled]}
@@ -328,7 +294,6 @@ export default function LoginScreen() {
                   </TouchableOpacity>
                 )}
 
-                {/* Apple 로그인 버튼 (iOS에서만 표시) */}
                 {isAppleLoginAvailable && (
                   <AppleAuthentication.AppleAuthenticationButton
                     buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
@@ -341,7 +306,6 @@ export default function LoginScreen() {
           </View>
         </View>
 
-        {/* 회원가입 링크 */}
         <View style={styles.linkContainer}>
           <Text style={styles.linkText}>
             아직 계정이 없으신가요?{' '}
@@ -351,7 +315,6 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* 푸터 */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
             계속 진행하면{' '}
@@ -429,42 +392,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111827',
   },
-  methodSelector: {
-    flexDirection: 'row',
-    margin: 16,
-    backgroundColor: '#DCFCE7',
-    borderRadius: 8,
-    padding: 4,
-  },
-  methodButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    gap: 8,
-  },
-  methodButtonActive: {
-    backgroundColor: 'white',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  methodText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6B7280',
-  },
-  methodTextActive: {
-    color: '#059669',
-  },
   form: {
     padding: 24,
     gap: 16,
@@ -476,16 +403,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#374151',
-  },
-  labelContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  countdownText: {
-    fontSize: 14,
-    color: '#059669',
-    fontWeight: '500',
   },
   input: {
     borderWidth: 1,
@@ -514,11 +431,6 @@ const styles = StyleSheet.create({
     right: 12,
     top: 12,
     padding: 4,
-  },
-  codeInput: {
-    textAlign: 'center',
-    letterSpacing: 4,
-    fontSize: 18,
   },
   submitButton: {
     backgroundColor: '#059669',

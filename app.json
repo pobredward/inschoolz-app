@@ -2,7 +2,7 @@
   "expo": {
     "name": "인스쿨즈",
     "slug": "inschoolz-app",
-    "version": "1.2.0",
+    "version": "1.2.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "inschoolzapp",

@@ -150,8 +150,15 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         set({
           user,
           isAuthenticated: !!user,
+          isLoading: false, // ✅ 로딩 즉시 해제
           error: null,
         });
+        
+        // ✅ user가 있으면 실시간 리스너 설정 (백그라운드)
+        if (user?.uid) {
+          const { setupRealtimeUserListener } = get();
+          setupRealtimeUserListener(user.uid);
+        }
       },
 
       // 로딩 상태 설정
