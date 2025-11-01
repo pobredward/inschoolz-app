@@ -55,15 +55,20 @@ export default function LoginScreen() {
       const user = await loginWithEmail(emailForm.email.trim(), emailForm.password);
       setUser(user);
       
-      // Firebase Auth 상태 동기화 대기 (최대 3초)
-      const isSynced = await waitForAuthSync(3000);
+      // ✅ iOS는 5초, Android는 3초 대기
+      const timeoutMs = Platform.OS === 'ios' ? 5000 : 3000;
+      const isSynced = await waitForAuthSync(timeoutMs);
+      
       if (!isSynced) {
-        console.warn('Auth 동기화 타임아웃, 그래도 진행합니다.');
+        console.warn(`Auth 동기화 타임아웃 (${timeoutMs}ms), 그래도 진행합니다.`);
       }
       
-      Alert.alert('성공', '로그인되었습니다!', [
-        { text: '확인', onPress: () => router.replace('/(tabs)') }
-      ]);
+      // ✅ 즉시 라우팅
+      router.replace('/(tabs)');
+      
+      setTimeout(() => {
+        Alert.alert('성공', '로그인되었습니다!');
+      }, 300);
     } catch (error) {
       console.error('이메일 로그인 오류:', error);
       Alert.alert('로그인 실패', error instanceof Error ? error.message : '로그인 중 오류가 발생했습니다.');
@@ -79,18 +84,37 @@ export default function LoginScreen() {
       const user = await loginWithKakaoOptimized();
       setUser(user);
       
-      // Firebase Auth 상태 동기화 대기 (최대 3초)
-      const isSynced = await waitForAuthSync(3000);
+      // ✅ iOS는 5초, Android는 3초 대기 (iOS가 더 느림)
+      const timeoutMs = Platform.OS === 'ios' ? 5000 : 3000;
+      const isSynced = await waitForAuthSync(timeoutMs);
+      
       if (!isSynced) {
-        console.warn('Auth 동기화 타임아웃, 그래도 진행합니다.');
+        console.warn(`Auth 동기화 타임아웃 (${timeoutMs}ms), 그래도 진행합니다.`);
+      } else {
+        console.log('✅ Auth 동기화 완료, 안전하게 라우팅합니다.');
       }
       
-      Alert.alert('성공', '카카오 로그인이 완료되었습니다!', [
-        { text: '확인', onPress: () => router.replace('/(tabs)') }
-      ]);
+      // ✅ Alert 후가 아닌 즉시 라우팅 (Alert는 참고용)
+      router.replace('/(tabs)');
+      
+      // Alert는 나중에 표시 (라우팅 블로킹 안 함)
+      setTimeout(() => {
+        Alert.alert('성공', '카카오 로그인이 완료되었습니다!');
+      }, 300);
     } catch (error) {
       console.error('카카오 로그인 오류:', error);
-      Alert.alert('카카오 로그인 실패', error instanceof Error ? error.message : '카카오 로그인 중 오류가 발생했습니다.');
+      
+      // ✅ keyHash 에러 감지
+      const errorMessage = error instanceof Error ? error.message : '';
+      if (errorMessage.includes('keyHash') || errorMessage.includes('validation failed')) {
+        Alert.alert(
+          '카카오 로그인 설정 오류',
+          '앱 키 해시가 등록되지 않았습니다.\n개발자에게 문의해주세요.\n\n임시로 다른 로그인 방법을 이용해주세요.',
+          [{ text: '확인' }]
+        );
+      } else {
+        Alert.alert('카카오 로그인 실패', errorMessage || '카카오 로그인 중 오류가 발생했습니다.');
+      }
     } finally {
       setLoading(false);
     }
@@ -103,15 +127,20 @@ export default function LoginScreen() {
       const user = await loginWithApple();
       setUser(user);
       
-      // Firebase Auth 상태 동기화 대기 (최대 3초)
-      const isSynced = await waitForAuthSync(3000);
+      // ✅ iOS는 5초 대기
+      const timeoutMs = 5000;
+      const isSynced = await waitForAuthSync(timeoutMs);
+      
       if (!isSynced) {
-        console.warn('Auth 동기화 타임아웃, 그래도 진행합니다.');
+        console.warn(`Auth 동기화 타임아웃 (${timeoutMs}ms), 그래도 진행합니다.`);
       }
       
-      Alert.alert('성공', 'Apple 로그인이 완료되었습니다!', [
-        { text: '확인', onPress: () => router.replace('/(tabs)') }
-      ]);
+      // ✅ 즉시 라우팅
+      router.replace('/(tabs)');
+      
+      setTimeout(() => {
+        Alert.alert('성공', 'Apple 로그인이 완료되었습니다!');
+      }, 300);
     } catch (error) {
       console.error('Apple 로그인 오류:', error);
       
@@ -141,20 +170,40 @@ export default function LoginScreen() {
       const user = await loginWithGoogle();
       setUser(user);
       
-      // Firebase Auth 상태 동기화 대기 (최대 3초)
-      const isSynced = await waitForAuthSync(3000);
+      // ✅ iOS는 5초, Android는 3초 대기
+      const timeoutMs = Platform.OS === 'ios' ? 5000 : 3000;
+      const isSynced = await waitForAuthSync(timeoutMs);
+      
       if (!isSynced) {
-        console.warn('Auth 동기화 타임아웃, 그래도 진행합니다.');
+        console.warn(`Auth 동기화 타임아웃 (${timeoutMs}ms), 그래도 진행합니다.`);
       }
       
-      Alert.alert('성공', 'Google 로그인이 완료되었습니다!', [
-        { text: '확인', onPress: () => router.replace('/(tabs)') }
-      ]);
+      // ✅ 즉시 라우팅
+      router.replace('/(tabs)');
+      
+      setTimeout(() => {
+        Alert.alert('성공', 'Google 로그인이 완료되었습니다!');
+      }, 300);
     } catch (error) {
       console.error('Google 로그인 오류:', error);
       
-      // ✅ Google Play Services 오류 처리
       const errorMessage = error instanceof Error ? error.message : '';
+      
+      // ✅ DEVELOPER_ERROR 감지
+      if (errorMessage.includes('DEVELOPER_ERROR')) {
+        Alert.alert(
+          'Google 로그인 설정 오류',
+          'Google Sign-In이 올바르게 설정되지 않았습니다.\n\n' +
+          '가능한 원인:\n' +
+          '• SHA-1 인증서가 Firebase에 등록되지 않음\n' +
+          '• OAuth 클라이언트 ID 불일치\n\n' +
+          '임시로 다른 로그인 방법을 이용해주세요.',
+          [{ text: '확인' }]
+        );
+        return;
+      }
+      
+      // ✅ Google Play Services 오류 처리
       if (errorMessage.includes('Google Play Services')) {
         Alert.alert(
           'Google Play Services 필요',

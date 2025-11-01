@@ -51,9 +51,12 @@ export default function SignupScreen() {
         console.warn('Auth 동기화 타임아웃, 그래도 진행합니다.');
       }
       
-      Alert.alert('성공', '카카오 로그인이 완료되었습니다!', [
-        { text: '확인', onPress: () => router.replace('/(tabs)/') }
-      ]);
+      // ✅ 즉시 라우팅
+      router.replace('/(tabs)');
+      
+      setTimeout(() => {
+        Alert.alert('성공', '카카오 로그인이 완료되었습니다!');
+      }, 300);
     } catch (error: any) {
       console.error('카카오 로그인 오류:', error);
       Alert.alert('카카오 로그인 실패', error.message || '카카오 로그인 중 오류가 발생했습니다.');
@@ -130,9 +133,12 @@ export default function SignupScreen() {
         console.warn('Auth 동기화 타임아웃, 그래도 진행합니다.');
       }
       
-      Alert.alert('성공', '회원가입이 완료되었습니다!', [
-        { text: '확인', onPress: () => router.replace('/(tabs)/') }
-      ]);
+      // ✅ 즉시 라우팅
+      router.replace('/(tabs)');
+      
+      setTimeout(() => {
+        Alert.alert('성공', '회원가입이 완료되었습니다!');
+      }, 300);
     } catch (error: any) {
       console.error('이메일 회원가입 오류:', error);
       Alert.alert('회원가입 실패', error.message || '회원가입 중 오류가 발생했습니다.');

@@ -1,6 +1,6 @@
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import 'react-native-reanimated';
@@ -32,8 +32,12 @@ export default function RootLayout() {
   });
 
   const { 
-    user: currentUser 
+    user: currentUser,
+    isLoading: authLoading,
+    isAuthenticated
   } = useAuthStore();
+  const segments = useSegments();
+  const router = useRouter();
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
 
@@ -124,7 +128,43 @@ export default function RootLayout() {
     };
   }, []);
 
+  // ✅ Auth Guard: 인증 상태에 따른 네비게이션 제어
+  useEffect(() => {
+    if (authLoading || !loaded) {
+      // 로딩 중이거나 폰트 로드 중이면 아무것도 하지 않음
+      return;
+    }
 
+    const inAuthGroup = segments[0] === '(tabs)';
+    const inLoginScreen = segments[0] === 'login' || segments[0] === 'signup';
+    const currentSegment = segments[0];
+
+    console.log('🔒 Auth Guard:', {
+      isAuthenticated,
+      currentSegment,
+      inAuthGroup,
+      inLoginScreen
+    });
+
+    // ✅ 100ms 딜레이를 두어 무한 리다이렉트 루프 방지
+    const navigationTimeout = setTimeout(() => {
+      // 인증되지 않았고, (tabs) 그룹에 있으면 로그인 화면으로
+      if (!isAuthenticated && inAuthGroup) {
+        console.log('⚠️ 인증 안됨 → /login으로 리다이렉트');
+        router.replace('/login');
+        return;
+      }
+
+      // 인증되었고, 로그인/회원가입 화면에 있으면 홈으로
+      if (isAuthenticated && inLoginScreen) {
+        console.log('✅ 인증됨 → /(tabs)로 리다이렉트');
+        router.replace('/(tabs)');
+        return;
+      }
+    }, 100);
+
+    return () => clearTimeout(navigationTimeout);
+  }, [isAuthenticated, authLoading, loaded, segments[0]]);
 
   const onLayoutRootView = useCallback(async () => {
     if (loaded) {
