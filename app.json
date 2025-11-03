@@ -34,11 +34,18 @@
             "CFBundleURLSchemes": [
               "com.googleusercontent.apps.702584515843-mt6584jc65q4e02qq6snip7qi12fpe2t"
             ]
+          },
+          {
+            "CFBundleURLName": "inschoolzapp",
+            "CFBundleURLSchemes": [
+              "inschoolzapp"
+            ]
           }
         ],
         "LSApplicationQueriesSchemes": [
           "kakaokompassauth",
-          "kakaolink"
+          "kakaolink",
+          "kakaoplus"
         ]
       }
     },

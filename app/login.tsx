@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -8,7 +8,11 @@ import {
   Alert, 
   KeyboardAvoidingView, 
   Platform,
-  ScrollView
+  ScrollView,
+  AppState,
+  Modal,
+  ActivityIndicator,
+  SafeAreaView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -28,7 +32,12 @@ export default function LoginScreen() {
     password: ''
   });
   
-  const { setUser, setLoading, isLoading } = useAuthStore();
+  
+  // ✅ AppState 감지 (백그라운드 → 포어그라운드)
+  const appState = useRef(AppState.currentState);
+  const kakaoLoginPendingRef = useRef(false);
+  
+  const { setUser, setLoading, isLoading, waitForAuthSync, setKakaoLoginInProgress, isAuthenticated, user, isKakaoLoginInProgress: kakaoInProgress } = useAuthStore();
 
   // Expo Go 환경 감지
   const isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -43,6 +52,7 @@ export default function LoginScreen() {
     checkAppleAuth();
   }, []);
 
+
   // 이메일 로그인
   const handleEmailLogin = async () => {
     if (!emailForm.email?.trim() || !emailForm.password?.trim()) {
@@ -54,14 +64,16 @@ export default function LoginScreen() {
       setLoading(true);
       const user = await loginWithEmail(emailForm.email.trim(), emailForm.password);
       
-      // ✅ 핵심: setUser 호출 시 isAuthenticated가 즉시 true로 변경됨
       setUser(user);
       
-      // ✅ React state 업데이트를 위한 최소 딜레이 (300ms)
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // ✅ 프레임 대기: React 상태 전파 + Expo Router 준비
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      });
       
-      // ✅ 이제 Auth Guard가 isAuthenticated: true를 감지하고 통과시킴
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/');
       
       setTimeout(() => {
         Alert.alert('성공', '로그인되었습니다!');
@@ -77,38 +89,59 @@ export default function LoginScreen() {
   // 카카오 로그인
   const handleKakaoLogin = async () => {
     try {
+      // ✅ 카카오 로그인 진행 플래그 설정 (Auth Guard 비활성화)
+      setKakaoLoginInProgress(true);
+      kakaoLoginPendingRef.current = true;
       setLoading(true);
       
-      // ✅ 이 함수는 이미 Firebase 인증 + Firestore 저장을 완료하고 User 객체를 반환
       const user = await loginWithKakaoOptimized();
       
-      // ✅ 핵심: setUser 호출 시 isAuthenticated가 즉시 true로 변경됨
       setUser(user);
       
-      // ✅ React state 업데이트를 위한 최소 딜레이 (300ms)
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // ✅ 상태 전파를 위한 짧은 딜레이
+      await new Promise<void>((resolve) => {
+        setTimeout(() => resolve(), 100);
+      });
       
-      // ✅ 이제 Auth Guard가 isAuthenticated: true를 감지하고 통과시킴
+      // ✅ 성공 시 로딩 해제 + 카카오 로그인 플래그 해제
+      setKakaoLoginInProgress(false);
+      kakaoLoginPendingRef.current = false;
+      setLoading(false);
+      
+      // ✅ 직접 라우팅
       router.replace('/(tabs)');
-      
-      setTimeout(() => {
-        Alert.alert('성공', '카카오 로그인이 완료되었습니다!');
-      }, 500);
     } catch (error) {
-      console.error('카카오 로그인 오류:', error);
+      // ✅ 에러 시에도 플래그 해제
+      setKakaoLoginInProgress(false);
+      kakaoLoginPendingRef.current = false;
       
       const errorMessage = error instanceof Error ? error.message : '';
+      
+      // ✅ CRITICAL: 사용자 취소인 경우 딜레이 후 로딩 해제
+      if (errorMessage.includes('사용자가 취소') || errorMessage.includes('canceled') || errorMessage.includes('CANCELED')) {
+        console.log('⚠️ 사용자가 카카오 로그인을 취소함');
+        setTimeout(() => {
+          setLoading(false);
+          console.log('✅ 500ms 후 로딩 해제 (화면 안정화)');
+        }, 500);
+        return;
+      }
+      
       if (errorMessage.includes('keyHash') || errorMessage.includes('validation failed')) {
         Alert.alert(
           '카카오 로그인 설정 오류',
           '앱 키 해시가 등록되지 않았습니다.\n개발자에게 문의해주세요.\n\n임시로 다른 로그인 방법을 이용해주세요.',
           [{ text: '확인' }]
         );
-      } else {
-        Alert.alert('카카오 로그인 실패', errorMessage || '카카오 로그인 중 오류가 발생했습니다.');
+      } else if (errorMessage) {
+        Alert.alert('카카오 로그인 실패', errorMessage);
       }
-    } finally {
-      setLoading(false);
+      
+      // ✅ CRITICAL: 에러 시에도 딜레이 후 로딩 해제 (Auth Guard 안정화)
+      setTimeout(() => {
+        setLoading(false);
+        console.log('✅ 에러 처리 완료 - 로딩 해제');
+      }, 500);
     }
   };
 
@@ -119,9 +152,15 @@ export default function LoginScreen() {
       const user = await loginWithApple();
       
       setUser(user);
-      await new Promise(resolve => setTimeout(resolve, 300));
       
-      router.replace('/(tabs)');
+      // ✅ 프레임 대기: React 상태 전파 + Expo Router 준비
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      });
+      
+      router.replace('/(tabs)/');
       
       setTimeout(() => {
         Alert.alert('성공', 'Apple 로그인이 완료되었습니다!');
@@ -152,9 +191,15 @@ export default function LoginScreen() {
       const user = await loginWithGoogle();
       
       setUser(user);
-      await new Promise(resolve => setTimeout(resolve, 300));
       
-      router.replace('/(tabs)');
+      // ✅ 프레임 대기: React 상태 전파 + Expo Router 준비
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      });
+      
+      router.replace('/(tabs)/');
       
       setTimeout(() => {
         Alert.alert('성공', 'Google 로그인이 완료되었습니다!');
@@ -198,17 +243,28 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <View style={styles.logo}>
-              <Text style={styles.logoText}>인</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        {/* ✅ 카카오 로그인 중 모달 */}
+        <Modal
+          transparent
+          visible={isLoading && kakaoInProgress}
+          animationType="fade"
+        >
+          <View style={styles.loadingOverlay}>
+            <View style={styles.loadingBox}>
+              <ActivityIndicator size="large" color="#059669" />
+              <Text style={styles.loadingText}>카카오 로그인 중...</Text>
             </View>
           </View>
-          <Text style={styles.title}>인스쿨즈</Text>
-          <Text style={styles.subtitle}>학생들을 위한 스마트한 커뮤니티</Text>
-        </View>
+        </Modal>
+
+        <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+          
+          <View style={styles.header}>
+            <Text style={styles.title}>인스쿨즈</Text>
+            <Text style={styles.subtitle}>대한민국 학생들의 올인원 커뮤니티</Text>
+          </View>
 
         <View style={styles.card}>
           <View style={styles.cardHeader}>
@@ -324,13 +380,17 @@ export default function LoginScreen() {
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: '#F0FDF4',
+  },
+  container: {
+    flex: 1,
   },
   scrollContainer: {
     flexGrow: 1,
@@ -340,22 +400,6 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 32,
-  },
-  logoContainer: {
-    marginBottom: 16,
-  },
-  logo: {
-    width: 48,
-    height: 48,
-    backgroundColor: '#059669',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoText: {
-    color: 'white',
-    fontSize: 20,
-    fontWeight: 'bold',
   },
   title: {
     fontSize: 28,
@@ -526,5 +570,32 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     color: '#059669',
+  },
+  // ✅ 로딩 모달 스타일
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingBox: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
   },
 });

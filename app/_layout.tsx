@@ -31,15 +31,20 @@ export default function RootLayout() {
     JamminStyle: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
-  const { 
-    user: currentUser,
-    isLoading: authLoading,
-    isAuthenticated
-  } = useAuthStore();
+  // ✅ Zustand selector를 명시적으로 사용하여 리렌더링 보장
+  const currentUser = useAuthStore((state) => state.user);
+  const authLoading = useAuthStore((state) => state.isLoading);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isLoading = useAuthStore((state) => state.isLoading); // ✅ 명시적으로 추가
   const segments = useSegments();
   const router = useRouter();
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
+
+  // ✅ CRITICAL: segments 변경 추적 (디버깅용)
+  useEffect(() => {
+    console.log('🔄 segments 변경:', segments, '→ segments[0]:', segments[0]);
+  }, [segments]);
 
   useEffect(() => {
     // 카카오 SDK 초기화 (안전한 초기화)
@@ -128,6 +133,9 @@ export default function RootLayout() {
     };
   }, []);
 
+  // 카카오 로그인 진행 상태 구독
+  const isKakaoLoginInProgress = useAuthStore((state) => state.isKakaoLoginInProgress);
+
   // ✅ Auth Guard: 인증 상태에 따른 네비게이션 제어
   useEffect(() => {
     if (authLoading || !loaded) {
@@ -139,32 +147,63 @@ export default function RootLayout() {
     const inLoginScreen = segments[0] === 'login' || segments[0] === 'signup';
     const currentSegment = segments[0];
 
+    // ✅ CRITICAL: 카카오 로그인 진행 중에는 Auth Guard 완전 비활성화
+    if (isKakaoLoginInProgress) {
+      console.log('🔒 카카오 로그인 진행 중 - Auth Guard 비활성화');
+      return;
+    }
+
+    // ✅ 핵심: Zustand store에서 직접 최신 상태 가져오기
+    const latestState = useAuthStore.getState();
+    const latestIsAuthenticated = latestState.isAuthenticated;
+    const latestUser = latestState.user;
+    const latestIsLoading = latestState.isLoading;
+
     console.log('🔒 Auth Guard:', {
-      isAuthenticated,
+      isAuthenticatedFromHook: isAuthenticated,
+      isAuthenticatedFromStore: latestIsAuthenticated,
+      authLoading,
+      latestIsLoading,
       currentSegment,
       inAuthGroup,
-      inLoginScreen
+      inLoginScreen,
+      hasUser: !!latestUser
     });
 
-    // ✅ 100ms 딜레이를 두어 무한 리다이렉트 루프 방지
+    // ✅ CRITICAL: 로그인 처리 중이면 Auth Guard 스킵 (카카오톡 앱 전환 대응)
+    if (latestIsLoading) {
+      console.log('⏳ 로그인 처리 중 - Auth Guard 스킵');
+      return;
+    }
+
+    // ✅ 짧은 딜레이만 (100ms) - React 리렌더링 사이클 1회 보장
     const navigationTimeout = setTimeout(() => {
-      // 인증되지 않았고, (tabs) 그룹에 있으면 로그인 화면으로
-      if (!isAuthenticated && inAuthGroup) {
-        console.log('⚠️ 인증 안됨 → /login으로 리다이렉트');
-        router.replace('/login');
+      // ✅ 최신 상태를 다시 확인
+      const finalState = useAuthStore.getState();
+      
+      // ✅ CRITICAL: 다시 한번 로딩 중 체크 (카카오톡 앱에서 돌아올 때)
+      if (finalState.isLoading) {
+        console.log('⏳ 로그인 처리 중 - Auth Guard 스킵 (재확인)');
         return;
       }
-
-      // 인증되었고, 로그인/회원가입 화면에 있으면 홈으로
-      if (isAuthenticated && inLoginScreen) {
+      
+      // ✅ 인증된 사용자가 로그인 화면에 있으면 홈으로 이동
+      if (finalState.isAuthenticated && finalState.user && inLoginScreen) {
         console.log('✅ 인증됨 → /(tabs)로 리다이렉트');
         router.replace('/(tabs)');
         return;
       }
-    }, 100);
+      
+      // 인증되지 않았고, (tabs) 그룹에 있으면 로그인 화면으로
+      if (!finalState.isAuthenticated && !finalState.user && inAuthGroup) {
+        console.log('⚠️ 인증 안됨 → /login으로 리다이렉트');
+        router.replace('/login');
+        return;
+      }
+    }, 100); // 500ms → 100ms로 단축
 
     return () => clearTimeout(navigationTimeout);
-  }, [isAuthenticated, authLoading, loaded, segments[0]]);
+  }, [isAuthenticated, authLoading, loaded, segments[0], currentUser, isLoading, isKakaoLoginInProgress]); // ✅ isKakaoLoginInProgress 추가
 
   const onLayoutRootView = useCallback(async () => {
     if (loaded) {

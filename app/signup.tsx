@@ -8,7 +8,8 @@ import {
   Alert, 
   KeyboardAvoidingView, 
   Platform,
-  ScrollView
+  ScrollView,
+  SafeAreaView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
@@ -29,6 +30,9 @@ export default function SignupScreen() {
     passwordConfirm: '',
     referral: ''
   });
+  
+  // 이메일 중복 체크 상태
+  const [emailExists, setEmailExists] = useState(false);
   
   // 추천인 검색 상태
   const [selectedReferralUser, setSelectedReferralUser] = useState<any>(null);
@@ -148,17 +152,13 @@ export default function SignupScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <View style={styles.logo}>
-              <Text style={styles.logoText}>인</Text>
-            </View>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+          <View style={styles.header}>
+            <Text style={styles.title}>인스쿨즈</Text>
+            <Text style={styles.subtitle}>대한민국 학생들의 올인원 커뮤니티</Text>
           </View>
-          <Text style={styles.title}>인스쿨즈</Text>
-          <Text style={styles.subtitle}>학생들을 위한 스마트한 커뮤니티</Text>
-        </View>
 
         {/* 메인 카드 */}
         <View style={styles.card}>
@@ -307,13 +307,17 @@ export default function SignupScreen() {
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: '#F0FDF4',
+  },
+  container: {
+    flex: 1,
   },
   scrollContainer: {
     flexGrow: 1,

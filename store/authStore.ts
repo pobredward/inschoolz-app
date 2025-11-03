@@ -24,6 +24,7 @@ interface AuthState {
   realtimeListener: (() => void) | null;
   unreadNotificationCount: number; // 읽지 않은 알림 개수 추가
   isPushInitializing: boolean; // 푸시 알림 초기화 중 플래그
+  isKakaoLoginInProgress: boolean; // 카카오 로그인 진행 중 플래그 (Auth Guard 비활성화용)
 }
 
 // 인증 액션 타입 정의
@@ -49,6 +50,8 @@ interface AuthActions {
   removePushToken: () => Promise<void>;
   // Firebase Auth 동기화 대기 함수
   waitForAuthSync: (timeoutMs?: number) => Promise<boolean>;
+  // 카카오 로그인 진행 상태 설정
+  setKakaoLoginInProgress: (inProgress: boolean) => void;
 }
 
 // 초기 상태
@@ -60,6 +63,7 @@ const initialState: AuthState = {
   realtimeListener: null,
   unreadNotificationCount: 0, // 초기값 0
   isPushInitializing: false, // 푸시 초기화 플래그 초기값
+  isKakaoLoginInProgress: false, // 카카오 로그인 진행 중 플래그 초기값
 };
 
 // AuthStore 생성
@@ -147,14 +151,22 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
       // 사용자 설정
       setUser: (user) => {
+        // ✅ 먼저 상태 업데이트
         set({
           user,
           isAuthenticated: !!user,
-          isLoading: false, // ✅ 로딩 즉시 해제
+          isLoading: false,
           error: null,
         });
         
-        // ✅ user가 있으면 실시간 리스너 설정 (백그라운드)
+        // ✅ 상태 업데이트 로깅
+        console.log('✅ setUser 완료:', {
+          uid: user?.uid,
+          isAuthenticated: !!user,
+          isLoading: false
+        });
+        
+        // 백그라운드에서 실시간 리스너 설정
         if (user?.uid) {
           const { setupRealtimeUserListener } = get();
           setupRealtimeUserListener(user.uid);
@@ -490,6 +502,12 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           
           checkAuth();
         });
+      },
+      
+      // 카카오 로그인 진행 상태 설정
+      setKakaoLoginInProgress: (inProgress: boolean) => {
+        set({ isKakaoLoginInProgress: inProgress });
+        logger.debug('카카오 로그인 진행 상태:', inProgress);
       },
     }),
     {
