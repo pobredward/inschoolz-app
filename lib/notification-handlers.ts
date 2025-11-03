@@ -83,66 +83,26 @@ function handlePostNotificationNavigation(data: NotificationData): void {
   }
 
   // 게시글 타입에 따른 라우팅
-  switch (data.postType) {
-    case 'community':
-      if (data.boardCode) {
-        router.push({
-          pathname: '/community' as any,
-          params: {
-            postId: data.postId,
-            boardCode: data.boardCode,
-            commentId: data.commentId,
-            highlightComment: data.commentId ? 'true' : undefined,
-          },
-        });
-      } else {
-        router.push({
-          pathname: '/community' as any,
-          params: {
-            postId: data.postId,
-            commentId: data.commentId,
-            highlightComment: data.commentId ? 'true' : undefined,
-          },
-        });
-      }
-      break;
-      
-    case 'school':
-      if (data.schoolId) {
-        router.push({
-          pathname: '/community' as any,
-          params: {
-            postId: data.postId,
-            schoolId: data.schoolId,
-            commentId: data.commentId,
-            highlightComment: data.commentId ? 'true' : undefined,
-          },
-        });
-      } else {
-        router.push('/community');
-      }
-      break;
-      
-    case 'region':
-      if (data.regions && data.regions.length > 0) {
-        router.push({
-          pathname: '/community' as any,
-          params: {
-            postId: data.postId,
-            regions: data.regions.join(','),
-            commentId: data.commentId,
-            highlightComment: data.commentId ? 'true' : undefined,
-          },
-        });
-      } else {
-        router.push('/community');
-      }
-      break;
-      
-    default:
-      // 기본적으로 커뮤니티 화면으로
-      router.push('/community');
-      break;
+  let route = '';
+  
+  if (data.postType === 'national' && data.boardCode) {
+    // 전국 게시판
+    route = `/board/national/${data.boardCode}/${data.postId}`;
+  } else if (data.postType === 'regional' && data.boardCode) {
+    // 지역 게시판
+    route = `/board/regional/${data.boardCode}/${data.postId}`;
+  } else if (data.postType === 'school' && data.boardCode) {
+    // 학교 게시판
+    route = `/board/school/${data.boardCode}/${data.postId}`;
+  } else {
+    console.warn('알림 데이터가 불완전합니다:', data);
+    router.push('/notifications');
+    return;
+  }
+  
+  if (route) {
+    console.log('알림 클릭으로 이동:', route);
+    router.push(route as any);
   }
 }
 
