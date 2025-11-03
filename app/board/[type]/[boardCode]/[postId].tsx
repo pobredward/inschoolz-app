@@ -2080,7 +2080,7 @@ export default function PostDetailScreen() {
               return (
                 <View style={[
                   styles.commentInputContainer,
-                  { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 16) : insets.bottom + 16 }
+                  { paddingBottom: insets.bottom || 12 }
                 ]}>
                   {/* 익명 모드 토글 */}
                   <View style={styles.commentOptions}>
@@ -2135,7 +2135,7 @@ export default function PostDetailScreen() {
             // 비로그인 사용자용 익명 댓글 작성
             <View style={[
               styles.anonymousCommentContainer,
-              { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 16) : insets.bottom + 16 }
+              { paddingBottom: insets.bottom || 12 }
             ]}>
               <View style={styles.anonymousCommentButton}>
                 <TouchableOpacity 
@@ -2687,7 +2687,7 @@ const styles = StyleSheet.create({
   commentInputContainer: {
     backgroundColor: '#fff',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#f3f4f6',
   },
@@ -2716,7 +2716,7 @@ const styles = StyleSheet.create({
   anonymousCommentContainer: {
     backgroundColor: '#fff',
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: '#f3f4f6',
   },

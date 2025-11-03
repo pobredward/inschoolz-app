@@ -168,7 +168,7 @@ export default function EditPostPage() {
       Alert.alert('성공', '게시글이 수정되었습니다.', [
         {
           text: '확인',
-          onPress: () => router.push(`/board/${type}/${boardCode}/${postId}`)
+          onPress: () => router.replace(`/board/${type}/${boardCode}/${postId}`)
         }
       ]);
     } catch (error: unknown) {
