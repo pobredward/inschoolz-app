@@ -532,6 +532,57 @@ export const getPopularSchools = async (limit = 10): Promise<School[]> => {
   }
 };
 
+/**
+ * 게시글 수 기준으로 인기 지역 목록 가져오기
+ */
+export interface RegionInfo {
+  sido: string;
+  sigungu: string;
+  postCount: number;
+}
+
+export const getPopularRegions = async (limit = 12): Promise<RegionInfo[]> => {
+  try {
+    // posts 컬렉션에서 지역별 게시글 수 집계
+    const postsRef = collection(db, 'posts');
+    const postsQuery = query(postsRef, where('type', '==', 'regional'));
+    const postsSnapshot = await getDocs(postsQuery);
+    
+    // 지역별 게시글 수 카운트
+    const regionPostCounts = new Map<string, RegionInfo>();
+    
+    postsSnapshot.forEach((doc) => {
+      const postData = doc.data();
+      const regions = postData.regions;
+      
+      if (regions?.sido && regions?.sigungu) {
+        const regionKey = `${regions.sido}-${regions.sigungu}`;
+        const currentInfo = regionPostCounts.get(regionKey);
+        
+        if (currentInfo) {
+          currentInfo.postCount += 1;
+        } else {
+          regionPostCounts.set(regionKey, {
+            sido: regions.sido,
+            sigungu: regions.sigungu,
+            postCount: 1
+          });
+        }
+      }
+    });
+    
+    // 게시글 수 기준으로 정렬 (내림차순)
+    const sortedRegions = Array.from(regionPostCounts.values())
+      .sort((a, b) => b.postCount - a.postCount)
+      .slice(0, limit);
+    
+    return sortedRegions;
+  } catch (error) {
+    console.error('인기 지역 목록 조회 오류:', error);
+    return [];
+  }
+};
+
 // 관리자용 학교 관리 함수들
 export const adminGetAllSchools = async (): Promise<School[]> => {
   try {

@@ -20,7 +20,7 @@ import PostListItem from '../../components/PostListItem';
 import { formatRelativeTime } from '../../utils/timeUtils';
 import { getBoardsByType, getPostsWithPagination } from '@/lib/boards';
 import { getUserById, getBlockedUserIds } from '@/lib/users';
-import { getPopularSchools, getSchoolById } from '@/lib/schools';
+import { getPopularSchools, getSchoolById, getPopularRegions, RegionInfo, getUserFavoriteSchools } from '@/lib/schools';
 import { BlockedUserContent } from '../../components/ui/BlockedUserContent';
 import { useAuthStore } from '../../store/authStore';
 import { useScrollStore } from '../../store/scrollStore';
@@ -91,8 +91,13 @@ export default function CommunityScreen() {
   const [showSchoolSetupModal, setShowSchoolSetupModal] = useState(false);
   const [popularSchools, setPopularSchools] = useState<School[]>([]);
   const [popularSchoolsLoading, setPopularSchoolsLoading] = useState(false);
+  const [favoriteSchools, setFavoriteSchools] = useState<School[]>([]);
+  const [favoriteSchoolsLoading, setFavoriteSchoolsLoading] = useState(false);
   const [currentSchoolInfo, setCurrentSchoolInfo] = useState<School | null>(null);
   const [currentSchoolId, setCurrentSchoolId] = useState<string | undefined>(undefined);
+  const [popularRegions, setPopularRegions] = useState<RegionInfo[]>([]);
+  const [popularRegionsLoading, setPopularRegionsLoading] = useState(false);
+  const [currentRegion, setCurrentRegion] = useState<{ sido?: string; sigungu?: string }>({});
   
   // 무한 스크롤 상태
   const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
@@ -104,6 +109,7 @@ export default function CommunityScreen() {
   const schoolSelectorRef = useRef<SchoolSelectorRef>(null);
   const [shouldRestoreScroll, setShouldRestoreScroll] = useState(false);
   const [isLayoutReady, setIsLayoutReady] = useState(false);
+  const isLoadingRef = useRef(false); // 로딩 상태를 추적하는 ref
   
   // 스크롤 상태 관리 제거 - 이제 FlatList의 stickyHeaderIndices 사용
   
@@ -164,6 +170,34 @@ export default function CommunityScreen() {
     }
   }, []);
 
+  // 즐겨찾기 학교 목록 로드
+  const loadFavoriteSchools = useCallback(async () => {
+    if (!user?.uid) return;
+    
+    try {
+      setFavoriteSchoolsLoading(true);
+      const schools = await getUserFavoriteSchools(user.uid);
+      setFavoriteSchools(schools);
+    } catch (error) {
+      console.error('즐겨찾기 학교 로드 오류:', error);
+    } finally {
+      setFavoriteSchoolsLoading(false);
+    }
+  }, [user?.uid]);
+
+  // 인기 지역 목록 로드
+  const loadPopularRegions = useCallback(async () => {
+    try {
+      setPopularRegionsLoading(true);
+      const regions = await getPopularRegions(12); // 12개 지역 로드
+      setPopularRegions(regions);
+    } catch (error) {
+      console.error('인기 지역 목록 로드 실패:', error);
+    } finally {
+      setPopularRegionsLoading(false);
+    }
+  }, []);
+
   // 현재 학교 정보 로드
   const loadCurrentSchoolInfo = useCallback(async (schoolId: string) => {
     try {
@@ -195,15 +229,24 @@ export default function CommunityScreen() {
         setCurrentSchoolId(schoolId);
       } else if (tab.startsWith('regional/')) {
         const parts = tab.split('/');
-        const sido = decodeURIComponent(parts[1]);
-        const sigungu = decodeURIComponent(parts[2]);
-        console.log('지역 탭 - sido:', sido, 'sigungu:', sigungu);
+        if (parts.length >= 3) {
+          const sido = decodeURIComponent(parts[1]);
+          const sigungu = decodeURIComponent(parts[2]);
+          console.log('지역 탭 - sido:', sido, 'sigungu:', sigungu);
+          setSelectedTab('regional');
+          setCurrentRegion({ sido, sigungu });
+        }
+      } else if (tab === 'regional') {
+        // /community?tab=regional (지역 정보 없음) - 인기 지역 목록 표시
+        console.log('지역 탭이지만 특정 지역 없음 - 인기 지역 목록 표시');
         setSelectedTab('regional');
+        setCurrentRegion({});
       } else if (tab === 'school') {
         // /community?tab=school (학교 ID 없음) - 인기 학교 목록 표시
         console.log('학교 탭이지만 특정 학교 ID 없음 - 인기 학교 목록 표시');
         setSelectedTab('school');
         setCurrentSchoolId(undefined);
+        setCurrentSchoolInfo(null);
       } else {
         // 기존 단순 탭 이름 (national 등)
         const validTabs: BoardType[] = ['national', 'regional', 'school'];
@@ -223,13 +266,32 @@ export default function CommunityScreen() {
     }
   }, [currentSchoolId, loadCurrentSchoolInfo]);
 
-  // 학교 탭에서 로그인하지 않은 사용자를 위한 인기 학교 로드
+  // 학교 선택 UI에서 즐겨찾기 학교와 인기 학교 로드
   useEffect(() => {
-    if (selectedTab === 'school' && !user && !currentSchoolId && popularSchools.length === 0) {
-      console.log('인기 학교 목록 로드 조건 충족');
-      loadPopularSchools();
+    if (selectedTab === 'school' && !currentSchoolId) {
+      console.log('학교 선택 UI - 데이터 로드 시작');
+      
+      // 즐겨찾기 학교 로드 (로그인한 경우)
+      if (user?.uid && favoriteSchools.length === 0) {
+        console.log('즐겨찾기 학교 로드');
+        loadFavoriteSchools();
+      }
+      
+      // 인기 학교 로드
+      if (popularSchools.length === 0) {
+        console.log('인기 학교 로드');
+        loadPopularSchools();
+      }
     }
-  }, [selectedTab, user, currentSchoolId, popularSchools.length, loadPopularSchools]);
+  }, [selectedTab, currentSchoolId, user?.uid, favoriteSchools.length, popularSchools.length, loadFavoriteSchools, loadPopularSchools]);
+
+  // 지역 탭에서 지역이 설정되지 않은 경우 인기 지역 로드
+  useEffect(() => {
+    if (selectedTab === 'regional' && !currentRegion.sido && !currentRegion.sigungu && popularRegions.length === 0) {
+      console.log('인기 지역 목록 로드 조건 충족');
+      loadPopularRegions();
+    }
+  }, [selectedTab, currentRegion, popularRegions.length, loadPopularRegions]);
 
   useEffect(() => {
     loadBoards();
@@ -247,7 +309,7 @@ export default function CommunityScreen() {
       return;
     }
     loadPosts();
-  }, [selectedTab, selectedBoard, sortBy, currentSchoolId]);
+  }, [selectedTab, selectedBoard, sortBy, currentSchoolId, currentRegion.sido, currentRegion.sigungu]);
 
   // 사용자 정보 변경 시 차단된 사용자 목록 로드 - 무한 루프 방지 수정
   useEffect(() => {
@@ -311,7 +373,13 @@ export default function CommunityScreen() {
 
   const loadPosts = async (isLoadMore = false) => {
     try {
-      console.log('loadPosts 호출:', { isLoadMore, hasMore, postsCount: posts.length, isLoading, isLoadingMore });
+      console.log('loadPosts 호출:', { isLoadMore, hasMore, postsCount: posts.length, isLoading, isLoadingMore, isLoadingRef: isLoadingRef.current });
+      
+      // ref를 사용하여 로딩 중인지 확인 (더 정확함)
+      if (isLoadingRef.current) {
+        console.log('이미 로딩 중 (ref 체크) - 중단');
+        return;
+      }
       
       // 이미 로딩 중이면 중단
       if (isLoadMore && isLoadingMore) {
@@ -329,6 +397,9 @@ export default function CommunityScreen() {
         console.log('더 이상 로드할 게시글 없음');
         return;
       }
+
+      // 로딩 시작
+      isLoadingRef.current = true;
 
       if (isLoadMore) {
         setIsLoadingMore(true);
@@ -356,17 +427,17 @@ export default function CommunityScreen() {
       // 지역 정보 결정
       let regions: { sido: string; sigungu: string } | undefined = undefined;
       if (selectedTab === 'regional') {
-        if (tab && typeof tab === 'string' && tab.startsWith('regional/')) {
-          const parts = tab.split('/');
+        if (currentRegion.sido && currentRegion.sigungu) {
           regions = {
-            sido: decodeURIComponent(parts[1]),
-            sigungu: decodeURIComponent(parts[2])
+            sido: currentRegion.sido,
+            sigungu: currentRegion.sigungu
           };
-        } else if (user?.regions?.sido && user?.regions?.sigungu) {
-          regions = {
-            sido: user.regions.sido,
-            sigungu: user.regions.sigungu
-          };
+        } else {
+          console.log('지역이 설정되지 않음, 게시글 로드 건너뛰기');
+          isLoadingRef.current = false;
+          setIsLoading(false);
+          setIsLoadingMore(false);
+          return;
         }
       }
 
@@ -416,6 +487,9 @@ export default function CommunityScreen() {
         setPosts([]);
       }
     } finally {
+      // 로딩 완료
+      isLoadingRef.current = false;
+      
       if (isLoadMore) {
         setIsLoadingMore(false);
         console.log('더 로드하기 완료');
@@ -454,73 +528,15 @@ export default function CommunityScreen() {
     
     // 새로운 라우팅 구조로 리다이렉트
     if (newTab === 'school') {
-      // 사용자 정보가 없는 경우 - 인기 학교 목록 표시
-      if (!user?.uid) {
-        console.log('사용자 정보 없음, 인기 학교 목록 표시');
-        // URL만 업데이트하고 리다이렉트하지 않음
-        router.setParams({ tab: 'school' });
-        return;
-      }
-      
-      try {
-        console.log('사용자 UID 확인됨:', user.uid);
-        console.log('Fetching latest user info from users collection...');
-        const latestUser = await getUserById(user.uid);
-        console.log('가져온 사용자 정보:', latestUser);
-        
-        if (latestUser?.school?.id) {
-          console.log('Redirecting to school:', latestUser.school.id);
-          router.push(`/(tabs)/community?tab=school/${latestUser.school.id}`);
-        } else {
-          console.log('No school info, showing school setup modal');
-          setShowSchoolSetupModal(true);
-        }
-      } catch (error) {
-        console.error('Failed to fetch user info:', error);
-        // API 호출 실패 시 기존 user 정보로 fallback
-        if (user?.school?.id) {
-          console.log('Fallback to cached school:', user.school.id);
-          router.push(`/(tabs)/community?tab=school/${user.school.id}`);
-        } else {
-          console.log('No cached school info, showing school setup modal');
-          setShowSchoolSetupModal(true);
-        }
-      }
+      // 학교 탭으로 이동 - 항상 학교 선택 UI 먼저 표시
+      console.log('학교 탭으로 이동 - 학교 선택 UI 표시');
+      router.push('/(tabs)/community?tab=school');
+      return;
     } else if (newTab === 'regional') {
-      console.log('=== 지역 탭 선택됨 ===');
-      // 사용자 정보가 없는 경우 - 로그인 안내 화면 표시
-      if (!user?.uid) {
-        console.log('사용자 정보 없음, 로그인 안내 화면 표시');
-        // URL만 업데이트하고 리다이렉트하지 않음
-        router.setParams({ tab: 'regional' });
-        return;
-      }
-      
-      try {
-        console.log('사용자 UID 확인됨:', user.uid);
-        console.log('Fetching latest user info from users collection...');
-        const latestUser = await getUserById(user.uid);
-        console.log('가져온 사용자 정보:', latestUser);
-        console.log('지역 정보:', latestUser?.regions);
-        
-        if (latestUser?.regions?.sido && latestUser?.regions?.sigungu) {
-          console.log('Redirecting to region:', latestUser.regions.sido, latestUser.regions.sigungu);
-          router.push(`/(tabs)/community?tab=regional/${encodeURIComponent(latestUser.regions.sido)}/${encodeURIComponent(latestUser.regions.sigungu)}`);
-        } else {
-          console.log('No region info, showing region setup modal');
-          setShowRegionSetupModal(true);
-        }
-      } catch (error) {
-        console.error('Failed to fetch user info:', error);
-        // API 호출 실패 시 기존 user 정보로 fallback
-        if (user?.regions?.sido && user?.regions?.sigungu) {
-          console.log('Fallback to cached region:', user.regions.sido, user.regions.sigungu);
-          router.push(`/(tabs)/community?tab=regional/${encodeURIComponent(user.regions.sido)}/${encodeURIComponent(user.regions.sigungu)}`);
-        } else {
-          console.log('No cached region info, showing region setup modal');
-          setShowRegionSetupModal(true);
-        }
-      }
+      // 지역 탭으로 이동 - 항상 지역 선택 UI 먼저 표시
+      console.log('지역 탭으로 이동 - 지역 선택 UI 표시');
+      router.push('/(tabs)/community?tab=regional');
+      return;
     } else {
       // 전국 탭은 바로 설정
       router.push(`/(tabs)/community?tab=${newTab}`);
@@ -781,19 +797,189 @@ export default function CommunityScreen() {
   }, [selectedTab, blockedUserIds, handleUnblock, handlePostPress]);
 
   const renderEmptyState = () => {
-    // 학교 탭에서 로그인하지 않은 사용자이고 특정 학교가 선택되지 않은 경우 인기 학교 목록 표시
-    if (selectedTab === 'school' && !user && !currentSchoolId) {
+    // 지역 탭에서 지역이 설정되지 않은 경우 인기 지역 목록 표시
+    if (selectedTab === 'regional' && !currentRegion.sido && !currentRegion.sigungu) {
+      return (
+        <View style={styles.popularSchoolsContainer}>
+          {/* 지역 선택 헤더 */}
+          <View style={styles.popularSchoolsHeader}>
+            <Text style={styles.popularSchoolsIcon}>🏘️</Text>
+            <Text style={styles.popularSchoolsTitle}>지역 선택</Text>
+          </View>
+
+          {/* 로그인한 사용자의 본인 지역 바로가기 버튼 */}
+          {user?.regions?.sido && user?.regions?.sigungu && (
+            <TouchableOpacity
+              style={styles.myRegionButton}
+              onPress={() => {
+                router.push(`/(tabs)/community?tab=regional/${encodeURIComponent(user.regions!.sido)}/${encodeURIComponent(user.regions!.sigungu)}`);
+              }}
+            >
+              <View style={styles.myRegionContent}>
+                <View style={styles.myRegionIconContainer}>
+                  <Text style={styles.myRegionIcon}>📍</Text>
+                </View>
+                <View style={styles.myRegionInfo}>
+                  <Text style={styles.myRegionLabel}>내 지역 커뮤니티</Text>
+                  <Text style={styles.myRegionName}>{user.regions.sigungu}, {user.regions.sido}</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#10B981" />
+            </TouchableOpacity>
+          )}
+          
+          {/* 인기 지역 */}
+          <Text style={styles.sectionTitle}>인기 지역</Text>
+          {popularRegionsLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#10B981" />
+              <Text style={styles.loadingText}>인기 지역을 불러오는 중...</Text>
+            </View>
+          ) : popularRegions.length > 0 ? (
+            <View style={styles.popularSchoolsGrid}>
+              {popularRegions.map((region) => (
+                <TouchableOpacity
+                  key={`${region.sido}-${region.sigungu}`}
+                  style={styles.popularSchoolCard}
+                  onPress={() => {
+                    router.push(`/(tabs)/community?tab=regional/${encodeURIComponent(region.sido)}/${encodeURIComponent(region.sigungu)}`);
+                  }}
+                >
+                  <View style={styles.schoolCardHeader}>
+                    <View style={styles.schoolIconContainer}>
+                      <Text style={styles.schoolIcon}>🏘️</Text>
+                    </View>
+                    <View style={styles.schoolInfo}>
+                      <Text style={styles.schoolName} numberOfLines={2}>
+                        {region.sigungu}
+                      </Text>
+                      <Text style={styles.schoolDistrict}>{region.sido}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.schoolStats}>
+                    <Text style={styles.schoolStat}>게시글 {region.postCount}개</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>🏘️</Text>
+              <Text style={styles.emptyTitle}>인기 지역 목록을 불러올 수 없습니다.</Text>
+            </View>
+          )}
+          
+          {!user && (
+            <View style={styles.loginPrompt}>
+              <Text style={styles.loginPromptText}>더 많은 기능을 이용하려면 로그인하세요</Text>
+              <View style={styles.loginPromptButtons}>
+                <TouchableOpacity 
+                  style={styles.loginPromptButton}
+                  onPress={() => router.push('/login')}
+                >
+                  <Text style={styles.loginPromptButtonText}>로그인하기</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.loginPromptButton, styles.loginPromptButtonSecondary]}
+                  onPress={() => handleTabChange('national')}
+                >
+                  <Text style={[styles.loginPromptButtonText, styles.loginPromptButtonSecondaryText]}>
+                    전국 커뮤니티 보기
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+      );
+    }
+
+    // 학교 탭에서 학교 선택 UI 표시 (특정 학교가 선택되지 않은 경우)
+    if (selectedTab === 'school' && !currentSchoolId) {
+      const mainSchool = favoriteSchools.find(school => school.id === user?.school?.id);
+      const otherFavoriteSchools = favoriteSchools.filter(school => school.id !== user?.school?.id);
+      
       return (
         <View style={styles.popularSchoolsContainer}>
           <View style={styles.popularSchoolsHeader}>
             <Text style={styles.popularSchoolsIcon}>🏫</Text>
-            <Text style={styles.popularSchoolsTitle}>인기 학교 커뮤니티</Text>
-            {/* <Text style={styles.popularSchoolsSubtitle}>
-              활발한 활동이 이루어지고 있는 학교 커뮤니티를 둘러보세요
-            </Text> */}
+            <Text style={styles.popularSchoolsTitle}>학교 선택</Text>
           </View>
           
-          {popularSchoolsLoading ? (
+          {/* 메인 학교 */}
+          {mainSchool && (
+            <>
+              {/* <Text style={styles.sectionTitle}>내 학교</Text> */}
+              <TouchableOpacity
+                style={styles.mySchoolButton}
+                onPress={() => {
+                  router.push(`/(tabs)/community?tab=school/${mainSchool.id}`);
+                }}
+              >
+                <View style={styles.myRegionContent}>
+                  <View style={styles.mySchoolIconContainer}>
+                    <Text style={styles.myRegionIcon}>🏫</Text>
+                  </View>
+                  <View style={styles.myRegionInfo}>
+                    <Text style={styles.mySchoolLabel}>메인 학교</Text>
+                    <Text style={styles.myRegionName}>{mainSchool.KOR_NAME}</Text>
+                    <Text style={styles.schoolDistrict}>{mainSchool.REGION}</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#3B82F6" />
+              </TouchableOpacity>
+            </>
+          )}
+          
+          {/* 즐겨찾기 학교 */}
+          {user && (
+            <>
+              <Text style={styles.sectionTitle}>즐겨찾기 학교</Text>
+              {favoriteSchoolsLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color="#3B82F6" />
+                  <Text style={styles.loadingText}>즐겨찾기 학교를 불러오는 중...</Text>
+                </View>
+              ) : otherFavoriteSchools.length > 0 ? (
+                <View style={styles.popularSchoolsGrid}>
+                  {otherFavoriteSchools.map((school) => (
+                    <TouchableOpacity
+                      key={school.id}
+                      style={styles.popularSchoolCard}
+                      onPress={() => {
+                        router.push(`/(tabs)/community?tab=school/${school.id}`);
+                      }}
+                    >
+                      <View style={styles.schoolCardHeader}>
+                        <View style={styles.schoolIconContainer}>
+                          <Text style={styles.schoolIcon}>⭐</Text>
+                        </View>
+                        <View style={styles.schoolInfo}>
+                          <Text style={styles.schoolName} numberOfLines={2}>
+                            {school.KOR_NAME}
+                          </Text>
+                          <Text style={styles.schoolDistrict}>{school.REGION}</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.emptyFavoriteSection}>
+                  <Text style={styles.emptyFavoriteText}>
+                    아직 즐겨찾기 학교가 없습니다
+                  </Text>
+                  <Text style={styles.emptyFavoriteSubtext}>
+                    마이페이지에서 학교를 추가해보세요
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
+          
+          {/* 인기 학교 */}
+          <Text style={styles.sectionTitle}>인기 학교</Text>
+          {popularSchoolsLoading || favoriteSchoolsLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#10B981" />
               <Text style={styles.loadingText}>인기 학교를 불러오는 중...</Text>
@@ -833,25 +1019,27 @@ export default function CommunityScreen() {
             </View>
           )}
           
-          <View style={styles.loginPrompt}>
-            <Text style={styles.loginPromptText}>더 많은 기능을 이용하려면 로그인하세요</Text>
-            <View style={styles.loginPromptButtons}>
-              <TouchableOpacity 
-                style={styles.loginPromptButton}
-                onPress={() => router.push('/login')}
-              >
-                <Text style={styles.loginPromptButtonText}>로그인하기</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.loginPromptButton, styles.loginPromptButtonSecondary]}
-                onPress={() => handleTabChange('national')}
-              >
-                <Text style={[styles.loginPromptButtonText, styles.loginPromptButtonSecondaryText]}>
-                  전국 커뮤니티 보기
-                </Text>
-              </TouchableOpacity>
+          {!user && (
+            <View style={styles.loginPrompt}>
+              <Text style={styles.loginPromptText}>더 많은 기능을 이용하려면 로그인하세요</Text>
+              <View style={styles.loginPromptButtons}>
+                <TouchableOpacity 
+                  style={styles.loginPromptButton}
+                  onPress={() => router.push('/login')}
+                >
+                  <Text style={styles.loginPromptButtonText}>로그인하기</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.loginPromptButton, styles.loginPromptButtonSecondary]}
+                  onPress={() => handleTabChange('national')}
+                >
+                  <Text style={[styles.loginPromptButtonText, styles.loginPromptButtonSecondaryText]}>
+                    전국 커뮤니티 보기
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          )}
         </View>
       );
     }
@@ -883,74 +1071,91 @@ export default function CommunityScreen() {
     </View>
   );
 
-  // 로그인이 필요한 탭인지 확인 (학교 탭은 로그인 없이도 접근 가능)
-  const isLoginRequired = selectedTab === 'regional' && !user;
+  // 로그인이 필요한 탭인지 확인 - 제거됨 (이제 지역 탭도 로그인 없이 인기 지역 목록 볼 수 있음)
+  // const isLoginRequired = selectedTab === 'regional' && !user;
 
   // ListHeaderComponent: 탭 아래 collapsible 컨텐츠
   const renderListHeader = useCallback(() => {
     return (
       <View style={styles.listHeaderContainer}>
-        {selectedTab === 'school' && (
-          user ? (
-            // 로그인한 사용자: 기존 SchoolSelector
-            <SchoolSelector 
-              ref={schoolSelectorRef}
-              style={styles.schoolSelector}
-              onSchoolChange={async (school: any) => {
-                // 학교 변경 시 URL 업데이트
-                console.log('학교 변경됨:', school);
-                const schoolId = school?.id || school;
-                router.push(`/(tabs)/community?tab=school/${schoolId}`);
-                // 게시글 다시 로드
-                loadBoards();
-                loadPosts();
-              }}
-            />
-          ) : (
-            // 로그인하지 않은 사용자: 현재 학교 정보 표시
-            <View style={styles.guestSchoolInfo}>
-              {currentSchoolInfo ? (
-                <View style={styles.guestSchoolContent}>
-                  <TouchableOpacity 
-                    style={styles.backButton}
-                    onPress={() => {
-                      // 인기 학교 목록으로 돌아가기
-                      router.push('/(tabs)/community?tab=school');
-                    }}
-                  >
-                    <Ionicons name="chevron-back" size={20} color="#6B7280" />
-                  </TouchableOpacity>
-                  <Text style={styles.guestSchoolIcon}>🏫</Text>
-                  <View style={styles.guestSchoolText}>
-                    <Text style={styles.guestSchoolName}>{currentSchoolInfo.KOR_NAME}</Text>
-                    <Text style={styles.guestSchoolSubtext}>
-                      {currentSchoolInfo.REGION} • 게스트로 방문 중
-                    </Text>
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.guestSchoolContent}>
-                  <Text style={styles.guestSchoolIcon}>🏫</Text>
-                  <View style={styles.guestSchoolText}>
-                    <Text style={styles.guestSchoolName}>학교 커뮤니티 탐색</Text>
-                    <Text style={styles.guestSchoolSubtext}>
-                      아래에서 원하는 학교를 선택해보세요
-                    </Text>
-                  </View>
-                </View>
-              )}
+        {selectedTab === 'school' && currentSchoolId && currentSchoolInfo && (
+          // 특정 학교를 보고 있는 경우: 학교 정보와 뒤로가기 버튼 표시
+          <View style={styles.guestSchoolInfo}>
+            <View style={styles.guestSchoolContent}>
+              <TouchableOpacity 
+                style={styles.backButton}
+                onPress={() => {
+                  // 학교 선택 UI로 돌아가기
+                  setCurrentSchoolId(undefined);
+                  setCurrentSchoolInfo(null);
+                  setPosts([]);
+                  setBoards([]);
+                  router.push('/(tabs)/community?tab=school');
+                }}
+              >
+                <Ionicons name="chevron-back" size={20} color="#6B7280" />
+              </TouchableOpacity>
+              <Text style={styles.guestSchoolIcon}>🏫</Text>
+              <View style={styles.guestSchoolText}>
+                <Text style={styles.guestSchoolName}>{currentSchoolInfo.KOR_NAME}</Text>
+                <Text style={styles.guestSchoolSubtext}>
+                  {currentSchoolInfo.REGION}
+                  {!user && ' • 게스트로 방문 중'}
+                  {user && user.school?.id === currentSchoolId && ' • 내 학교'}
+                  {user && user.school?.id !== currentSchoolId && ' • 다른 학교 방문 중'}
+                </Text>
+              </View>
+            </View>
+            {!user && (
               <TouchableOpacity 
                 style={styles.guestLoginButton}
                 onPress={() => router.push('/login')}
               >
                 <Text style={styles.guestLoginButtonText}>로그인</Text>
               </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {selectedTab === 'regional' && currentRegion.sido && currentRegion.sigungu && (
+          // 지역 커뮤니티: 현재 지역 정보 표시
+          <View style={styles.guestSchoolInfo}>
+            <View style={styles.guestSchoolContent}>
+              <TouchableOpacity 
+                style={styles.backButton}
+                onPress={() => {
+                  // 인기 지역 목록으로 돌아가기
+                  setCurrentRegion({});
+                  router.push('/(tabs)/community?tab=regional');
+                }}
+              >
+                <Ionicons name="chevron-back" size={20} color="#6B7280" />
+              </TouchableOpacity>
+              <Text style={styles.guestSchoolIcon}>🏘️</Text>
+              <View style={styles.guestSchoolText}>
+                <Text style={styles.guestSchoolName}>{currentRegion.sigungu}</Text>
+                <Text style={styles.guestSchoolSubtext}>
+                  {currentRegion.sido}
+                  {!user && ' • 게스트로 방문 중'}
+                  {user && user.regions?.sido === currentRegion.sido && user.regions?.sigungu === currentRegion.sigungu && ' • 내 지역'}
+                  {user && (user.regions?.sido !== currentRegion.sido || user.regions?.sigungu !== currentRegion.sigungu) && ' • 다른 지역 방문 중'}
+                </Text>
+              </View>
             </View>
-          )
+            {!user && (
+              <TouchableOpacity 
+                style={styles.guestLoginButton}
+                onPress={() => router.push('/login')}
+              >
+                <Text style={styles.guestLoginButtonText}>로그인</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         )}
         
-        {/* 카테고리 필터와 정렬 헤더는 인기 학교 목록이 아닐 때만 표시 */}
-        {!(selectedTab === 'school' && !user && !currentSchoolId) && (
+        {/* 카테고리 필터와 정렬 헤더는 학교 선택 UI/인기 지역 목록이 아닐 때만 표시 */}
+        {!(selectedTab === 'school' && !currentSchoolId) && 
+         !(selectedTab === 'regional' && !currentRegion.sido && !currentRegion.sigungu) && (
           <>
             {renderCategoryFilter()}
             {renderSortHeader()}
@@ -958,7 +1163,7 @@ export default function CommunityScreen() {
         )}
       </View>
     );
-  }, [selectedTab, user, currentSchoolId, currentSchoolInfo, renderCategoryFilter, renderSortHeader]);
+  }, [selectedTab, user, currentSchoolId, currentSchoolInfo, currentRegion, renderCategoryFilter, renderSortHeader]);
 
   return (
     <View style={styles.container}>
@@ -967,34 +1172,44 @@ export default function CommunityScreen() {
         {renderTabs()}
       </View>
 
-      {/* 로그인이 필요한 탭에서는 로그인 안내 화면 표시 */}
-      {isLoginRequired ? (
-        <View style={styles.loginRequiredWrapper}>
-          {renderLoginRequired()}
+      {/* 게시글 목록 - FlatList로 변경하여 성능 개선 */}
+      {isLoading && posts.length === 0 ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#10B981" />
         </View>
+      ) : (selectedTab === 'school' && !user && !currentSchoolId) ? (
+        // 인기 학교 목록 표시
+        <ScrollView
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#10B981']}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 140 }}
+        >
+          {renderListHeader()}
+          {renderEmptyState()}
+        </ScrollView>
+      ) : (selectedTab === 'regional' && !currentRegion.sido && !currentRegion.sigungu) ? (
+        // 인기 지역 목록 표시
+        <ScrollView
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#10B981']}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 140 }}
+        >
+          {renderListHeader()}
+          {renderEmptyState()}
+        </ScrollView>
       ) : (
-        <>
-          {/* 게시글 목록 - FlatList로 변경하여 성능 개선 */}
-          {isLoading && posts.length === 0 ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#10B981" />
-            </View>
-          ) : (selectedTab === 'school' && !user && !currentSchoolId) ? (
-            // 인기 학교 목록 표시
-            <ScrollView
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  colors={['#10B981']}
-                />
-              }
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 140 }}
-            >
-              {renderEmptyState()}
-            </ScrollView>
-          ) : (
             <FlatList
               ref={scrollViewRef}
               data={posts}
@@ -1018,15 +1233,15 @@ export default function CommunityScreen() {
               // 무한 스크롤
               onEndReached={() => {
                 console.log('onEndReached 트리거:', { isLoading, isLoadingMore, hasMore, postsCount: posts.length });
-                // 초기 로딩 중이거나, 이미 로딩 중이거나, 더 이상 없으면 중단
-                if (isLoading || isLoadingMore || !hasMore) {
-                  console.log('로드 안 함:', { isLoading, isLoadingMore, hasMore });
+                // 초기 로딩 중이거나, 이미 로딩 중이거나, 더 이상 없거나, 게시글이 없으면 중단
+                if (isLoading || isLoadingMore || !hasMore || posts.length === 0) {
+                  console.log('로드 안 함:', { isLoading, isLoadingMore, hasMore, postsLength: posts.length });
                   return;
                 }
                 console.log('다음 페이지 로드 시작!');
                 loadPosts(true);
               }}
-              onEndReachedThreshold={0.5}
+              onEndReachedThreshold={0.3}
               ListFooterComponent={() => {
                 if (isLoadingMore) {
                   return (
@@ -1052,8 +1267,6 @@ export default function CommunityScreen() {
               initialNumToRender={10}
               windowSize={10}
             />
-          )}
-        </>
       )}
 
       {/* 게시판 선택 모달 */}
@@ -1067,7 +1280,10 @@ export default function CommunityScreen() {
       {renderSortModal()}
 
       {/* 글쓰기 버튼 - SafeScreenContainer 외부에 배치하여 고정 */}
-      {user && (
+      {/* 학교 선택 UI나 인기 지역 UI에서는 숨김 */}
+      {user && 
+       !(selectedTab === 'school' && !currentSchoolId) && 
+       !(selectedTab === 'regional' && !currentRegion.sido && !currentRegion.sigungu) && (
         <TouchableOpacity style={styles.writeButton} onPress={handleWritePress}>
           <Ionicons name="add" size={24} color="white" />
         </TouchableOpacity>
@@ -1432,6 +1648,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 48,
   },
+  emptyFavoriteSection: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  emptyFavoriteText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  emptyFavoriteSubtext: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
   emptyIcon: {
     fontSize: 32,
     marginBottom: 8,
@@ -1576,6 +1810,88 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
+  
+  // 내 지역 버튼 스타일
+  myRegionButton: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 2,
+    borderColor: '#10B981',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  myRegionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  myRegionIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#D1FAE5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  myRegionIcon: {
+    fontSize: 24,
+  },
+  myRegionInfo: {
+    flex: 1,
+  },
+  myRegionLabel: {
+    fontSize: 12,
+    color: '#10B981',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  myRegionName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  
+  // 내 학교 버튼 스타일
+  mySchoolButton: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  mySchoolIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#DBEAFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  mySchoolLabel: {
+    fontSize: 12,
+    color: '#3B82F6',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
   popularSchoolsIcon: {
     fontSize: 32,
     marginBottom: 8,
@@ -1585,6 +1901,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
     marginBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginTop: 16,
+    marginBottom: 12,
   },
   popularSchoolsSubtitle: {
     fontSize: 14,
