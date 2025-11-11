@@ -242,8 +242,12 @@ export default function CommunityScreen() {
   }, [selectedTab]);
 
   useEffect(() => {
+    // boards가 로드되지 않았으면 대기
+    if (boards.length === 0 && selectedTab !== 'national') {
+      return;
+    }
     loadPosts();
-  }, [selectedTab, selectedBoard, sortBy, boards, currentSchoolId]);
+  }, [selectedTab, selectedBoard, sortBy, currentSchoolId]);
 
   // 사용자 정보 변경 시 차단된 사용자 목록 로드 - 무한 루프 방지 수정
   useEffect(() => {
@@ -307,7 +311,18 @@ export default function CommunityScreen() {
 
   const loadPosts = async (isLoadMore = false) => {
     try {
-      console.log('loadPosts 호출:', { isLoadMore, hasMore, postsCount: posts.length });
+      console.log('loadPosts 호출:', { isLoadMore, hasMore, postsCount: posts.length, isLoading, isLoadingMore });
+      
+      // 이미 로딩 중이면 중단
+      if (isLoadMore && isLoadingMore) {
+        console.log('이미 로딩 중 - 중단');
+        return;
+      }
+      
+      if (!isLoadMore && isLoading) {
+        console.log('이미 초기 로딩 중 - 중단');
+        return;
+      }
       
       // 더 로드하기인데 더 이상 없으면 중단
       if (isLoadMore && !hasMore) {
@@ -1002,13 +1017,14 @@ export default function CommunityScreen() {
               showsVerticalScrollIndicator={false}
               // 무한 스크롤
               onEndReached={() => {
-                console.log('onEndReached 트리거:', { isLoadingMore, hasMore, postsCount: posts.length });
-                if (!isLoadingMore && hasMore) {
-                  console.log('다음 페이지 로드 시작!');
-                  loadPosts(true);
-                } else {
-                  console.log('로드 안 함:', { isLoadingMore, hasMore });
+                console.log('onEndReached 트리거:', { isLoading, isLoadingMore, hasMore, postsCount: posts.length });
+                // 초기 로딩 중이거나, 이미 로딩 중이거나, 더 이상 없으면 중단
+                if (isLoading || isLoadingMore || !hasMore) {
+                  console.log('로드 안 함:', { isLoading, isLoadingMore, hasMore });
+                  return;
                 }
+                console.log('다음 페이지 로드 시작!');
+                loadPosts(true);
               }}
               onEndReachedThreshold={0.5}
               ListFooterComponent={() => {
