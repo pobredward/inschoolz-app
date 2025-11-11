@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ScrollView,
   View,
@@ -179,19 +180,8 @@ export default function PostDetailScreen() {
   const [newComment, setNewComment] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [likeCount, setLikeCount] = useState(0);
-  // 개별 댓글별 답글 입력 상태 관리
-  const [replyingToComments, setReplyingToComments] = useState<Record<string, {
-    content: string;
-    isAnonymous: boolean;
-  }>>({});
-  
-  // 기존 전역 답글 상태는 유지 (호환성을 위해)
-  const [replyingTo, setReplyingTo] = useState<{
-    id: string;
-    author: string;
-  } | null>(null);
-  const [replyContent, setReplyContent] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); // 댓글 제출 중 상태
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportTargetId, setReportTargetId] = useState<string>('');
   const [reportTargetType, setReportTargetType] = useState<'post' | 'comment'>('post');
@@ -587,74 +577,29 @@ export default function PostDetailScreen() {
           }
         }
         
-        // 답글 가져오기
+        // 답글 개수만 가져오기 (실제 내용은 세부 화면에서 로드)
         const repliesQuery = query(
           collection(db, 'posts', postId, 'comments'),
           where('parentId', '==', commentData.id),
           orderBy('createdAt', 'asc')
         );
         const repliesSnapshot = await getDocs(repliesQuery);
-        const replies: CommentWithAuthor[] = [];
         
-        for (const replyDoc of repliesSnapshot.docs) {
-          const replyData = { id: replyDoc.id, ...replyDoc.data() } as Comment;
-          
-          // status 객체가 없는 경우 기본값으로 초기화
-          if (!replyData.status) {
-            replyData.status = {
-              isDeleted: false,
-              isBlocked: false
-            };
-          }
-          
-          // 삭제된 대댓글이지만 내용이 "삭제된 댓글입니다."가 아닌 경우 건너뛰기
-          if (replyData.status.isDeleted && replyData.content !== '삭제된 댓글입니다.') {
-            continue;
-          }
-          
-          // 답글 작성자 정보 가져오기
-          let replyAuthorInfo = {
-            userName: '사용자',
-            profileImageUrl: ''
-          };
-          
-          // 익명 대댓글 처리
-          if (replyData.isAnonymous || !replyData.authorId) {
-            if (replyData.anonymousAuthor?.nickname) {
-              replyAuthorInfo.userName = replyData.anonymousAuthor.nickname;
-            } else {
-              replyAuthorInfo.userName = '익명';
-            }
-          } else if (!replyData.status.isDeleted) {
-            try {
-              const replyUserDoc = await getDoc(doc(db, 'users', replyData.authorId));
-              if (replyUserDoc.exists()) {
-                const replyUserData = replyUserDoc.data();
-                if (replyUserData?.profile) {
-                  replyAuthorInfo = {
-                    userName: replyUserData.profile.userName || '사용자',
-                    profileImageUrl: replyUserData.profile.profileImageUrl || ''
-                  };
-                }
-              }
-            } catch (error) {
-              console.error('답글 작성자 정보 조회 오류:', error);
-            }
-          }
-          
-          replies.push({
-            ...replyData,
-            author: replyAuthorInfo
-          });
-        }
+        // 삭제되지 않은 답글만 카운트
+        const validReplies = repliesSnapshot.docs.filter(doc => {
+          const replyData = doc.data();
+          if (!replyData.status) return true;
+          return !(replyData.status.isDeleted && replyData.content !== '삭제된 댓글입니다.');
+        });
         
-        // 대댓글도 시간순으로 정렬
-        replies.sort((a, b) => toTimestamp(a.createdAt) - toTimestamp(b.createdAt));
+        // 빈 배열이지만 length 속성만 설정 (UI에서 답글 개수 표시용)
+        const repliesPlaceholder: CommentWithAuthor[] = [];
+        (repliesPlaceholder as any).__replyCount = validReplies.length;
         
         commentsData.push({
           ...commentData,
           author: authorInfo,
-          replies
+          replies: repliesPlaceholder
         });
       }
 
@@ -663,12 +608,11 @@ export default function PostDetailScreen() {
 
       setComments(commentsData);
       
-      // 실제 로드된 댓글 수로 게시글 카운트 동기화 (표시된 댓글만 카운트)
+      // 실제 로드된 댓글 수로 게시글 카운트 동기화 (댓글 + 대댓글)
       const actualCommentCount = commentsData.reduce((count, comment) => {
         let total = 1; // 부모 댓글
-        if (comment.replies && comment.replies.length > 0) {
-          total += comment.replies.length; // 대댓글들
-        }
+        const replyCount = (comment.replies as any)?.__replyCount || 0;
+        total += replyCount; // 대댓글들
         return count + total;
       }, 0);
       
@@ -934,101 +878,6 @@ export default function PostDetailScreen() {
     setExperienceData(null);
   };
 
-  // 개별 댓글 답글 입력 상태 관리 함수들
-  const startReplyToComment = (commentId: string) => {
-    setReplyingToComments(prev => ({
-      ...prev,
-      [commentId]: {
-        content: '',
-        isAnonymous: false
-      }
-    }));
-  };
-
-  const updateReplyContent = (commentId: string, content: string) => {
-    setReplyingToComments(prev => ({
-      ...prev,
-      [commentId]: {
-        ...prev[commentId],
-        content
-      }
-    }));
-  };
-
-  const toggleReplyAnonymous = (commentId: string) => {
-    setReplyingToComments(prev => ({
-      ...prev,
-      [commentId]: {
-        ...prev[commentId],
-        isAnonymous: !prev[commentId]?.isAnonymous
-      }
-    }));
-  };
-
-  const cancelReply = (commentId: string) => {
-    setReplyingToComments(prev => {
-      const newState = { ...prev };
-      delete newState[commentId];
-      return newState;
-    });
-  };
-
-  const submitReply = async (commentId: string, authorName: string) => {
-    const replyState = replyingToComments[commentId];
-    if (!replyState || !replyState.content.trim() || !user) return;
-
-    try {
-      const { createComment } = await import('../../../../lib/boards');
-      await createComment(post!.id, replyState.content, user.uid, replyState.isAnonymous, commentId);
-
-      // 로컬 게시글 댓글 수 업데이트
-      setPost(prev => prev ? {
-        ...prev,
-        stats: {
-          ...prev.stats,
-          commentCount: prev.stats.commentCount + 1
-        }
-      } : null);
-
-      // 답글 상태 초기화
-      cancelReply(commentId);
-
-      // 댓글 목록 새로고침
-      if (post) {
-        await loadComments(post.id);
-      }
-
-      // 경험치 지급 (익명이 아닌 경우만)
-      if (!replyState.isAnonymous) {
-        try {
-          const expResult = await awardCommentExperience(user.uid);
-          if (expResult.success) {
-            setExperienceData({
-              expGained: expResult.expGained,
-              activityType: 'comment',
-              leveledUp: expResult.leveledUp,
-              oldLevel: expResult.oldLevel,
-              newLevel: expResult.newLevel,
-              currentExp: expResult.currentExp,
-              expToNextLevel: expResult.expToNextLevel,
-              remainingCount: expResult.remainingCount,
-              totalDailyLimit: expResult.totalDailyLimit,
-              reason: expResult.reason
-            });
-            setShowExperienceModal(true);
-          }
-        } catch (expError) {
-          console.error('경험치 부여 실패:', expError);
-        }
-      }
-
-      Alert.alert('성공', '답글이 작성되었습니다.');
-    } catch (error) {
-      console.error('답글 작성 실패:', error);
-      Alert.alert('오류', '답글 작성에 실패했습니다.');
-    }
-  };
-
   const handleCommentSubmit = async () => {
     if (!newComment.trim()) {
       // 빈 댓글 제출 시 조용히 리턴 - 사용자가 입력하지 않은 상태에서 실수로 눌렀을 가능성 고려
@@ -1037,6 +886,11 @@ export default function PostDetailScreen() {
 
     if (!user || !post) {
       Alert.alert('알림', '로그인이 필요합니다.');
+      return;
+    }
+
+    // 이미 제출 중이면 중복 제출 방지
+    if (isSubmitting) {
       return;
     }
 
@@ -1051,47 +905,20 @@ export default function PostDetailScreen() {
       return;
     }
 
+    setIsSubmitting(true);
+
     try {
       // 댓글 작성 (로그인 사용자는 익명이어도 비밀번호 불필요)
       const { createComment } = await import('../../../../lib/boards');
       const newCommentId = await createComment(post.id, newComment, user.uid, isAnonymous);
       
-      // 새 댓글을 로컬 상태에 즉시 추가 (페이지 refresh 없이)
-      const newCommentWithAuthor: CommentWithAuthor = {
-        id: newCommentId,
-        postId: post.id,
-        content: newComment,
-        authorId: user.uid,
-        isAnonymous: isAnonymous,
-        parentId: null,
-        createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any, // 임시 타임스탬프
-        stats: {
-          likeCount: 0
-        },
-        status: {
-          isDeleted: false,
-          isBlocked: false
-        },
-        author: {
-          userName: isAnonymous ? '익명' : (user.profile?.userName || '사용자'),
-          profileImageUrl: isAnonymous ? '' : (user.profile?.profileImageUrl || '')
-        },
-        replies: []
-      };
-      
-      setComments(prev => [...prev, newCommentWithAuthor]);
-      
-      // 로컬 게시글 댓글 수 업데이트
-      setPost(prev => prev ? {
-        ...prev,
-        stats: {
-          ...prev.stats,
-          commentCount: prev.stats.commentCount + 1
-        }
-      } : null);
-      
+      // 입력 필드 먼저 초기화 (사용자 경험 개선)
+      const commentContentForExp = newComment;
       setNewComment('');
       setIsAnonymous(false);
+      
+      // 댓글 목록 새로고침 (대댓글 카운트 포함)
+      await loadComments(post.id);
       
       // 경험치 부여
       try {
@@ -1120,6 +947,8 @@ export default function PostDetailScreen() {
     } catch (error) {
       console.error('댓글 작성 실패:', error);
       Alert.alert('오류', '댓글 작성에 실패했습니다.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1181,88 +1010,6 @@ export default function PostDetailScreen() {
     }
   };
 
-  // 답글 작성 핸들러 추가
-  const handleReplySubmit = async () => {
-    if (!user || !replyingTo || !replyContent.trim()) return;
-
-    try {
-      let newReplyData;
-      if (isAnonymous) {
-        // 익명 답글 작성 (로그인 사용자는 비밀번호 불필요)
-        const { createComment } = await import('../../../../lib/boards');
-        newReplyData = await createComment(post!.id, replyContent, user.uid, true, replyingTo.id);
-      } else {
-        // 일반 답글 작성
-        const { createComment } = await import('../../../../lib/boards');
-        newReplyData = await createComment(post!.id, replyContent, user.uid, false, replyingTo.id);
-      }
-
-      // 새 답글을 로컬 상태에 즉시 추가 (페이지 refresh 없이)
-      const newReplyWithAuthor: CommentWithAuthor = {
-        ...newReplyData,
-        author: {
-          userName: isAnonymous ? '익명' : (user.profile?.userName || '사용자'),
-          profileImageUrl: isAnonymous ? '' : (user.profile?.profileImageUrl || '')
-        },
-        replies: []
-      };
-
-      // 부모 댓글의 replies 배열에 새 답글 추가
-      setComments(prev => prev.map(comment => {
-        if (comment.id === replyingTo.id) {
-          return {
-            ...comment,
-            replies: [...(comment.replies || []), newReplyWithAuthor]
-          };
-        }
-        return comment;
-      }));
-
-      // 로컬 게시글 댓글 수 업데이트
-      setPost(prev => prev ? {
-        ...prev,
-        stats: {
-          ...prev.stats,
-          commentCount: prev.stats.commentCount + 1
-        }
-      } : null);
-
-      // 상태 초기화
-      setReplyContent('');
-      setReplyingTo(null);
-      setIsAnonymous(false);
-
-      // 경험치 지급 (회원 댓글인 경우만)
-      if (!isAnonymous) {
-        try {
-          const { awardCommentExperience } = await import('../../../../lib/experience-service');
-          const expResult = await awardCommentExperience(user.uid);
-          if (expResult.success) {
-            setExperienceData({
-              expGained: expResult.expGained,
-              activityType: 'comment',
-              leveledUp: expResult.leveledUp,
-              oldLevel: expResult.oldLevel,
-              newLevel: expResult.newLevel,
-              currentExp: expResult.currentExp,
-              expToNextLevel: expResult.expToNextLevel,
-              remainingCount: expResult.remainingCount,
-              totalDailyLimit: expResult.totalDailyLimit,
-              reason: expResult.reason
-            });
-            setShowExperienceModal(true);
-          }
-        } catch (expError) {
-          console.error('경험치 부여 실패:', expError);
-        }
-      }
-
-      Alert.alert('성공', '답글이 작성되었습니다.');
-    } catch (error) {
-      console.error('답글 작성 실패:', error);
-      Alert.alert('오류', '답글 작성에 실패했습니다.');
-    }
-  };
 
   // 댓글 더보기 메뉴 핸들러
   const handleCommentMorePress = (comment: CommentWithAuthor) => {
@@ -1765,17 +1512,8 @@ export default function PostDetailScreen() {
                 <TouchableOpacity
                   style={styles.actionButton}
                   onPress={() => {
-                    if (user) {
-                      // 로그인 사용자는 해당 댓글 아래에 답글 입력창 활성화
-                      startReplyToComment(comment.id);
-                    } else {
-                      // 비회원은 별도 답글 폼 표시
-                      setGuestReplyingTo({
-                        id: comment.id,
-                        author: authorName
-                      });
-                      setShowGuestCommentForm(true);
-                    }
+                    // 대댓글 작성은 세부 화면으로 이동
+                    router.push(`/board/${type}/${boardCode}/${postId}/comments/${comment.id}`);
                   }}
                 >
                   <Ionicons name="chatbubble-outline" size={14} color="#6b7280" />
@@ -1786,80 +1524,24 @@ export default function PostDetailScreen() {
           )}
         </View>
 
-        {/* 개별 답글 입력창 */}
-        {user && replyingToComments[comment.id] && (
-          <View style={styles.inlineReplyContainer}>
-            <View style={styles.inlineReplyHeader}>
-              <Text style={styles.inlineReplyTitle}>{authorName}님에게 답글 작성</Text>
+        {/* 대댓글 보기 버튼 */}
+        {!isDeleted && (() => {
+          const replyCount = (comment.replies as any)?.__replyCount || 0;
+          if (replyCount > 0) {
+            return (
               <TouchableOpacity 
-                style={styles.inlineReplyCancelButton}
-                onPress={() => cancelReply(comment.id)}
+                style={styles.viewRepliesButton}
+                onPress={() => router.push(`/board/${type}/${boardCode}/${postId}/comments/${comment.id}`)}
               >
-                <Ionicons name="close" size={16} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-
-            {/* 익명 모드 토글 */}
-            <View style={styles.inlineReplyOptions}>
-              <TouchableOpacity
-                style={styles.anonymousToggle}
-                onPress={() => toggleReplyAnonymous(comment.id)}
-              >
-                <Ionicons 
-                  name={replyingToComments[comment.id]?.isAnonymous ? "checkbox" : "square-outline"} 
-                  size={16} 
-                  color={replyingToComments[comment.id]?.isAnonymous ? "#10b981" : "#6b7280"} 
-                />
-                <Text style={[
-                  styles.anonymousToggleText,
-                  replyingToComments[comment.id]?.isAnonymous && styles.anonymousToggleTextActive
-                ]}>
-                  익명
+                <Ionicons name="chatbubble-outline" size={14} color="#3b82f6" />
+                <Text style={styles.viewRepliesButtonText}>
+                  대댓글 {replyCount}개 보기
                 </Text>
               </TouchableOpacity>
-            </View>
-            
-            <View style={styles.inlineReplyInputWrapper}>
-              {!replyingToComments[comment.id]?.isAnonymous && renderProfileImage(
-                user?.profile?.profileImageUrl,
-                user?.profile?.userName,
-                false
-              )}
-              {replyingToComments[comment.id]?.isAnonymous && (
-                <View style={styles.anonymousAvatar}>
-                  <Ionicons name="person-outline" size={20} color="#6b7280" />
-                </View>
-              )}
-              <TextInput
-                style={styles.inlineReplyInput}
-                placeholder={`${authorName}님에게 답글...`}
-                value={replyingToComments[comment.id]?.content || ''}
-                onChangeText={(text) => updateReplyContent(comment.id, text)}
-                multiline
-                maxLength={1000}
-                autoFocus
-              />
-              <TouchableOpacity 
-                style={styles.inlineReplySubmitButton}
-                onPress={() => submitReply(comment.id, authorName)}
-                disabled={!replyingToComments[comment.id]?.content?.trim()}
-              >
-                <Ionicons 
-                  name="send" 
-                  size={18} 
-                  color={replyingToComments[comment.id]?.content?.trim() ? "#10b981" : "#9ca3af"} 
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* 답글 목록 */}
-        {comment.replies && comment.replies.length > 0 && (
-          <View style={styles.repliesContainer}>
-            {comment.replies.map((reply) => renderComment(reply, level + 1, authorName))}
-          </View>
-        )}
+            );
+          }
+          return null;
+        })()}
       </View>
     );
   };
@@ -1874,6 +1556,23 @@ export default function PostDetailScreen() {
       loadBlockedUsers();
     }
   }, [user?.uid, loadBlockedUsers]);
+
+  // 화면 포커스 시 댓글 목록 새로고침 (세부 화면에서 돌아왔을 때)
+  // 초기 로드는 제외하고 포커스가 다시 돌아올 때만 실행
+  const isInitialMount = React.useRef(true);
+  
+  useFocusEffect(
+    useCallback(() => {
+      if (isInitialMount.current) {
+        isInitialMount.current = false;
+        return;
+      }
+      
+      if (post?.id) {
+        loadComments(post.id);
+      }
+    }, [post?.id])
+  );
 
   if (isLoading) {
     return (
@@ -2025,7 +1724,12 @@ export default function PostDetailScreen() {
                   </View>
                   <View style={styles.actionButton}>
                     <Ionicons name="chatbubble-outline" size={16} color="#6b7280" />
-                    <Text style={styles.actionButtonText}>{comments.length}</Text>
+                    <Text style={styles.actionButtonText}>
+                      {comments.reduce((total, comment) => {
+                        const replyCount = (comment.replies as any)?.__replyCount || 0;
+                        return total + 1 + replyCount;
+                      }, 0)}
+                    </Text>
                   </View>
                 </View>
                 
@@ -2068,7 +1772,12 @@ export default function PostDetailScreen() {
               <View style={styles.commentSectionHeader}>
                 <Text style={styles.commentTitle}>댓글</Text>
                 <View style={styles.commentBadge}>
-                  <Text style={styles.commentBadgeText}>{comments.length}</Text>
+                  <Text style={styles.commentBadgeText}>
+                    {comments.reduce((total, comment) => {
+                      const replyCount = (comment.replies as any)?.__replyCount || 0;
+                      return total + 1 + replyCount;
+                    }, 0)}
+                  </Text>
                 </View>
               </View>
 
@@ -2120,17 +1829,22 @@ export default function PostDetailScreen() {
                     )}
                     <TextInput
                       style={styles.commentInput}
-                      placeholder={replyingTo ? `${replyingTo.author}님에게 답글...` : "댓글을 입력해 주세요..."}
-                      value={replyingTo ? replyContent : newComment}
-                      onChangeText={replyingTo ? setReplyContent : setNewComment}
+                      placeholder="댓글을 입력해 주세요..."
+                      value={newComment}
+                      onChangeText={setNewComment}
                       multiline
                       maxLength={1000}
                     />
                     <TouchableOpacity 
                       style={styles.commentSubmitButton}
-                      onPress={replyingTo ? handleReplySubmit : handleCommentSubmit}
+                      onPress={handleCommentSubmit}
+                      disabled={isSubmitting || !newComment.trim()}
                     >
-                      <Ionicons name="send" size={20} color="#10b981" />
+                      <Ionicons 
+                        name="send" 
+                        size={20} 
+                        color={isSubmitting || !newComment.trim() ? "#9ca3af" : "#10b981"} 
+                      />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -2848,6 +2562,25 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     marginLeft: 4,
   },
+  viewRepliesButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 32,
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#eff6ff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    alignSelf: 'flex-start',
+  },
+  viewRepliesButtonText: {
+    fontSize: 13,
+    color: '#3b82f6',
+    fontWeight: '600',
+    marginLeft: 6,
+  },
   
   // 답글 및 익명 모드 스타일
   replyIndicator: {
@@ -3024,58 +2757,6 @@ const styles = StyleSheet.create({
   linkText: {
     color: '#2563eb',
     textDecorationLine: 'underline',
-  },
-  
-  // 인라인 답글 입력창 스타일
-  inlineReplyContainer: {
-    marginTop: 12,
-    marginLeft: 32, // 댓글 아바타 크기에 맞춰 들여쓰기
-    backgroundColor: '#f8fafc',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  inlineReplyHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  inlineReplyTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  inlineReplyCancelButton: {
-    padding: 4,
-  },
-  inlineReplyInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginBottom: 8,
-  },
-  inlineReplyInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 14,
-    lineHeight: 18,
-    maxHeight: 80,
-    backgroundColor: '#ffffff',
-  },
-  inlineReplySubmitButton: {
-    padding: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  inlineReplyOptions: {
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   suspensionNotice: {
     backgroundColor: '#fef2f2',
