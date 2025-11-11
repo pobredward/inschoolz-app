@@ -19,6 +19,7 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '@/store/authStore';
@@ -47,6 +48,7 @@ export default function WritePostPage() {
   
   const router = useRouter();
   const { user } = useAuthStore();
+  const insets = useSafeAreaInsets();
   
   const [board, setBoard] = useState<Board | null>(null);
   const [title, setTitle] = useState('');
@@ -453,7 +455,10 @@ export default function WritePostPage() {
       <View style={styles.container}>
         <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
         <SafeAreaView style={styles.safeArea}>
-          <View style={styles.header}>
+          <View style={[
+            styles.header,
+            Platform.OS === 'android' && { paddingTop: insets.top + 8 }
+          ]}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
               <Ionicons name="arrow-back" size={20} color="#333" />
             </TouchableOpacity>
@@ -498,7 +503,10 @@ export default function WritePostPage() {
       <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
       <SafeAreaView style={styles.safeArea}>
         {/* 헤더 */}
-        <View style={styles.header}>
+        <View style={[
+          styles.header,
+          Platform.OS === 'android' && { paddingTop: insets.top + 8 }
+        ]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={20} color="#333" />
           </TouchableOpacity>

@@ -15,6 +15,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getBoardsByType, getPostsByBoardType } from '../../../../lib/boards';
 import { getBlockedUserIds } from '../../../../lib/users';
@@ -72,9 +73,16 @@ interface BoardInfo {
 }
 
 // 커스텀 헤더 컴포넌트
-function CustomHeader({ title, onBack }: { title: string; onBack: () => void }) {
+function CustomHeader({ title, onBack, insets }: { 
+  title: string; 
+  onBack: () => void;
+  insets?: { top: number; bottom: number; left: number; right: number };
+}) {
   return (
-    <View style={styles.header}>
+    <View style={[
+      styles.header,
+      Platform.OS === 'android' && insets && { paddingTop: insets.top + 8 }
+    ]}>
       <TouchableOpacity onPress={onBack} style={styles.headerButton}>
         <Ionicons name="arrow-back" size={20} color="#000" />
       </TouchableOpacity>
@@ -100,6 +108,7 @@ export default function BoardScreen() {
   const router = useRouter();
   const { type, boardCode } = useLocalSearchParams();
   const { user } = useAuthStore();
+  const insets = useSafeAreaInsets();
   const [posts, setPosts] = useState<Post[]>([]);
   const [board, setBoard] = useState<Board | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -363,6 +372,7 @@ export default function BoardScreen() {
           <CustomHeader 
             title={`${boardInfo.name} - ${getTypeDisplayName(type as string)}`} 
             onBack={() => router.back()} 
+            insets={insets}
           />
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={pastelGreenColors[500]} />
@@ -380,6 +390,7 @@ export default function BoardScreen() {
         <CustomHeader 
           title={`${boardInfo.name} - ${getTypeDisplayName(type as string)}`} 
           onBack={() => router.back()} 
+          insets={insets}
         />
         
         {renderSortHeader()}

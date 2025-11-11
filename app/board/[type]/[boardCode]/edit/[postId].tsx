@@ -16,6 +16,7 @@ import {
   Image,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
 import { doc, getDoc, updateDoc, deleteField, Timestamp, serverTimestamp } from 'firebase/firestore';
@@ -35,6 +36,7 @@ export default function EditPostPage() {
   
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuthStore();
+  const insets = useSafeAreaInsets();
   
   const [board, setBoard] = useState<Board | null>(null);
   const [post, setPost] = useState<Post | null>(null);
@@ -294,7 +296,10 @@ export default function EditPostPage() {
       <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" translucent={false} />
       <SafeAreaView style={styles.safeArea}>
         {/* 헤더 */}
-        <View style={styles.header}>
+        <View style={[
+          styles.header,
+          Platform.OS === 'android' && { paddingTop: insets.top + 8 }
+        ]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={20} color="#333" />
           </TouchableOpacity>

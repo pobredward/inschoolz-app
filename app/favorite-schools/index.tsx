@@ -15,6 +15,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { School } from '@/types';
 import { searchSchools } from '@/lib/schools';
@@ -40,13 +41,17 @@ const pastelGreenColors = {
 };
 
 // 커스텀 헤더 컴포넌트
-function CustomHeader({ title, onBack, onAdd }: { 
+function CustomHeader({ title, onBack, onAdd, insets }: { 
   title: string; 
   onBack: () => void; 
   onAdd?: () => void;
+  insets?: { top: number; bottom: number; left: number; right: number };
 }) {
   return (
-    <View style={styles.header}>
+    <View style={[
+      styles.header,
+      Platform.OS === 'android' && insets && { paddingTop: insets.top + 8 }
+    ]}>
       <TouchableOpacity onPress={onBack} style={styles.headerButton}>
         <Ionicons name="arrow-back" size={20} color="#000" />
       </TouchableOpacity>
@@ -65,6 +70,7 @@ function CustomHeader({ title, onBack, onAdd }: {
 export default function FavoriteSchoolsScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const insets = useSafeAreaInsets();
   const [favoriteSchools, setFavoriteSchools] = useState<School[]>([]);
   const [mainSchoolId, setMainSchoolId] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -203,7 +209,7 @@ export default function FavoriteSchoolsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <CustomHeader title="즐겨찾기 학교" onBack={() => router.back()} />
+        <CustomHeader title="즐겨찾기 학교" onBack={() => router.back()} insets={insets} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={pastelGreenColors[500]} />
           <Text style={styles.loadingText}>학교 정보를 불러오는 중...</Text>
@@ -220,6 +226,7 @@ export default function FavoriteSchoolsScreen() {
           title="즐겨찾기 학교" 
           onBack={() => router.back()}
           onAdd={() => setShowAddModal(true)}
+          insets={insets}
         />
         
         <ScrollView 

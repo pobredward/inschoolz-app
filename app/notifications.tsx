@@ -9,9 +9,11 @@ import {
   Alert,
   SafeAreaView,
   Dimensions,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
 import { 
   getUserNotifications, 
@@ -194,6 +196,7 @@ export default function NotificationsScreen() {
     decrementUnreadNotificationCount 
   } = useAuthStore();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -327,7 +330,10 @@ export default function NotificationsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       {/* 헤더 */}
-      <View style={styles.header}>
+      <View style={[
+        styles.header,
+        Platform.OS === 'android' && { paddingTop: insets.top + 8 }
+      ]}>
         <View style={styles.headerLeft}>
           <Ionicons name="notifications" size={24} color="#059669" />
           <Text style={styles.headerTitle}>알림</Text>

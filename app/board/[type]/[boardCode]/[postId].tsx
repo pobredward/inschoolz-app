@@ -141,10 +141,14 @@ interface CustomHeaderProps {
   onBack: () => void;
   showMenu?: boolean;
   onMenuPress?: () => void;
+  insets?: { top: number; bottom: number; left: number; right: number };
 }
 
-const CustomHeader: React.FC<CustomHeaderProps> = ({ title, onBack, showMenu = false, onMenuPress }) => (
-  <View style={styles.header}>
+const CustomHeader: React.FC<CustomHeaderProps> = ({ title, onBack, showMenu = false, onMenuPress, insets }) => (
+  <View style={[
+    styles.header,
+    Platform.OS === 'android' && insets && { paddingTop: insets.top + 8 }
+  ]}>
     <TouchableOpacity onPress={onBack} style={styles.headerButton}>
       <Ionicons name="arrow-back" size={20} color="#111827" />
     </TouchableOpacity>
@@ -1906,6 +1910,7 @@ export default function PostDetailScreen() {
           onBack={() => router.back()} 
           showMenu={true}
           onMenuPress={handleMenuPress}
+          insets={insets}
         />
 
         <KeyboardAvoidingView 
