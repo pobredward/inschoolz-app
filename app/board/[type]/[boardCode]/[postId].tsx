@@ -174,6 +174,7 @@ export default function PostDetailScreen() {
   
   const { user } = useAuthStore();
   const insets = useSafeAreaInsets();
+  const scrollViewRef = React.useRef<ScrollView>(null);
   const [post, setPost] = useState<Post | null>(null);
   const [board, setBoard] = useState<Board | null>(null);
   const [comments, setComments] = useState<CommentWithAuthor[]>([]);
@@ -858,6 +859,11 @@ export default function PostDetailScreen() {
       // 댓글 목록 새로고침
       await loadComments(post.id);
       
+      // 답글 작성 후 스크롤을 하단으로 이동
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 300);
+      
       // 입력 필드 초기화
       setGuestReplyContent('');
       setGuestNickname('');
@@ -878,6 +884,9 @@ export default function PostDetailScreen() {
     setExperienceData(null);
   };
 
+  // 중복 제출 방지를 위한 ref - state보다 빠르게 동기적으로 체크
+  const isSubmittingRef = React.useRef(false);
+
   const handleCommentSubmit = async () => {
     if (!newComment.trim()) {
       // 빈 댓글 제출 시 조용히 리턴 - 사용자가 입력하지 않은 상태에서 실수로 눌렀을 가능성 고려
@@ -889,8 +898,9 @@ export default function PostDetailScreen() {
       return;
     }
 
-    // 이미 제출 중이면 중복 제출 방지
-    if (isSubmitting) {
+    // 중복 제출 방지 - ref를 사용하여 동기적으로 체크 (state보다 빠름)
+    if (isSubmittingRef.current || isSubmitting) {
+      console.log('중복 제출 차단됨');
       return;
     }
 
@@ -905,6 +915,8 @@ export default function PostDetailScreen() {
       return;
     }
 
+    // ref와 state 모두 설정하여 이중 방어
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
 
     try {
@@ -919,6 +931,11 @@ export default function PostDetailScreen() {
       
       // 댓글 목록 새로고침 (대댓글 카운트 포함)
       await loadComments(post.id);
+      
+      // 댓글 작성 후 스크롤을 하단으로 이동 (키보드 영역 고려)
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 300);
       
       // 경험치 부여
       try {
@@ -948,6 +965,8 @@ export default function PostDetailScreen() {
       console.error('댓글 작성 실패:', error);
       Alert.alert('오류', '댓글 작성에 실패했습니다.');
     } finally {
+      // ref와 state 모두 해제
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -1001,11 +1020,21 @@ export default function PostDetailScreen() {
           };
           
           setComments(prev => [...prev, newCommentWithAuthor]);
+          
+          // 댓글 추가 후 스크롤을 하단으로 이동
+          setTimeout(() => {
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+          }, 300);
         }
       } catch (error) {
         console.error('최신 댓글 로드 실패:', error);
         // 실패 시 전체 댓글 목록 새로고침
         await loadComments(post.id);
+        
+        // 전체 새로고침 후에도 스크롤
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 300);
       }
     }
   };
@@ -1618,6 +1647,7 @@ export default function PostDetailScreen() {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
           <ScrollView 
+            ref={scrollViewRef}
             style={styles.scrollView}
             contentContainerStyle={[
               styles.scrollViewContent,

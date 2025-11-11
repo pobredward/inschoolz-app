@@ -124,6 +124,7 @@ export default function CommentDetailScreen() {
   
   const { user } = useAuthStore();
   const insets = useSafeAreaInsets();
+  const scrollViewRef = React.useRef<ScrollView>(null);
   const [parentComment, setParentComment] = useState<CommentWithAuthor | null>(null);
   const [replies, setReplies] = useState<CommentWithAuthor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -317,6 +318,9 @@ export default function CommentDetailScreen() {
     }
   };
 
+  // 중복 제출 방지를 위한 ref - state보다 빠르게 동기적으로 체크
+  const isSubmittingRef = React.useRef(false);
+
   // 답글 작성
   const handleReplySubmit = async () => {
     if (!user || !parentComment || !replyContent.trim()) {
@@ -324,11 +328,14 @@ export default function CommentDetailScreen() {
       return;
     }
 
-    // 이미 제출 중이면 중복 제출 방지
-    if (isSubmitting) {
+    // 중복 제출 방지 - ref를 사용하여 동기적으로 체크 (state보다 빠름)
+    if (isSubmittingRef.current || isSubmitting) {
+      console.log('중복 제출 차단됨');
       return;
     }
 
+    // ref와 state 모두 설정하여 이중 방어
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
 
     try {
@@ -341,6 +348,11 @@ export default function CommentDetailScreen() {
       
       // 답글 목록 새로고침
       await loadCommentAndReplies();
+      
+      // 답글 작성 후 스크롤을 하단으로 이동
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 300);
       
       // 경험치 부여
       if (!isAnonymous) {
@@ -371,6 +383,8 @@ export default function CommentDetailScreen() {
       console.error('답글 작성 실패:', error);
       Alert.alert('오류', '답글 작성에 실패했습니다.');
     } finally {
+      // ref와 state 모두 해제
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -829,6 +843,7 @@ export default function CommentDetailScreen() {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
           <ScrollView 
+            ref={scrollViewRef}
             style={styles.scrollView}
             contentContainerStyle={[
               styles.scrollViewContent,

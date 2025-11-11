@@ -67,9 +67,20 @@ export default function AnonymousCommentForm({
     return true;
   };
 
+  // 중복 제출 방지를 위한 ref
+  const isSubmittingRef = React.useRef(false);
+
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
+    // 중복 제출 방지 - ref를 사용하여 동기적으로 체크
+    if (isSubmittingRef.current || isSubmitting) {
+      console.log('중복 제출 차단됨');
+      return;
+    }
+
+    // ref와 state 모두 설정하여 이중 방어
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
     Keyboard.dismiss();
 
@@ -104,6 +115,8 @@ export default function AnonymousCommentForm({
       console.error('익명 댓글 작성 실패:', error);
       Alert.alert('오류', '댓글 작성에 실패했습니다.');
     } finally {
+      // ref와 state 모두 해제
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
