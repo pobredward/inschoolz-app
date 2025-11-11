@@ -530,11 +530,20 @@ export default function CommunityScreen() {
     if (newTab === 'school') {
       // 학교 탭으로 이동 - 항상 학교 선택 UI 먼저 표시
       console.log('학교 탭으로 이동 - 학교 선택 UI 표시');
+      // 이전 학교 정보 초기화
+      setCurrentSchoolId(undefined);
+      setCurrentSchoolInfo(null);
+      setPosts([]);
+      setBoards([]);
       router.push('/(tabs)/community?tab=school');
       return;
     } else if (newTab === 'regional') {
       // 지역 탭으로 이동 - 항상 지역 선택 UI 먼저 표시
       console.log('지역 탭으로 이동 - 지역 선택 UI 표시');
+      // 이전 지역 정보 초기화
+      setCurrentRegion({});
+      setPosts([]);
+      setBoards([]);
       router.push('/(tabs)/community?tab=regional');
       return;
     } else {
