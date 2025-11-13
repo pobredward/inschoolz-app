@@ -28,11 +28,11 @@ const games: Game[] = [
     isActive: true
   },
   {
-    id: 'calculation',
-    name: '빠른 계산',
+    id: 'math',
+    name: '빠른 계산 릴레이',
     icon: '🧮',
-    description: '곧 출시 예정입니다',
-    isActive: false
+    description: '20초 동안 한 자리 수 덧셈/뺄셈 문제를 풀어보세요!',
+    isActive: true
   },
   {
     id: 'word',
@@ -68,6 +68,8 @@ export default function GamesScreen() {
       router.push('/games/reaction' as any);
     } else if (game.id === 'tile') {
       router.push('/games/tile' as any);
+    } else if (game.id === 'math') {
+      router.push('/games/math' as any);
     }
   };
 

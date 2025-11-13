@@ -113,10 +113,13 @@ export interface GameStats {
     bestReactionTime?: number; // ms 단위
   };
   tileGame?: {
-    bestReactionTime?: number; // ms 단위
+    bestReactionTime?: number; // ms 단위 (최소 움직임 횟수)
   };
   flappyBird?: {
     bestReactionTime?: number; // ms 단위
+  };
+  mathGame?: {
+    bestReactionTime?: number; // 최고 점수 (정답 개수)
   };
 }
 
@@ -180,6 +183,7 @@ export interface User {
         flappyBird: number;
         reactionGame: number;
         tileGame: number;
+        mathGame: number;
       };
       adViewedCount: number;
     };
@@ -187,6 +191,7 @@ export interface User {
       flappyBird: number;
       reactionGame: number;
       tileGame: number;
+      mathGame: number;
       lastRewardTime: FirebaseTimestamp;
     }
   };
