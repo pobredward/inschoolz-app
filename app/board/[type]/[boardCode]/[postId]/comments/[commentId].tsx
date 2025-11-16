@@ -355,6 +355,7 @@ export default function CommentDetailScreen() {
       }, 300);
       
       // 경험치 부여
+      let showedExpModal = false;
       if (!isAnonymous) {
         try {
           const expResult = await awardCommentExperience(user.uid);
@@ -372,13 +373,17 @@ export default function CommentDetailScreen() {
               reason: expResult.reason
             });
             setShowExperienceModal(true);
+            showedExpModal = true;
           }
         } catch (expError) {
           console.error('경험치 부여 실패:', expError);
         }
       }
       
-      Alert.alert('성공', '답글이 작성되었습니다.');
+      // 경험치 모달이 표시되지 않은 경우에만 alert 표시
+      if (!showedExpModal) {
+        Alert.alert('성공', '답글이 작성되었습니다.');
+      }
     } catch (error) {
       console.error('답글 작성 실패:', error);
       Alert.alert('오류', '답글 작성에 실패했습니다.');
