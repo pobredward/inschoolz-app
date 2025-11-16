@@ -52,13 +52,13 @@ export default function TileGameScreen() {
   const [matches, setMatches] = useState(0);
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [gameStartTime, setGameStartTime] = useState<number>(0);
-  const [remainingAttempts, setRemainingAttempts] = useState(3);
+  const [remainingAttempts, setRemainingAttempts] = useState(5);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [rankings, setRankings] = useState<RankingUser[]>([]);
 
   const totalPairs = 6; // 3x4 grid with 6 pairs
   const maxTime = 120; // 2 minutes
-  const maxAttempts = 3;
+  const maxAttempts = 5;
 
   // 남은 기회 실시간 조회
   const loadRemainingAttempts = async () => {

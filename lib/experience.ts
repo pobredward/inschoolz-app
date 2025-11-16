@@ -95,7 +95,7 @@ export const getSystemSettings = async (): Promise<SystemSettings> => {
           },
           tileGame: {
             enabled: firebaseSettings.games?.tileGame?.enabled ?? true,
-            dailyLimit: firebaseSettings.games?.tileGame?.dailyLimit || 3,
+            dailyLimit: firebaseSettings.games?.tileGame?.dailyLimit || 5,
             rewardThreshold: 7, // 최소 움직임 (7번 이하부터 경험치)
             rewardAmount: 15, // 기본 보상
             thresholds: firebaseSettings.games?.tileGame?.thresholds || [

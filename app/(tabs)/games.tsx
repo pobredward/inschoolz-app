@@ -35,11 +35,11 @@ const games: Game[] = [
     isActive: true
   },
   {
-    id: 'word',
-    name: '단어 맞추기',
-    icon: '📝',
-    description: '곧 출시 예정입니다',
-    isActive: false
+    id: 'typing',
+    name: '영단어 타이핑',
+    icon: '⌨️',
+    description: '20초 동안 영단어를 빠르게 입력하세요!',
+    isActive: true
   }
 ];
 
@@ -70,6 +70,8 @@ export default function GamesScreen() {
       router.push('/games/tile' as any);
     } else if (game.id === 'math') {
       router.push('/games/math' as any);
+    } else if (game.id === 'typing') {
+      router.push('/games/typing' as any);
     }
   };
 
