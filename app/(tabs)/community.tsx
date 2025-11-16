@@ -449,8 +449,14 @@ export default function CommunityScreen() {
           schoolId = currentSchoolId;
         } else if (tab && typeof tab === 'string' && tab.startsWith('school/')) {
           schoolId = tab.split('/')[1];
-        } else if (user?.school?.id) {
-          schoolId = user.school.id;
+        } else {
+          // 학교 선택 UI (currentSchoolId가 없고 tab도 school/xxx 형태가 아님)
+          // 이 경우 게시글 로드하지 않음
+          console.log('학교 선택 UI 상태, 게시글 로드 건너뛰기');
+          isLoadingRef.current = false;
+          setIsLoading(false);
+          setIsLoadingMore(false);
+          return;
         }
       }
 
