@@ -29,6 +29,7 @@ import BoardSelector from '@/components/board/BoardSelector';
 import SchoolSelector, { SchoolSelectorRef } from '@/components/board/SchoolSelector';
 import RegionSetupModal from '../../components/RegionSetupModal';
 import SchoolSetupModal from '../../components/SchoolSetupModal';
+import FavoriteSchoolsManagementModal from '../../components/FavoriteSchoolsManagementModal';
 
 const parseContentText = (content: string) => {
   if (!content) return '';
@@ -89,6 +90,7 @@ export default function CommunityScreen() {
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
   const [showRegionSetupModal, setShowRegionSetupModal] = useState(false);
   const [showSchoolSetupModal, setShowSchoolSetupModal] = useState(false);
+  const [showFavoriteSchoolsModal, setShowFavoriteSchoolsModal] = useState(false);
   const [popularSchools, setPopularSchools] = useState<School[]>([]);
   const [popularSchoolsLoading, setPopularSchoolsLoading] = useState(false);
   const [favoriteSchools, setFavoriteSchools] = useState<School[]>([]);
@@ -866,7 +868,17 @@ export default function CommunityScreen() {
           )}
           
           {/* 인기 지역 */}
-          <Text style={styles.sectionTitle}>인기 지역</Text>
+          <View style={styles.sectionTitleContainer}>
+            <Text style={styles.sectionTitle}>인기 지역</Text>
+            {user && (
+              <TouchableOpacity
+                style={styles.manageButton}
+                onPress={() => setShowRegionSetupModal(true)}
+              >
+                <Text style={styles.manageButtonText}>📍 내 지역 관리</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           {popularRegionsLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#10B981" />
@@ -1015,7 +1027,17 @@ export default function CommunityScreen() {
           )}
           
           {/* 인기 학교 */}
-          <Text style={styles.sectionTitle}>인기 학교</Text>
+          <View style={styles.sectionTitleContainer}>
+            <Text style={styles.sectionTitle}>인기 학교</Text>
+            {user && (
+              <TouchableOpacity
+                style={styles.manageButton}
+                onPress={() => setShowFavoriteSchoolsModal(true)}
+              >
+                <Text style={styles.manageButtonText}>🏫 즐겨찾기 학교 관리</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           {popularSchoolsLoading || favoriteSchoolsLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#10B981" />
@@ -1379,6 +1401,17 @@ export default function CommunityScreen() {
           } catch (error) {
             console.error('학교 설정 완료 후 라우팅 실패:', error);
           }
+        }}
+      />
+
+      {/* 즐겨찾기 학교 관리 모달 */}
+      <FavoriteSchoolsManagementModal
+        visible={showFavoriteSchoolsModal}
+        onClose={() => setShowFavoriteSchoolsModal(false)}
+        onUpdate={async () => {
+          // 즐겨찾기 학교 업데이트 후 인기 학교 목록 새로고침
+          await loadPopularSchools();
+          await loadFavoriteSchools();
         }}
       />
     </View>
@@ -1953,6 +1986,26 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     paddingHorizontal: 20,
+  },
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  manageButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+    backgroundColor: '#EFF6FF',
+  },
+  manageButtonText: {
+    fontSize: 12,
+    color: '#1D4ED8',
+    fontWeight: '500',
   },
   popularSchoolsGrid: {
     flexDirection: 'row',
