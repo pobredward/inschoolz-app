@@ -372,10 +372,6 @@ export default function TileGameScreen() {
               <Text style={styles.statusLabel}>움직임</Text>
               <Text style={styles.statusValue}>{moves}</Text>
             </View>
-            <View style={styles.statusItem}>
-              <Text style={styles.statusLabel}>시간</Text>
-              <Text style={styles.statusValue}>{timeElapsed}초</Text>
-            </View>
           </View>
         )}
 
@@ -446,11 +442,7 @@ export default function TileGameScreen() {
               <View style={styles.resultsContainer}>
                 <View style={styles.resultItem}>
                   <Text style={styles.resultLabel}>총 움직임</Text>
-                  <Text style={[styles.resultValue, { color: '#3b82f6' }]}>{moves}회</Text>
-                </View>
-                <View style={styles.resultItem}>
-                  <Text style={styles.resultLabel}>완료 시간</Text>
-                  <Text style={[styles.resultValue, { color: '#10b981' }]}>{timeElapsed}초</Text>
+                  <Text style={[styles.resultValue, { color: '#10b981' }]}>{moves}회</Text>
                 </View>
               </View>
 
@@ -712,28 +704,34 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   readyTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: '#111827',
     marginBottom: 12,
   },
   readyDescription: {
-    fontSize: 16,
-    color: '#6b7280',
+    fontSize: 15,
+    color: '#6B7280',
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 24,
+    lineHeight: 22,
+    marginBottom: 28,
   },
   startButton: {
-    backgroundColor: '#3b82f6',
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 12,
+    backgroundColor: '#10B981',
+    paddingHorizontal: 40,
+    paddingVertical: 18,
+    borderRadius: 16,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   startButtonText: {
     color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   tilesContainer: {
     flexDirection: 'row',
@@ -745,26 +743,37 @@ const styles = StyleSheet.create({
   tile: {
     width: tileSize,
     height: tileSize,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#d1d5db',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    borderWidth: 3,
+    borderColor: '#D1D5DB',
     justifyContent: 'center',
     alignItems: 'center',
     margin: 4,
-    flexBasis: '30%', // 3개씩 배치를 위해 30% 설정
+    flexBasis: '30%',
     maxWidth: tileSize,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
   tileFlipped: {
-    backgroundColor: '#dbeafe',
-    borderColor: '#3b82f6',
+    backgroundColor: '#DCFCE7',
+    borderColor: '#10B981',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
   },
   tileMatched: {
-    backgroundColor: '#dcfce7',
-    borderColor: '#10b981',
+    backgroundColor: '#D1FAE5',
+    borderColor: '#059669',
+    opacity: 0.8,
   },
   tileText: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
   },
   finishedContainer: {
@@ -801,24 +810,37 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   replayButton: {
-    backgroundColor: '#3b82f6',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+    backgroundColor: '#10B981',
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 12,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
   },
   replayButtonText: {
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '700',
+    fontSize: 16,
+    letterSpacing: 0.5,
   },
   backToGamesButton: {
     backgroundColor: '#f3f4f6',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
   backToGamesButtonText: {
     color: '#374151',
     fontWeight: '600',
+    fontSize: 15,
   },
   instructions: {
     margin: 16,
