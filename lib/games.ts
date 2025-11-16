@@ -129,8 +129,8 @@ const calculateGameXP = async (gameType: GameType, value: number): Promise<numbe
   }
 };
 
-// 게임 점수 업데이트 및 경험치 지급
-export const updateGameScore = async (userId: string, gameType: GameType, score: number, reactionTime?: number): Promise<GameResult> => {
+// 게임 시작 시 플레이 횟수 차감
+export const startGamePlay = async (userId: string, gameType: GameType): Promise<GameResult> => {
   try {
     // 캐시 무효화하여 최신 Firebase 설정 가져오기
     const { invalidateSystemSettingsCache, checkDailyLimit } = await import('./experience');
@@ -144,6 +144,44 @@ export const updateGameScore = async (userId: string, gameType: GameType, score:
         message: `오늘의 ${gameType} 플레이 횟수를 모두 사용했습니다. (${limitCheck.currentCount}/${limitCheck.limit})`
       };
     }
+    
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    
+    if (!userDoc.exists()) {
+      return {
+        success: false,
+        message: '사용자를 찾을 수 없습니다.'
+      };
+    }
+    
+    // 일일 플레이 카운트 증가 (게임 시작 시)
+    const updateData: Record<string, any> = {
+      [`activityLimits.dailyCounts.games.${gameType}`]: increment(1)
+    };
+    
+    await updateDoc(userRef, updateData);
+    
+    return {
+      success: true,
+      message: '게임을 시작합니다.'
+    };
+    
+  } catch (error) {
+    console.error('게임 시작 실패:', error);
+    return {
+      success: false,
+      message: '게임 시작 중 오류가 발생했습니다.'
+    };
+  }
+};
+
+// 게임 점수 업데이트 및 경험치 지급 (횟수 차감은 startGamePlay에서 이미 처리됨)
+export const updateGameScore = async (userId: string, gameType: GameType, score: number, reactionTime?: number): Promise<GameResult> => {
+  try {
+    // 캐시 무효화하여 최신 Firebase 설정 가져오기
+    const { invalidateSystemSettingsCache } = await import('./experience');
+    invalidateSystemSettingsCache();
     
     const userRef = doc(db, 'users', userId);
     const userDoc = await getDoc(userRef);
@@ -174,11 +212,10 @@ export const updateGameScore = async (userId: string, gameType: GameType, score:
       updateData[`gameStats.${gameType}.bestReactionTime`] = score; // 타일 게임은 최소 움직임 횟수, 빠른 계산/영단어 타이핑 게임은 최고 점수를 저장
     }
     
-    // 일일 플레이 카운트 증가
-    updateData[`activityLimits.dailyCounts.games.${gameType}`] = increment(1);
-    
-    // Firestore 업데이트
-    await updateDoc(userRef, updateData);
+    // Firestore 업데이트 (일일 플레이 카운트는 startGamePlay에서 이미 증가시킴)
+    if (Object.keys(updateData).length > 0) {
+      await updateDoc(userRef, updateData);
+    }
     
     // 경험치 계산 및 지급 (게임 타입에 따라 다른 값 사용)
     const xpEarned = await calculateGameXP(gameType, (gameType === 'tileGame' || gameType === 'mathGame' || gameType === 'typingGame') ? score : (reactionTime || 1000));
