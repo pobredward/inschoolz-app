@@ -185,6 +185,8 @@ export default function HomeScreen() {
       router.push('/games/tile' as any);
     } else if (gameId === 'math') {
       router.push('/games/math' as any);
+    } else if (gameId === 'typing') {
+      router.push('/games/typing' as any);
     } else {
       Alert.alert('준비 중', '곧 출시될 예정입니다! 🚀');
     }
@@ -522,6 +524,14 @@ export default function HomeScreen() {
           >
             <Text style={styles.gameIcon}>🧮</Text>
             <Text style={styles.gameTitle}>빠른 계산</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.gameCard}
+            onPress={() => navigateToGame('typing')}
+          >
+            <Text style={styles.gameIcon}>⌨️</Text>
+            <Text style={styles.gameTitle}>영단어 타이핑</Text>
           </TouchableOpacity>
         </View>
       </View>

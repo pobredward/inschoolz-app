@@ -77,7 +77,8 @@ export const getSystemSettings = async (): Promise<SystemSettings> => {
           gamePlayCount: Math.max(
             firebaseSettings.games?.reactionGame?.dailyLimit || 5,
             firebaseSettings.games?.tileGame?.dailyLimit || 5,
-            firebaseSettings.games?.mathGame?.dailyLimit || 5
+            firebaseSettings.games?.mathGame?.dailyLimit || 5,
+            firebaseSettings.games?.typingGame?.dailyLimit || 5
           ) // 게임 중 가장 높은 제한 사용
         },
         gameSettings: {
@@ -111,6 +112,15 @@ export const getSystemSettings = async (): Promise<SystemSettings> => {
             enabled: firebaseSettings.games?.mathGame?.enabled ?? true,
             dailyLimit: firebaseSettings.games?.mathGame?.dailyLimit || 5,
             thresholds: firebaseSettings.games?.mathGame?.thresholds || [
+              { minScore: 15, xpReward: 15 },
+              { minScore: 12, xpReward: 10 },
+              { minScore: 9, xpReward: 5 }
+            ]
+          },
+          typingGame: {
+            enabled: firebaseSettings.games?.typingGame?.enabled ?? true,
+            dailyLimit: firebaseSettings.games?.typingGame?.dailyLimit || 5,
+            thresholds: firebaseSettings.games?.typingGame?.thresholds || [
               { minScore: 15, xpReward: 15 },
               { minScore: 12, xpReward: 10 },
               { minScore: 9, xpReward: 5 }
@@ -395,7 +405,7 @@ export const checkDailyLimit = async (userId: string, activityType: 'posts' | 'c
   } else if (activityType === 'games') {
     if (gameType) {
       // 특정 게임 타입의 카운트만 (타입 안전성 검증)
-      if (gameType === 'flappyBird' || gameType === 'reactionGame' || gameType === 'tileGame' || gameType === 'mathGame') {
+      if (gameType === 'flappyBird' || gameType === 'reactionGame' || gameType === 'tileGame' || gameType === 'mathGame' || gameType === 'typingGame') {
         currentCount = activityLimits.dailyCounts.games?.[gameType] || 0;
       } else {
         console.warn('Invalid game type:', gameType);
@@ -404,7 +414,7 @@ export const checkDailyLimit = async (userId: string, activityType: 'posts' | 'c
     } else {
       // 모든 게임 타입의 합계
       const gamesCounts = activityLimits.dailyCounts.games || {};
-      currentCount = (gamesCounts.flappyBird || 0) + (gamesCounts.reactionGame || 0) + (gamesCounts.tileGame || 0) + (gamesCounts.mathGame || 0);
+      currentCount = (gamesCounts.flappyBird || 0) + (gamesCounts.reactionGame || 0) + (gamesCounts.tileGame || 0) + (gamesCounts.mathGame || 0) + (gamesCounts.typingGame || 0);
     }
     limit = settings.dailyLimits.gamePlayCount;
   }
@@ -438,6 +448,7 @@ export const resetDailyLimits = async (userId: string, today: string): Promise<v
       'activityLimits.dailyCounts.games.reactionGame': 0,
       'activityLimits.dailyCounts.games.tileGame': 0,
       'activityLimits.dailyCounts.games.mathGame': 0,
+      'activityLimits.dailyCounts.games.typingGame': 0,
     });
   } catch (error) {
     console.error('일일 제한 리셋 오류:', error);
@@ -448,7 +459,7 @@ export const resetDailyLimits = async (userId: string, today: string): Promise<v
  * 활동 카운트 업데이트 (단순화된 버전)
  * 접속 시점에 이미 리셋되었으므로 단순히 카운트만 증가
  */
-export const updateActivityCount = async (userId: string, activityType: 'posts' | 'comments', gameType?: 'flappyBird' | 'reactionGame' | 'tileGame' | 'mathGame'): Promise<void> => {
+export const updateActivityCount = async (userId: string, activityType: 'posts' | 'comments', gameType?: 'flappyBird' | 'reactionGame' | 'tileGame' | 'mathGame' | 'typingGame'): Promise<void> => {
   const userRef = doc(db, 'users', userId);
   
   const userDoc = await getDoc(userRef);

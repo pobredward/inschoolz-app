@@ -121,6 +121,9 @@ export interface GameStats {
   mathGame?: {
     bestReactionTime?: number; // 최고 점수 (정답 개수)
   };
+  typingGame?: {
+    bestReactionTime?: number; // 최고 점수 (정답 개수)
+  };
 }
 
 // 사용자 인터페이스 (통일된 구조)
@@ -184,6 +187,7 @@ export interface User {
         reactionGame: number;
         tileGame: number;
         mathGame: number;
+        typingGame: number;
       };
       adViewedCount: number;
     };
@@ -192,6 +196,7 @@ export interface User {
       reactionGame: number;
       tileGame: number;
       mathGame: number;
+      typingGame: number;
       lastRewardTime: FirebaseTimestamp;
     }
   };
@@ -457,6 +462,22 @@ export interface SystemSettings {
     flappyBird: {
       rewardThreshold: number;
       rewardAmount: number;
+    };
+    mathGame?: {
+      enabled?: boolean;
+      dailyLimit?: number;
+      thresholds?: {
+        minScore: number;
+        xpReward: number;
+      }[];
+    };
+    typingGame?: {
+      enabled?: boolean;
+      dailyLimit?: number;
+      thresholds?: {
+        minScore: number;
+        xpReward: number;
+      }[];
     };
   };
   ads: {

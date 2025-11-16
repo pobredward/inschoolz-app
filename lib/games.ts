@@ -4,7 +4,7 @@ import { User } from '../types';
 import { updateUserExperience, getSystemSettings } from './experience';
 import { getKoreanDateString } from '../utils/timeUtils';
 
-export type GameType = 'reactionGame' | 'tileGame' | 'flappyBird' | 'mathGame';
+export type GameType = 'reactionGame' | 'tileGame' | 'flappyBird' | 'mathGame' | 'typingGame';
 
 export interface GameResult {
   success: boolean;
@@ -100,6 +100,25 @@ const calculateGameXP = async (gameType: GameType, value: number): Promise<numbe
       
       console.log('calculateGameXP - 빠른 계산 게임 0 XP 지급! (모든 threshold 미달)');
       return 0;
+    } else if (gameType === 'typingGame') {
+      // 영단어 타이핑 게임은 정답 개수 기반으로 경험치 계산 (Firebase 설정 사용)
+      console.log(`calculateGameXP - 영단어 타이핑 게임 정답 개수: ${value}개`);
+      
+      const settings = await getSystemSettings();
+      if (settings.gameSettings.typingGame?.thresholds) {
+        const thresholds = settings.gameSettings.typingGame.thresholds;
+        const sortedThresholds = [...thresholds].sort((a, b) => b.minScore - a.minScore);
+        
+        for (const threshold of sortedThresholds) {
+          if (value >= threshold.minScore) {
+            console.log(`calculateGameXP - 영단어 타이핑 게임 경험치 ${threshold.xpReward} 지급! (${value}개 >= ${threshold.minScore}개)`);
+            return threshold.xpReward;
+          }
+        }
+      }
+      
+      console.log('calculateGameXP - 영단어 타이핑 게임 0 XP 지급! (모든 threshold 미달)');
+      return 0;
     }
     
     console.log('calculateGameXP - 0 XP 반환');
@@ -138,21 +157,21 @@ export const updateGameScore = async (userId: string, gameType: GameType, score:
 
     const userData = userDoc.data() as User;
     
-    // 현재 최저 반응시간 확인 (반응속도 게임의 경우) 또는 최소 움직임 확인 (타일 게임의 경우) 또는 최고 점수 확인 (빠른 계산 게임의 경우)
+    // 현재 최저 반응시간 확인 (반응속도 게임의 경우) 또는 최소 움직임 확인 (타일 게임의 경우) 또는 최고 점수 확인 (빠른 계산/영단어 타이핑 게임의 경우)
     const currentBestReactionTime = userData.gameStats?.[gameType]?.bestReactionTime || null;
     const isBestReactionTime = gameType === 'reactionGame' && reactionTime && 
       (currentBestReactionTime === null || reactionTime < currentBestReactionTime);
-    const isHighScore = (gameType === 'tileGame' || gameType === 'mathGame') && score && 
+    const isHighScore = (gameType === 'tileGame' || gameType === 'mathGame' || gameType === 'typingGame') && score && 
       (currentBestReactionTime === null || (gameType === 'tileGame' ? score < currentBestReactionTime : score > currentBestReactionTime));
     
     // 게임 통계 업데이트
     const updateData: Record<string, any> = {};
     
-    // 최저 반응시간 업데이트 (반응속도 게임의 경우) 또는 최소 움직임 업데이트 (타일 게임의 경우) 또는 최고 점수 업데이트 (빠른 계산 게임의 경우)
+    // 최저 반응시간 업데이트 (반응속도 게임의 경우) 또는 최소 움직임 업데이트 (타일 게임의 경우) 또는 최고 점수 업데이트 (빠른 계산/영단어 타이핑 게임의 경우)
     if (isBestReactionTime && reactionTime) {
       updateData[`gameStats.${gameType}.bestReactionTime`] = reactionTime;
     } else if (isHighScore && score) {
-      updateData[`gameStats.${gameType}.bestReactionTime`] = score; // 타일 게임은 최소 움직임 횟수, 빠른 계산 게임은 최고 점수를 저장
+      updateData[`gameStats.${gameType}.bestReactionTime`] = score; // 타일 게임은 최소 움직임 횟수, 빠른 계산/영단어 타이핑 게임은 최고 점수를 저장
     }
     
     // 일일 플레이 카운트 증가
@@ -162,7 +181,7 @@ export const updateGameScore = async (userId: string, gameType: GameType, score:
     await updateDoc(userRef, updateData);
     
     // 경험치 계산 및 지급 (게임 타입에 따라 다른 값 사용)
-    const xpEarned = await calculateGameXP(gameType, gameType === 'tileGame' ? score : (reactionTime || 1000));
+    const xpEarned = await calculateGameXP(gameType, (gameType === 'tileGame' || gameType === 'mathGame' || gameType === 'typingGame') ? score : (reactionTime || 1000));
     
     let result: { leveledUp: boolean; oldLevel?: number; newLevel?: number } = { 
       leveledUp: false, 
@@ -225,11 +244,13 @@ export const getUserGameStats = async (userId: string): Promise<GameStatsRespons
       reactionGame: 0,
       tileGame: 0,
       mathGame: 0,
+      typingGame: 0,
     } : {
       flappyBird: activityLimits.dailyCounts?.games?.flappyBird || 0,
       reactionGame: activityLimits.dailyCounts?.games?.reactionGame || 0,
       tileGame: activityLimits.dailyCounts?.games?.tileGame || 0,
       mathGame: activityLimits.dailyCounts?.games?.mathGame || 0,
+      typingGame: activityLimits.dailyCounts?.games?.typingGame || 0,
     };
     
     // 최저 반응시간 및 최고 점수
@@ -238,6 +259,7 @@ export const getUserGameStats = async (userId: string): Promise<GameStatsRespons
       reactionGame: userData.gameStats?.reactionGame?.bestReactionTime || null,
       tileGame: userData.gameStats?.tileGame?.bestReactionTime || null,
       mathGame: userData.gameStats?.mathGame?.bestReactionTime || null,
+      typingGame: userData.gameStats?.typingGame?.bestReactionTime || null,
     };
     
     // 일일 최대 플레이 횟수 (시스템 설정에서 가져오기)
