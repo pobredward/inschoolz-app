@@ -14,6 +14,7 @@ import {
   savePushTokenToUser, 
   removePushTokenFromUser 
 } from '../lib/push-notifications';
+import { UserAttendance } from '../lib/attendance';
 
 // AuthStore 타입 정의
 interface AuthState {
@@ -25,6 +26,7 @@ interface AuthState {
   unreadNotificationCount: number; // 읽지 않은 알림 개수 추가
   isPushInitializing: boolean; // 푸시 알림 초기화 중 플래그
   isKakaoLoginInProgress: boolean; // 카카오 로그인 진행 중 플래그 (Auth Guard 비활성화용)
+  attendanceData: UserAttendance | null; // 출석체크 데이터 전역 관리
 }
 
 // 인증 액션 타입 정의
@@ -52,6 +54,10 @@ interface AuthActions {
   waitForAuthSync: (timeoutMs?: number) => Promise<boolean>;
   // 카카오 로그인 진행 상태 설정
   setKakaoLoginInProgress: (inProgress: boolean) => void;
+  // 출석체크 관련 액션
+  setAttendanceData: (attendance: UserAttendance | null) => void;
+  loadAttendanceData: (userId: string) => Promise<void>;
+  performAttendanceCheck: (userId: string) => Promise<void>;
 }
 
 // 초기 상태
@@ -64,6 +70,7 @@ const initialState: AuthState = {
   unreadNotificationCount: 0, // 초기값 0
   isPushInitializing: false, // 푸시 초기화 플래그 초기값
   isKakaoLoginInProgress: false, // 카카오 로그인 진행 중 플래그 초기값
+  attendanceData: null, // 출석체크 데이터 초기값
 };
 
 // AuthStore 생성
@@ -508,6 +515,56 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       setKakaoLoginInProgress: (inProgress: boolean) => {
         set({ isKakaoLoginInProgress: inProgress });
         logger.debug('카카오 로그인 진행 상태:', inProgress);
+      },
+      
+      // 출석체크 데이터 설정
+      setAttendanceData: (attendance: UserAttendance | null) => {
+        set({ attendanceData: attendance });
+        logger.debug('출석체크 데이터 업데이트:', attendance);
+      },
+      
+      // 출석체크 데이터 로드
+      loadAttendanceData: async (userId: string) => {
+        try {
+          const { checkAttendance } = await import('../lib/attendance');
+          const attendance = await checkAttendance(userId, false);
+          set({ attendanceData: attendance });
+          logger.debug('출석체크 데이터 로드 완료:', attendance);
+        } catch (error) {
+          logger.error('출석체크 데이터 로드 실패:', error);
+          throw error;
+        }
+      },
+      
+      // 출석체크 수행
+      performAttendanceCheck: async (userId: string) => {
+        try {
+          const { checkAttendance } = await import('../lib/attendance');
+          const result = await checkAttendance(userId, true);
+          set({ attendanceData: result });
+          logger.auth('출석체크 완료:', result);
+          
+          // 사용자 통계도 업데이트 (실시간 리스너가 자동으로 처리하지만 즉시 반영)
+          if (result.checkedToday) {
+            const { user } = get();
+            if (user && user.stats) {
+              set({
+                user: {
+                  ...user,
+                  stats: {
+                    ...user.stats,
+                    streak: result.streak,
+                  },
+                },
+              });
+            }
+          }
+          
+          return result;
+        } catch (error) {
+          logger.error('출석체크 실패:', error);
+          throw error;
+        }
       },
     }),
     {

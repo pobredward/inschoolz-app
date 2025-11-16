@@ -16,16 +16,16 @@ import { deleteAccount } from '../../lib/auth';
 import { useRewardedAd } from '../../components/ads/AdMobAds';
 
 export default function ProfileScreen() {
-  const { user, clearAuth, isLoading: authLoading } = useAuthStore();
+  const { 
+    user, 
+    clearAuth, 
+    isLoading: authLoading, 
+    attendanceData, 
+    loadAttendanceData, 
+    performAttendanceCheck 
+  } = useAuthStore();
   const [refreshing, setRefreshing] = useState(false);
   const [userData, setUserData] = useState<User | null>(null);
-  const [attendanceData, setAttendanceData] = useState<UserAttendance>({
-    checkedToday: false,
-    streak: 0,
-    totalCount: 0,
-    monthCount: 0,
-    monthlyLog: {}
-  });
   const [userStats, setUserStats] = useState({
     totalPosts: 0,
     totalComments: 0,
@@ -272,10 +272,9 @@ export default function ProfileScreen() {
         console.warn('사용자 문서가 존재하지 않습니다:', user.uid);
       }
 
-      // 출석 데이터 로드 (오류 처리 강화)
+      // 출석 데이터 로드 (오류 처리 강화) - authStore의 전역 상태 사용
       try {
-        const attendance = await checkAttendance(user.uid);
-        setAttendanceData(attendance);
+        await loadAttendanceData(user.uid);
       } catch (attendanceError) {
         console.error('출석 데이터 로드 오류:', attendanceError);
         // 출석 데이터 로드 실패는 전체 로딩을 방해하지 않음
@@ -311,7 +310,7 @@ export default function ProfileScreen() {
     } finally {
       setLoading(false);
     }
-  }, [user?.uid]);
+  }, [user?.uid, loadAttendanceData]);
 
   useEffect(() => {
     if (!authLoading) {
@@ -341,16 +340,14 @@ export default function ProfileScreen() {
       return;
     }
 
-    if (attendanceData.checkedToday) {
+    if (attendanceData?.checkedToday) {
       Alert.alert('출석체크', '오늘은 이미 출석체크를 완료했습니다!');
       return;
     }
 
     try {
       setLoading(true);
-      const result = await checkAttendance(user.uid, true);
-      
-      setAttendanceData(result);
+      const result = await performAttendanceCheck(user.uid);
 
       // 사용자 통계 다시 로드 (안전한 호출)
       try {
@@ -708,24 +705,24 @@ export default function ProfileScreen() {
           <View style={styles.attendanceHeader}>
             <Text style={styles.attendanceTitle}>📅 출석체크</Text>
             <View style={styles.attendanceStats}>
-              <Text style={styles.streakText}>🔥 연속 {attendanceData.streak}일</Text>
-              <Text style={styles.totalText}>총 {attendanceData.totalCount}일</Text>
+              <Text style={styles.streakText}>🔥 연속 {attendanceData?.streak || 0}일</Text>
+              <Text style={styles.totalText}>총 {attendanceData?.totalCount || 0}일</Text>
             </View>
           </View>
           
           <TouchableOpacity
             style={[
               styles.attendanceButton,
-              attendanceData.checkedToday && styles.attendanceButtonDisabled
+              attendanceData?.checkedToday && styles.attendanceButtonDisabled
             ]}
             onPress={handleAttendanceCheck}
-            disabled={attendanceData.checkedToday || loading}
+            disabled={attendanceData?.checkedToday || loading}
           >
             <Text style={[
               styles.attendanceButtonText,
-              attendanceData.checkedToday && styles.attendanceButtonTextDisabled
+              attendanceData?.checkedToday && styles.attendanceButtonTextDisabled
             ]}>
-              {loading ? '처리 중...' : attendanceData.checkedToday ? '✅ 출석 완료' : '출석체크'}
+              {loading ? '처리 중...' : attendanceData?.checkedToday ? '✅ 출석 완료' : '출석체크'}
             </Text>
           </TouchableOpacity>
           

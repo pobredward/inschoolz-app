@@ -29,11 +29,16 @@ interface RankingPreview {
 }
 
 export default function HomeScreen() {
-  const { user, isLoading: authLoading } = useAuthStore();
+  const { 
+    user, 
+    isLoading: authLoading, 
+    attendanceData, 
+    loadAttendanceData, 
+    performAttendanceCheck 
+  } = useAuthStore();
   const [refreshing, setRefreshing] = useState(false);
   const [todayMeals, setTodayMeals] = useState<MealInfo[]>([]);
   const [userData, setUserData] = useState<any>(null);
-  const [attendance, setAttendance] = useState<UserAttendance | null>(null);
   const [isCheckingAttendance, setIsCheckingAttendance] = useState(false);
   const [mainSchool, setMainSchool] = useState<any>(null); // School type 제거
   const [gameStats, setGameStats] = useState<{
@@ -80,10 +85,8 @@ export default function HomeScreen() {
             console.error('경험치 동기화 실패 (백그라운드):', error);
           }),
           
-          // 출석 정보 로드
-          checkAttendance(user.uid).then(attendanceInfo => {
-            setAttendance(attendanceInfo);
-          }).catch(error => {
+          // 출석 정보 로드 - authStore의 전역 상태 사용
+          loadAttendanceData(user.uid).catch(error => {
             console.error('출석 정보 로드 실패:', error);
           }),
           
@@ -142,12 +145,11 @@ export default function HomeScreen() {
   };
 
   const handleAttendanceCheck = async () => {
-    if (!user?.uid || attendance?.checkedToday || isCheckingAttendance) return;
+    if (!user?.uid || attendanceData?.checkedToday || isCheckingAttendance) return;
     
     setIsCheckingAttendance(true);
     try {
-      const result = await checkAttendance(user.uid, true);
-      setAttendance(result);
+      const result = await performAttendanceCheck(user.uid);
       
       if (result.checkedToday) {
         Alert.alert('출석 완료!', `경험치 +${result.expGained || 10}을 획득했습니다! 🎉`);
@@ -366,30 +368,30 @@ export default function HomeScreen() {
       <View style={styles.section}>
         <View style={styles.attendanceCard}>
           <Text style={styles.attendanceTitle}>📅 출석 체크</Text>
-          {attendance?.checkedToday ? (
+          {attendanceData?.checkedToday ? (
             <Text style={styles.attendanceDesc}>
-              오늘 출석 완료! 연속 {attendance.streak}일째 출석 중! 🔥
+              오늘 출석 완료! 연속 {attendanceData.streak}일째 출석 중! 🔥
             </Text>
           ) : (
             <Text style={styles.attendanceDesc}>
-              {attendance?.streak ? `연속 ${attendance.streak}일째 출석 중!` : '출석체크로 경험치를 받으세요!'}
+              {attendanceData?.streak ? `연속 ${attendanceData.streak}일째 출석 중!` : '출석체크로 경험치를 받으세요!'}
             </Text>
           )}
           <TouchableOpacity 
             style={[
               styles.attendanceButton,
               { 
-                backgroundColor: attendance?.checkedToday ? '#10b981' : '#2563eb',
+                backgroundColor: attendanceData?.checkedToday ? '#10b981' : '#2563eb',
                 opacity: isCheckingAttendance ? 0.7 : 1
               }
             ]}
             onPress={handleAttendanceCheck}
-            disabled={attendance?.checkedToday || isCheckingAttendance}
+            disabled={attendanceData?.checkedToday || isCheckingAttendance}
           >
             <Text style={styles.attendanceButtonText}>
               {isCheckingAttendance 
                 ? '처리중...' 
-                : attendance?.checkedToday 
+                : attendanceData?.checkedToday 
                   ? '✅ 출석 완료' 
                   : '출석 체크하기 (+10 XP)'
               }
