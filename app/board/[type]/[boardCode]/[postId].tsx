@@ -25,8 +25,9 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { BoardType, Post, Comment, Board } from '@/types';
-import { getBoardsByType, deleteAnonymousComment, toggleCommentLike, checkMultipleCommentLikeStatus } from '@/lib/boards';
+import { getBoardsByType, getBoardByCode, deleteAnonymousComment, toggleCommentLike, checkMultipleCommentLikeStatus } from '@/lib/boards';
 import { useAuthStore } from '@/store/authStore';
+import { usePostCacheStore } from '@/store/postCacheStore';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, getDocs, addDoc, query, where, orderBy, Timestamp, updateDoc, deleteDoc, serverTimestamp, increment, limit } from 'firebase/firestore';
 import AnonymousCommentForm from '../../../../components/ui/AnonymousCommentForm';
@@ -173,11 +174,14 @@ export default function PostDetailScreen() {
   }>();
   
   const { user } = useAuthStore();
+  const { getPost, getBoard } = usePostCacheStore();
   const insets = useSafeAreaInsets();
   const scrollViewRef = React.useRef<ScrollView>(null);
   const [post, setPost] = useState<Post | null>(null);
   const [board, setBoard] = useState<Board | null>(null);
   const [comments, setComments] = useState<CommentWithAuthor[]>([]);
+  const [allComments, setAllComments] = useState<CommentWithAuthor[]>([]); // 전체 댓글
+  const [displayedCommentsCount, setDisplayedCommentsCount] = useState(5); // 표시할 댓글 수
   const [newComment, setNewComment] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [likeCount, setLikeCount] = useState(0);
@@ -438,11 +442,32 @@ export default function PostDetailScreen() {
 
   const loadPostDetail = async () => {
     try {
-      setIsLoading(true);
+      // 0단계: 캐시된 데이터 먼저 확인하고 즉시 UI 표시 (낙관적 업데이트)
+      const cachedData = getPost(postId);
+      const cachedBoard = getBoard(boardCode);
       
-      // 게시글 상세 정보 가져오기 (조회수 증가 없이)
+      if (cachedData?.post) {
+        // 캐시된 데이터로 즉시 UI 표시
+        setPost(cachedData.post);
+        setLikeCount(cachedData.post.stats.likeCount);
+        setScrapCount(cachedData.post.stats.scrapCount || 0);
+        
+        if (cachedData.board || cachedBoard) {
+          setBoard(cachedData.board || cachedBoard);
+        }
+        
+        // 로딩 상태를 false로 설정하여 즉시 콘텐츠 표시
+        setIsLoading(false);
+      } else {
+        setIsLoading(true);
+      }
+      
+      // 1단계: 백그라운드에서 최신 데이터 가져오기
       const postRef = doc(db, 'posts', postId);
-      const postDoc = await getDoc(postRef);
+      const [postDoc, boardData] = await Promise.all([
+        getDoc(postRef),
+        cachedBoard ? Promise.resolve(cachedBoard) : getBoardByCode(boardCode, type as BoardType)
+      ]);
       
       if (!postDoc.exists()) {
         Alert.alert('오류', '게시글을 찾을 수 없습니다.');
@@ -450,30 +475,13 @@ export default function PostDetailScreen() {
         return;
       }
 
-      const postData = { id: postDoc.id, ...postDoc.data() } as Post;
-      
-      // 조회수 증가 (별도 처리)
-      try {
-        await updateDoc(postRef, {
-          'stats.viewCount': increment(1),
-          updatedAt: serverTimestamp()
-        });
-        // UI에 반영할 조회수 업데이트
-        postData.stats.viewCount = (postData.stats.viewCount || 0) + 1;
-      } catch (viewError) {
-        console.error('조회수 증가 실패:', viewError);
-        // 조회수 증가 실패는 무시하고 계속 진행
-      }
-      
-      // 게시판 정보 가져오기
-      const boards = await getBoardsByType(type as BoardType);
-      const boardData = boards.find(b => b.code === boardCode);
-      
       if (!boardData) {
         Alert.alert('오류', '게시판을 찾을 수 없습니다.');
         router.back();
         return;
       }
+
+      const postData = { id: postDoc.id, ...postDoc.data() } as Post;
 
       // 게시글이 해당 게시판에 속하는지 확인
       if (postData.boardCode !== boardCode) {
@@ -481,36 +489,57 @@ export default function PostDetailScreen() {
         router.back();
         return;
       }
+      
+      // 조회수 증가 (백그라운드 처리 - await 제거)
+      updateDoc(postRef, {
+        'stats.viewCount': increment(1),
+        updatedAt: serverTimestamp()
+      }).catch(error => console.error('조회수 증가 실패:', error));
+      
+      // UI에 반영할 조회수 업데이트 (낙관적 업데이트)
+      postData.stats.viewCount = (postData.stats.viewCount || 0) + 1;
 
-      // authorInfo가 없거나 profileImageUrl이 없는 경우 사용자 정보 업데이트
-      if (!postData.authorInfo?.profileImageUrl && !postData.authorInfo?.isAnonymous && postData.authorId) {
-        try {
-          const { getUserById } = await import('../../../../lib/users');
-          const userDoc = await getUserById(postData.authorId);
-          if (userDoc && userDoc.profile) {
-            postData.authorInfo = {
-              ...postData.authorInfo,
-              displayName: postData.authorInfo?.displayName || userDoc.profile.userName || '사용자',
-              profileImageUrl: userDoc.profile.profileImageUrl || '',
-              isAnonymous: postData.authorInfo?.isAnonymous || false
-            };
+      // 2단계: 작성자 정보 업데이트와 댓글/사용자 액션을 병렬로 처리
+      const authorInfoPromise = (async () => {
+        if (!postData.authorInfo?.profileImageUrl && !postData.authorInfo?.isAnonymous && postData.authorId) {
+          try {
+            const { getUserById } = await import('../../../../lib/users');
+            const userDoc = await getUserById(postData.authorId);
+            if (userDoc && userDoc.profile) {
+              return {
+                ...postData.authorInfo,
+                displayName: postData.authorInfo?.displayName || userDoc.profile.userName || '사용자',
+                profileImageUrl: userDoc.profile.profileImageUrl || '',
+                isAnonymous: postData.authorInfo?.isAnonymous || false
+              };
+            }
+          } catch (userError) {
+            console.warn('사용자 정보 업데이트 실패:', userError);
           }
-        } catch (userError) {
-          console.warn('사용자 정보 업데이트 실패:', userError);
         }
+        return postData.authorInfo;
+      })();
+
+      const [updatedAuthorInfo, commentsData] = await Promise.all([
+        authorInfoPromise,
+        loadComments(postId)
+      ]);
+
+      if (updatedAuthorInfo) {
+        postData.authorInfo = updatedAuthorInfo;
       }
 
-      // 댓글 가져오기 (사용자 정보 포함)
-      await loadComments(postId);
-
+      // 상태 업데이트
       setPost(postData);
       setBoard(boardData);
       setLikeCount(postData.stats.likeCount);
       setScrapCount(postData.stats.scrapCount || 0);
       
-      // 좋아요/스크랩 상태 확인
+      // 좋아요/스크랩 상태 확인 (독립적으로 실행)
       if (user) {
-        await checkUserActions(postId, user.uid);
+        checkUserActions(postId, user.uid).catch(error => 
+          console.error('사용자 액션 상태 확인 실패:', error)
+        );
       }
     } catch (error) {
       console.error('게시글 로드 실패:', error);
@@ -523,14 +552,37 @@ export default function PostDetailScreen() {
 
   const loadComments = async (postId: string) => {
     try {
-      // 부모 댓글 가져오기
-      const commentsQuery = query(
-        collection(db, 'posts', postId, 'comments'),
-        where('parentId', '==', null),
-        orderBy('createdAt', 'asc')
-      );
-      const commentsSnapshot = await getDocs(commentsQuery);
-      const commentsData: CommentWithAuthor[] = [];
+      // 1단계: 부모 댓글과 모든 답글을 병렬로 가져오기
+      const [commentsSnapshot, allRepliesSnapshot] = await Promise.all([
+        getDocs(query(
+          collection(db, 'posts', postId, 'comments'),
+          where('parentId', '==', null),
+          orderBy('createdAt', 'asc')
+        )),
+        getDocs(query(
+          collection(db, 'posts', postId, 'comments'),
+          where('parentId', '!=', null)
+        ))
+      ]);
+      
+      // 2단계: 답글 개수를 부모 ID별로 미리 계산
+      const replyCountMap = new Map<string, number>();
+      allRepliesSnapshot.docs.forEach(doc => {
+        const replyData = doc.data();
+        const parentId = replyData.parentId;
+        
+        // 삭제되지 않은 답글만 카운트
+        const isValid = !replyData.status || 
+          !(replyData.status.isDeleted && replyData.content !== '삭제된 댓글입니다.');
+        
+        if (isValid && parentId) {
+          replyCountMap.set(parentId, (replyCountMap.get(parentId) || 0) + 1);
+        }
+      });
+      
+      // 3단계: 필요한 사용자 ID 수집
+      const userIds = new Set<string>();
+      const validComments: Comment[] = [];
       
       for (const commentDoc of commentsSnapshot.docs) {
         const commentData = { id: commentDoc.id, ...commentDoc.data() } as Comment;
@@ -548,7 +600,49 @@ export default function PostDetailScreen() {
           continue;
         }
         
-        // 댓글 작성자 정보 가져오기
+        validComments.push(commentData);
+        
+        // 익명이 아니고 삭제되지 않은 댓글의 작성자 ID 수집
+        if (!commentData.isAnonymous && commentData.authorId && !commentData.status.isDeleted) {
+          userIds.add(commentData.authorId);
+        }
+      }
+      
+      // 4단계: 사용자 정보 병렬로 조회
+      const userInfoMap = new Map<string, { userName: string; profileImageUrl: string }>();
+      
+      if (userIds.size > 0) {
+        const userPromises = Array.from(userIds).map(async (userId) => {
+          try {
+            const userDoc = await getDoc(doc(db, 'users', userId));
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              if (userData?.profile) {
+                return {
+                  userId,
+                  info: {
+                    userName: userData.profile.userName || '사용자',
+                    profileImageUrl: userData.profile.profileImageUrl || ''
+                  }
+                };
+              }
+            }
+          } catch (error) {
+            console.error('사용자 정보 조회 오류:', error);
+          }
+          return null;
+        });
+        
+        const userResults = await Promise.all(userPromises);
+        userResults.forEach(result => {
+          if (result) {
+            userInfoMap.set(result.userId, result.info);
+          }
+        });
+      }
+      
+      // 5단계: 댓글 데이터 조립
+      const commentsData: CommentWithAuthor[] = validComments.map(commentData => {
         let authorInfo = {
           userName: '사용자',
           profileImageUrl: ''
@@ -562,52 +656,32 @@ export default function PostDetailScreen() {
             authorInfo.userName = '익명';
           }
         } else if (!commentData.status.isDeleted) {
-          try {
-            const userDoc = await getDoc(doc(db, 'users', commentData.authorId));
-            if (userDoc.exists()) {
-              const userData = userDoc.data();
-              if (userData?.profile) {
-                authorInfo = {
-                  userName: userData.profile.userName || '사용자',
-                  profileImageUrl: userData.profile.profileImageUrl || ''
-                };
-              }
-            }
-          } catch (error) {
-            console.error('사용자 정보 조회 오류:', error);
+          // 미리 조회한 사용자 정보 사용
+          const cachedInfo = userInfoMap.get(commentData.authorId);
+          if (cachedInfo) {
+            authorInfo = cachedInfo;
           }
         }
         
-        // 답글 개수만 가져오기 (실제 내용은 세부 화면에서 로드)
-        const repliesQuery = query(
-          collection(db, 'posts', postId, 'comments'),
-          where('parentId', '==', commentData.id),
-          orderBy('createdAt', 'asc')
-        );
-        const repliesSnapshot = await getDocs(repliesQuery);
-        
-        // 삭제되지 않은 답글만 카운트
-        const validReplies = repliesSnapshot.docs.filter(doc => {
-          const replyData = doc.data();
-          if (!replyData.status) return true;
-          return !(replyData.status.isDeleted && replyData.content !== '삭제된 댓글입니다.');
-        });
-        
-        // 빈 배열이지만 length 속성만 설정 (UI에서 답글 개수 표시용)
+        // 미리 계산된 답글 개수 사용
         const repliesPlaceholder: CommentWithAuthor[] = [];
-        (repliesPlaceholder as any).__replyCount = validReplies.length;
+        (repliesPlaceholder as any).__replyCount = replyCountMap.get(commentData.id) || 0;
         
-        commentsData.push({
+        return {
           ...commentData,
           author: authorInfo,
           replies: repliesPlaceholder
-        });
-      }
+        };
+      });
 
       // 모든 댓글을 시간순으로 확실히 정렬 (익명 댓글 포함)
       commentsData.sort((a, b) => toTimestamp(a.createdAt) - toTimestamp(b.createdAt));
 
-      setComments(commentsData);
+      // 전체 댓글 저장
+      setAllComments(commentsData);
+      
+      // 처음에는 5개만 표시 (페이지네이션)
+      setComments(commentsData.slice(0, displayedCommentsCount));
       
       // 실제 로드된 댓글 수로 게시글 카운트 동기화 (댓글 + 대댓글)
       const actualCommentCount = commentsData.reduce((count, comment) => {
@@ -642,15 +716,16 @@ export default function PostDetailScreen() {
           }
         });
         
-        try {
-          const likeStatuses = await checkMultipleCommentLikeStatus(postId, allCommentIds, user.uid);
-          setCommentLikeStatuses(likeStatuses);
-        } catch (error) {
-          console.error('댓글 좋아요 상태 확인 실패:', error);
-        }
+        // 댓글 좋아요 상태 확인 (백그라운드에서 실행)
+        checkMultipleCommentLikeStatus(postId, allCommentIds, user.uid)
+          .then(likeStatuses => setCommentLikeStatuses(likeStatuses))
+          .catch(error => console.error('댓글 좋아요 상태 확인 실패:', error));
       }
+      
+      return commentsData;
     } catch (error) {
       console.error('댓글 로드 실패:', error);
+      return [];
     }
   };
 
@@ -1803,7 +1878,7 @@ export default function PostDetailScreen() {
                 <Text style={styles.commentTitle}>댓글</Text>
                 <View style={styles.commentBadge}>
                   <Text style={styles.commentBadgeText}>
-                    {comments.reduce((total, comment) => {
+                    {allComments.reduce((total, comment) => {
                       const replyCount = (comment.replies as any)?.__replyCount || 0;
                       return total + 1 + replyCount;
                     }, 0)}
@@ -1815,6 +1890,23 @@ export default function PostDetailScreen() {
               {comments.map((comment) => (
                 renderComment(comment, 0)
               ))}
+              
+              {/* 더보기 버튼 */}
+              {allComments.length > displayedCommentsCount && (
+                <TouchableOpacity 
+                  style={styles.loadMoreButton}
+                  onPress={() => {
+                    const newCount = displayedCommentsCount + 10;
+                    setDisplayedCommentsCount(newCount);
+                    setComments(allComments.slice(0, newCount));
+                  }}
+                >
+                  <Text style={styles.loadMoreButtonText}>
+                    댓글 더보기 ({allComments.length - displayedCommentsCount}개 남음)
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color="#10b981" />
+                </TouchableOpacity>
+              )}
             </View>
           </ScrollView>
 
@@ -2291,6 +2383,25 @@ const styles = StyleSheet.create({
   commentBadgeText: {
     fontSize: 12,
     color: '#6b7280',
+  },
+  loadMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+    backgroundColor: '#f0fdf4',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    gap: 8,
+  },
+  loadMoreButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#10b981',
   },
   commentContainer: {
     marginBottom: 12,

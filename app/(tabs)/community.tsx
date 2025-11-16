@@ -24,6 +24,7 @@ import { getPopularSchools, getSchoolById, getPopularRegions, RegionInfo, getUse
 import { BlockedUserContent } from '../../components/ui/BlockedUserContent';
 import { useAuthStore } from '../../store/authStore';
 import { useScrollStore } from '../../store/scrollStore';
+import { usePostCacheStore } from '../../store/postCacheStore';
 import { Board, BoardType, Post, School } from '../../types';
 import BoardSelector from '@/components/board/BoardSelector';
 import SchoolSelector, { SchoolSelectorRef } from '@/components/board/SchoolSelector';
@@ -542,10 +543,16 @@ export default function CommunityScreen() {
     setRefreshing(false);
   };
 
+  const { cachePost, cacheBoard } = usePostCacheStore();
+  
   const handlePostPress = useCallback((post: CommunityPost) => {
+    // 게시글 데이터를 캐시에 저장 (즉시 표시용)
+    const boardData = boards.find(b => b.code === post.boardCode);
+    cachePost(post.id, post, boardData);
+    
     // onScroll에서 이미 스크롤 위치가 저장되므로 바로 이동
     router.push(`/board/${selectedTab}/${post.boardCode}/${post.id}` as any);
-  }, [selectedTab, router]);
+  }, [selectedTab, router, boards, cachePost]);
 
   const handleWritePress = () => {
     setShowBoardSelector(true);

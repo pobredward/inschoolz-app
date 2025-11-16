@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, StyleSheet, RefreshControl, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
+import { usePostCacheStore } from '../../store/postCacheStore';
 import { checkAttendance, UserAttendance } from '../../lib/attendance';
 import { getUserById } from '../../lib/users';
 import { getMainSchool } from '../../lib/schools';
@@ -171,7 +172,11 @@ export default function HomeScreen() {
     }
   };
 
+  const { cachePost } = usePostCacheStore();
+  
   const navigateToPost = (post: Post) => {
+    // 게시글 데이터를 캐시에 저장 (즉시 표시용)
+    cachePost(post.id, post);
     router.push(`/board/national/${post.boardCode}/${post.id}` as any);
   };
 

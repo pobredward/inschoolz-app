@@ -22,6 +22,7 @@ import { getBlockedUserIds } from '../../../../lib/users';
 import { BlockedUserContent } from '../../../../components/ui/BlockedUserContent';
 import { Board, BoardType, Post } from '../../../../types';
 import { useAuthStore } from '../../../../store/authStore';
+import { usePostCacheStore } from '../../../../store/postCacheStore';
 import PostListItem from '../../../../components/PostListItem';
 import { toTimestamp } from '../../../../utils/timeUtils';
 
@@ -278,7 +279,11 @@ export default function BoardScreen() {
     }
   }, [sortBy]);
 
+  const { cachePost, cacheBoard } = usePostCacheStore();
+  
   const handlePostPress = (post: Post & { boardName?: string; previewContent?: string }) => {
+    // 게시글 데이터를 캐시에 저장 (즉시 사용 가능하도록)
+    cachePost(post.id, post, board || undefined);
     router.push(`/board/${type}/${boardCode}/${post.id}`);
   };
 
