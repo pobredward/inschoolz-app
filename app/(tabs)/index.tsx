@@ -56,17 +56,17 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(false);
 
 
-  // 경험치 진행률 계산
+  // 경험치 진행률 계산 - user.stats의 개별 필드를 의존성으로 사용하여 실시간 업데이트 보장
   const expProgress = React.useMemo(() => {
     if (!user?.stats) return { current: 0, required: 10, percentage: 0 };
     
     const current = user.stats.currentExp || 0;
     const level = user.stats.level || 1;
-    const required = level * 10; // 1->2레벨: 10XP, 2->3레벨: 20XP
+    const required = user.stats.currentLevelRequiredXp || (level * 10); // currentLevelRequiredXp 사용
     const percentage = Math.min((current / required) * 100, 100);
     
     return { current, required, percentage };
-  }, [user?.stats]);
+  }, [user?.stats?.currentExp, user?.stats?.level, user?.stats?.currentLevelRequiredXp]);
 
   // 사용자 데이터 및 출석 정보 로드 - 성능 최적화
   const loadUserData = async () => {

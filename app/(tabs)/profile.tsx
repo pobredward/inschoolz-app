@@ -36,6 +36,19 @@ export default function ProfileScreen() {
     currentExp: 0,
     nextLevelXP: 10
   });
+
+  // AuthStore의 user.stats가 변경될 때마다 로컬 userStats 동기화
+  useEffect(() => {
+    if (user?.stats) {
+      setUserStats(prevStats => ({
+        ...prevStats,
+        level: user.stats.level || 1,
+        currentExp: user.stats.currentExp || 0,
+        nextLevelXP: user.stats.currentLevelRequiredXp || 10,
+        totalExperience: user.stats.totalExperience || 0
+      }));
+    }
+  }, [user?.stats?.level, user?.stats?.currentExp, user?.stats?.currentLevelRequiredXp, user?.stats?.totalExperience]);
   const [loading, setLoading] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);

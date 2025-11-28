@@ -124,7 +124,8 @@ function CustomHeader() {
   };
 
   // 경험치/레벨 표시 (AuthStore의 실시간 데이터 사용)
-  const renderExperienceDisplay = () => {
+  // React의 리렌더링을 트리거하기 위해 컴포넌트로 분리
+  const ExperienceDisplay = () => {
     if (!user) return null;
 
     // AuthStore의 user 데이터를 직접 사용 (실시간 업데이트됨)
@@ -216,6 +217,9 @@ function CustomHeader() {
                   <Text style={styles.userName}>{user.profile?.userName || '사용자'}</Text>
                   <Text style={styles.userEmail}>{user.email}</Text>
                 </View>
+                
+                {/* 경험치/레벨 표시 */}
+                <ExperienceDisplay />
                 
                 <TouchableOpacity
                   style={styles.dropdownItem}

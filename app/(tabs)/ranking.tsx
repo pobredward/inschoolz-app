@@ -249,24 +249,33 @@ export default function RankingScreen() {
   ];
 
   // 집계된 랭킹 데이터 로드
-  const loadAggregatedRankings = async () => {
+  const loadAggregatedRankings = async (reset = false) => {
     try {
-      logger.debug('집계된 랭킹 데이터 로드 시작:', { type: selectedType });
+      logger.debug('집계된 랭킹 데이터 로드 시작:', { type: selectedType, reset });
       
       setAggregatedState(prev => ({ ...prev, isLoading: true, error: undefined }));
 
+      // 현재 offset 계산
+      const currentOffset = reset ? 0 : (
+        selectedType === 'regional' 
+          ? (aggregatedState.regions?.length || 0)
+          : (aggregatedState.schools?.length || 0)
+      );
+
       if (selectedType === 'regional') {
-        const result = await getAggregatedRankings('regional_aggregated', 20);
-        setAggregatedState({
-          regions: result.regions,
+        const result = await getAggregatedRankings('regional_aggregated', 20, currentOffset);
+        setAggregatedState(prev => ({
+          regions: reset ? result.regions : [...(prev.regions || []), ...(result.regions || [])],
           isLoading: false,
-        });
+          hasMore: result.hasMore,
+        }));
       } else if (selectedType === 'school') {
-        const result = await getAggregatedRankings('school_aggregated', 20);
-        setAggregatedState({
-          schools: result.schools,
+        const result = await getAggregatedRankings('school_aggregated', 20, currentOffset);
+        setAggregatedState(prev => ({
+          schools: reset ? result.schools : [...(prev.schools || []), ...(result.schools || [])],
           isLoading: false,
-        });
+          hasMore: result.hasMore,
+        }));
       }
       
       logger.debug('집계된 랭킹 데이터 로드 완료');
@@ -380,7 +389,7 @@ export default function RankingScreen() {
         loadRankings(true);
       } else if (selectedType === 'regional' || selectedType === 'school') {
         // 지역/학교 탭은 집계된 랭킹 표시
-        loadAggregatedRankings();
+        loadAggregatedRankings(true);
       }
     }
   }, [selectedType, searchQuery, user, authLoading]);
@@ -389,7 +398,13 @@ export default function RankingScreen() {
     if (selectedType === 'national') {
       loadRankings(true);
     } else if (selectedType === 'regional' || selectedType === 'school') {
-      loadAggregatedRankings();
+      loadAggregatedRankings(true);
+    }
+  };
+
+  const handleLoadMoreAggregated = () => {
+    if (!aggregatedState.isLoading && aggregatedState.hasMore) {
+      loadAggregatedRankings(false);
     }
   };
 
@@ -540,34 +555,37 @@ export default function RankingScreen() {
         {selectedType === 'national' ? (
           // 전국 랭킹: 개인 유저 랭킹 표시
           rankingState.users.length > 0 ? (
-            rankingState.users.map((user, index) => (
-              <TouchableOpacity 
-                key={user.id} 
-                style={styles.rankingItem}
-                onPress={() => router.push(`/users/${user.id}` as any)}
-              >
-                <View style={styles.rankContainer}>
-                  <Text style={[styles.rankIcon, { color: getRankColor(index + 1) }]}>
-                    {getRankIcon(index + 1)}
-                  </Text>
-                  <Text style={[styles.rankNumber, { color: getRankColor(index + 1) }]}>
-                    {index + 1}
-                  </Text>
-                </View>
-                
-                <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{user.userName}</Text>
-                  <Text style={styles.userLevel}>Lv.{user.stats.level}</Text>
-                  {user.school && (
-                    <Text style={styles.userSchool}>{user.school.name}</Text>
-                  )}
-                </View>
-                
-                <View style={styles.expContainer}>
-                  <Text style={styles.expText}>{user.stats.totalExperience.toLocaleString()} XP</Text>
-                </View>
-              </TouchableOpacity>
-            ))
+            rankingState.users.map((user) => {
+              const rank = user.rank || 999;
+              return (
+                <TouchableOpacity 
+                  key={user.id} 
+                  style={styles.rankingItem}
+                  onPress={() => router.push(`/users/${user.id}` as any)}
+                >
+                  <View style={styles.rankContainer}>
+                    <Text style={[styles.rankIcon, { color: getRankColor(rank) }]}>
+                      {getRankIcon(rank)}
+                    </Text>
+                    <Text style={[styles.rankNumber, { color: getRankColor(rank) }]}>
+                      {rank}
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.userInfo}>
+                    <Text style={styles.userName}>{user.userName}</Text>
+                    <Text style={styles.userLevel}>Lv.{user.stats.level}</Text>
+                    {user.school && (
+                      <Text style={styles.userSchool}>{user.school.name}</Text>
+                    )}
+                  </View>
+                  
+                  <View style={styles.expContainer}>
+                    <Text style={styles.expText}>{user.stats.totalExperience.toLocaleString()} XP</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })
           ) : (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>{getEmptyMessage()}</Text>
@@ -612,16 +630,34 @@ export default function RankingScreen() {
                 <Text style={styles.emptyText}>{aggregatedState.error}</Text>
               </View>
             ) : aggregatedState.regions && aggregatedState.regions.length > 0 ? (
-              aggregatedState.regions.map((region, index) => (
-                <AggregatedRegionItem
-                  key={region.id}
-                  region={region}
-                  index={index}
-                  onPress={() => {
-                    router.push(`/ranking/region/${encodeURIComponent(region.sido)}/${encodeURIComponent(region.sigungu)}` as any);
-                  }}
-                />
-              ))
+              <>
+                {aggregatedState.regions.map((region, index) => (
+                  <AggregatedRegionItem
+                    key={region.id}
+                    region={region}
+                    index={index}
+                    onPress={() => {
+                      router.push(`/ranking/region/${encodeURIComponent(region.sido)}/${encodeURIComponent(region.sigungu)}` as any);
+                    }}
+                  />
+                ))}
+                {aggregatedState.hasMore && (
+                  <TouchableOpacity 
+                    style={styles.loadMoreButton}
+                    onPress={handleLoadMoreAggregated}
+                    disabled={aggregatedState.isLoading}
+                  >
+                    {aggregatedState.isLoading ? (
+                      <ActivityIndicator size="small" color="#10B981" />
+                    ) : (
+                      <>
+                        <Text style={styles.loadMoreText}>더 보기</Text>
+                        <Ionicons name="chevron-down" size={20} color="#10B981" />
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </>
             ) : (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>지역 랭킹 데이터가 없습니다.</Text>
@@ -667,16 +703,34 @@ export default function RankingScreen() {
                 <Text style={styles.emptyText}>{aggregatedState.error}</Text>
               </View>
             ) : aggregatedState.schools && aggregatedState.schools.length > 0 ? (
-              aggregatedState.schools.map((school, index) => (
-                <AggregatedSchoolItem
-                  key={school.id}
-                  school={school}
-                  index={index}
-                  onPress={() => {
-                    router.push(`/ranking/school/${school.id}` as any);
-                  }}
-                />
-              ))
+              <>
+                {aggregatedState.schools.map((school, index) => (
+                  <AggregatedSchoolItem
+                    key={school.id}
+                    school={school}
+                    index={index}
+                    onPress={() => {
+                      router.push(`/ranking/school/${school.id}` as any);
+                    }}
+                  />
+                ))}
+                {aggregatedState.hasMore && (
+                  <TouchableOpacity 
+                    style={styles.loadMoreButton}
+                    onPress={handleLoadMoreAggregated}
+                    disabled={aggregatedState.isLoading}
+                  >
+                    {aggregatedState.isLoading ? (
+                      <ActivityIndicator size="small" color="#10B981" />
+                    ) : (
+                      <>
+                        <Text style={styles.loadMoreText}>더 보기</Text>
+                        <Ionicons name="chevron-down" size={20} color="#10B981" />
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </>
             ) : (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>학교 랭킹 데이터가 없습니다.</Text>

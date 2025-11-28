@@ -361,37 +361,32 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         
         const userRef = doc(db, 'users', userId);
         
-        // 실시간 리스너를 throttle하여 성능 개선
-        let lastUpdate = 0;
-        const THROTTLE_MS = 2000; // 2초마다 최대 1회 업데이트
-        
+        // onSnapshot은 Firebase에서 문서가 실제로 변경될 때만 트리거됩니다.
+        // 따라서 throttle 없이도 효율적으로 동작하며, 변경 즉시 반영됩니다.
         const unsubscribe = onSnapshot(userRef, (doc) => {
-          const now = Date.now();
-          if (now - lastUpdate < THROTTLE_MS) {
-            return; // 너무 빈번한 업데이트 방지
-          }
-          lastUpdate = now;
-          
           if (doc.exists()) {
             const userData = doc.data() as User;
             userData.uid = userId;
             
-            // 기존 사용자 정보와 병합하여 업데이트 (변경된 데이터만 업데이트)
             const { user: currentUser } = get();
             if (currentUser) {
-              // 데이터가 실제로 변경되었는지 확인
-              const hasChanged = JSON.stringify(currentUser.stats) !== JSON.stringify(userData.stats) ||
-                                JSON.stringify(currentUser.profile) !== JSON.stringify(userData.profile);
+              // 중요: onSnapshot은 이미 변경이 있을 때만 실행되므로
+              // 추가 변경 감지 로직 없이 바로 상태를 업데이트합니다.
+              // Zustand의 상태 관리 시스템이 실제로 변경된 부분만 리렌더링을 트리거합니다.
               
-              if (hasChanged) {
-                set({
-                  user: {
-                    ...currentUser,
-                    ...userData,
-                    uid: userId, // uid 유지
-                  },
-                });
-              }
+              logger.debug('사용자 데이터 실시간 업데이트:', {
+                level: userData.stats?.level,
+                currentExp: userData.stats?.currentExp,
+                totalExperience: userData.stats?.totalExperience
+              });
+              
+              set({
+                user: {
+                  ...currentUser,
+                  ...userData,
+                  uid: userId, // uid 유지
+                },
+              });
             }
           }
         });
