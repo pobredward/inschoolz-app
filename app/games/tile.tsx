@@ -70,8 +70,7 @@ export default function TileGameScreen() {
       
       if (statsResponse.success && statsResponse.data) {
         const todayPlays = statsResponse.data.todayPlays.tileGame || 0;
-        const maxPlays = 3; // 타일 게임은 3번으로 고정
-        const remaining = Math.max(0, maxPlays - todayPlays);
+        const remaining = Math.max(0, maxAttempts - todayPlays);
         
         setRemainingAttempts(remaining);
       }
