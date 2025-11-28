@@ -74,10 +74,6 @@ export default function LoginScreen() {
       });
       
       router.replace('/(tabs)/');
-      
-      setTimeout(() => {
-        Alert.alert('성공', '로그인되었습니다!');
-      }, 500);
     } catch (error) {
       console.error('이메일 로그인 오류:', error);
       Alert.alert('로그인 실패', error instanceof Error ? error.message : '로그인 중 오류가 발생했습니다.');
@@ -161,10 +157,6 @@ export default function LoginScreen() {
       });
       
       router.replace('/(tabs)/');
-      
-      setTimeout(() => {
-        Alert.alert('성공', 'Apple 로그인이 완료되었습니다!');
-      }, 500);
     } catch (error) {
       console.error('Apple 로그인 오류:', error);
       
@@ -200,10 +192,6 @@ export default function LoginScreen() {
       });
       
       router.replace('/(tabs)/');
-      
-      setTimeout(() => {
-        Alert.alert('성공', 'Google 로그인이 완료되었습니다!');
-      }, 500);
     } catch (error) {
       console.error('Google 로그인 오류:', error);
       
