@@ -221,8 +221,38 @@ export default function WritePostPage() {
   // 경험치 모달 닫기 핸들러
   const handleExperienceModalClose = () => {
     setShowExperienceModal(false);
-    // 게시글 작성 완료 후 커뮤니티 화면으로 이동
-    router.push('/(tabs)/community');
+    // 게시글 작성 완료 후 커뮤니티 화면으로 이동 (탭 정보 유지)
+    let communityUrl = '';
+    
+    switch (type) {
+      case 'national':
+        communityUrl = '/(tabs)/community?tab=national';
+        break;
+      case 'regional':
+        // 사용자의 지역 정보 사용
+        if (user?.regions?.sido && user?.regions?.sigungu) {
+          communityUrl = `/(tabs)/community?tab=regional/${encodeURIComponent(user.regions.sido)}/${encodeURIComponent(user.regions.sigungu)}`;
+        } else {
+          communityUrl = '/(tabs)/community?tab=regional';
+        }
+        break;
+      case 'school':
+        // 사용자의 학교 ID 사용
+        const targetSchoolId = user?.school?.id;
+        if (targetSchoolId) {
+          communityUrl = `/(tabs)/community?tab=school/${targetSchoolId}`;
+        } else {
+          communityUrl = '/(tabs)/community?tab=school';
+        }
+        break;
+    }
+    
+    if (communityUrl) {
+      router.replace(communityUrl as any);
+    } else {
+      router.replace('/(tabs)/community');
+    }
+    
     setPendingPostId(null);
     setExperienceData(null);
   };
@@ -358,21 +388,84 @@ export default function WritePostPage() {
           setPendingPostId(postId);
           setShowExperienceModal(true);
         } else {
-          // 경험치 부여 실패 시 즉시 커뮤니티로 이동
+          // 경험치 부여 실패 시 즉시 커뮤니티로 이동 (탭 정보 유지)
+          let communityUrl = '';
+          
+          switch (type) {
+            case 'national':
+              communityUrl = '/(tabs)/community?tab=national';
+              break;
+            case 'regional':
+              // 사용자의 지역 정보 사용
+              if (user?.regions?.sido && user?.regions?.sigungu) {
+                communityUrl = `/(tabs)/community?tab=regional/${encodeURIComponent(user.regions.sido)}/${encodeURIComponent(user.regions.sigungu)}`;
+              } else {
+                communityUrl = '/(tabs)/community?tab=regional';
+              }
+              break;
+            case 'school':
+              // 사용자의 학교 ID 사용
+              const targetSchoolId = user?.school?.id;
+              if (targetSchoolId) {
+                communityUrl = `/(tabs)/community?tab=school/${targetSchoolId}`;
+              } else {
+                communityUrl = '/(tabs)/community?tab=school';
+              }
+              break;
+          }
+          
           Alert.alert('성공', '게시글이 작성되었습니다.', [
             {
               text: '확인',
-              onPress: () => router.push('/(tabs)/community')
+              onPress: () => {
+                if (communityUrl) {
+                  router.replace(communityUrl as any);
+                } else {
+                  router.replace('/(tabs)/community');
+                }
+              }
             }
           ]);
         }
       } catch (expError) {
         console.error('경험치 부여 실패:', expError);
         // 경험치 부여 실패는 게시글 작성 성공에 영향을 주지 않음
+        // 탭 정보 유지
+        let communityUrl = '';
+        
+        switch (type) {
+          case 'national':
+            communityUrl = '/(tabs)/community?tab=national';
+            break;
+          case 'regional':
+            // 사용자의 지역 정보 사용
+            if (user?.regions?.sido && user?.regions?.sigungu) {
+              communityUrl = `/(tabs)/community?tab=regional/${encodeURIComponent(user.regions.sido)}/${encodeURIComponent(user.regions.sigungu)}`;
+            } else {
+              communityUrl = '/(tabs)/community?tab=regional';
+            }
+            break;
+          case 'school':
+            // 사용자의 학교 ID 사용
+            const targetSchoolId = user?.school?.id;
+            if (targetSchoolId) {
+              communityUrl = `/(tabs)/community?tab=school/${targetSchoolId}`;
+            } else {
+              communityUrl = '/(tabs)/community?tab=school';
+            }
+            break;
+        }
+        
         Alert.alert('성공', '게시글이 작성되었습니다.', [
           {
             text: '확인',
-            onPress: () => router.push('/(tabs)/community')
+            onPress: () => {
+              if (communityUrl) {
+                router.replace(communityUrl as any);
+              } else {
+                router.replace('/(tabs)/community');
+              }
+            }
           }
         ]);
       }
