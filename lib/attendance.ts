@@ -194,12 +194,31 @@ export const checkAttendance = async (
     }
     
     // 출석체크 정보만 조회하는 경우
+    // 실제 연속 출석 여부 확인
+    let actualStreak = streak;
+    
+    if (!checkedToday) {
+      // 오늘 출석하지 않았다면 연속 출석이 아님
+      actualStreak = 0;
+    } else {
+      // 오늘 출석했다면, 어제 출석했는지 확인하여 연속 출석인지 판단
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = getKoreanDateString(yesterday);
+      
+      if (!attendances[yesterdayStr]) {
+        // 어제 출석하지 않았다면 연속 출석이 아님 (오늘만 출석)
+        actualStreak = 1;
+      }
+      // 어제 출석했다면 streak 값 유지 (이미 연속 출석)
+    }
+    
     const monthCount = Object.keys(monthlyLog).length;
     const totalCount = Object.keys(attendances).length;
     
     return {
       checkedToday,
-      streak,
+      streak: actualStreak, // 실제 연속 출석 일수 반환
       totalCount,
       monthCount,
       lastAttendance: existingData?.lastAttendance || null,

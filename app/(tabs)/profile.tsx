@@ -705,7 +705,11 @@ export default function ProfileScreen() {
           <View style={styles.attendanceHeader}>
             <Text style={styles.attendanceTitle}>📅 출석체크</Text>
             <View style={styles.attendanceStats}>
-              <Text style={styles.streakText}>🔥 연속 {attendanceData?.streak || 0}일</Text>
+              <Text style={styles.streakText}>
+                {attendanceData?.streak && attendanceData.streak > 0 
+                  ? `🔥 연속 ${attendanceData.streak}일`
+                  : '연속 출석 없음'}
+              </Text>
               <Text style={styles.totalText}>총 {attendanceData?.totalCount || 0}일</Text>
             </View>
           </View>

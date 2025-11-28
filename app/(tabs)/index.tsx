@@ -375,11 +375,13 @@ export default function HomeScreen() {
           <Text style={styles.attendanceTitle}>📅 출석 체크</Text>
           {attendanceData?.checkedToday ? (
             <Text style={styles.attendanceDesc}>
-              오늘 출석 완료! 연속 {attendanceData.streak}일째 출석 중! 🔥
+              {attendanceData.streak > 0 
+                ? `오늘 출석 완료! 연속 ${attendanceData.streak}일째 출석 중! 🔥`
+                : '오늘 출석 완료! 출석체크로 경험치를 받으세요!'}
             </Text>
           ) : (
             <Text style={styles.attendanceDesc}>
-              {attendanceData?.streak ? `연속 ${attendanceData.streak}일째 출석 중!` : '출석체크로 경험치를 받으세요!'}
+              출석체크로 경험치를 받으세요!
             </Text>
           )}
           <TouchableOpacity 
