@@ -181,7 +181,7 @@ export default function PostDetailScreen() {
   const [board, setBoard] = useState<Board | null>(null);
   const [comments, setComments] = useState<CommentWithAuthor[]>([]);
   const [allComments, setAllComments] = useState<CommentWithAuthor[]>([]); // 전체 댓글
-  const [displayedCommentsCount, setDisplayedCommentsCount] = useState(5); // 표시할 댓글 수
+  const [displayedCommentsCount, setDisplayedCommentsCount] = useState(10); // 표시할 댓글 수
   const [newComment, setNewComment] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [likeCount, setLikeCount] = useState(0);
@@ -561,26 +561,43 @@ export default function PostDetailScreen() {
         )),
         getDocs(query(
           collection(db, 'posts', postId, 'comments'),
-          where('parentId', '!=', null)
+          where('parentId', '!=', null),
+          orderBy('createdAt', 'asc')
         ))
       ]);
       
-      // 2단계: 답글 개수를 부모 ID별로 미리 계산
-      const replyCountMap = new Map<string, number>();
+      // 2단계: 답글을 부모 ID별로 그룹화하고 답글 데이터 저장
+      const repliesByParentId = new Map<string, Comment[]>();
+      const replyUserIds = new Set<string>();
+      
       allRepliesSnapshot.docs.forEach(doc => {
-        const replyData = doc.data();
-        const parentId = replyData.parentId;
+        const replyData = { id: doc.id, ...doc.data() } as Comment;
         
-        // 삭제되지 않은 답글만 카운트
-        const isValid = !replyData.status || 
-          !(replyData.status.isDeleted && replyData.content !== '삭제된 댓글입니다.');
+        // status 객체가 없는 경우 기본값으로 초기화
+        if (!replyData.status) {
+          replyData.status = {
+            isDeleted: false,
+            isBlocked: false
+          };
+        }
         
-        if (isValid && parentId) {
-          replyCountMap.set(parentId, (replyCountMap.get(parentId) || 0) + 1);
+        // 삭제되지 않은 답글만 포함
+        const isValid = !replyData.status.isDeleted || replyData.content === '삭제된 댓글입니다.';
+        
+        if (isValid && replyData.parentId) {
+          if (!repliesByParentId.has(replyData.parentId)) {
+            repliesByParentId.set(replyData.parentId, []);
+          }
+          repliesByParentId.get(replyData.parentId)!.push(replyData);
+          
+          // 답글 작성자 ID 수집
+          if (!replyData.isAnonymous && replyData.authorId && !replyData.status.isDeleted) {
+            replyUserIds.add(replyData.authorId);
+          }
         }
       });
       
-      // 3단계: 필요한 사용자 ID 수집
+      // 3단계: 필요한 사용자 ID 수집 (부모 댓글 + 답글)
       const userIds = new Set<string>();
       const validComments: Comment[] = [];
       
@@ -607,6 +624,9 @@ export default function PostDetailScreen() {
           userIds.add(commentData.authorId);
         }
       }
+      
+      // 답글 작성자 ID도 추가
+      replyUserIds.forEach(id => userIds.add(id));
       
       // 4단계: 사용자 정보 병렬로 조회
       const userInfoMap = new Map<string, { userName: string; profileImageUrl: string }>();
@@ -641,7 +661,7 @@ export default function PostDetailScreen() {
         });
       }
       
-      // 5단계: 댓글 데이터 조립
+      // 5단계: 댓글 데이터 조립 (답글 포함)
       const commentsData: CommentWithAuthor[] = validComments.map(commentData => {
         let authorInfo = {
           userName: '사용자',
@@ -663,14 +683,38 @@ export default function PostDetailScreen() {
           }
         }
         
-        // 미리 계산된 답글 개수 사용
-        const repliesPlaceholder: CommentWithAuthor[] = [];
-        (repliesPlaceholder as any).__replyCount = replyCountMap.get(commentData.id) || 0;
+        // 답글 데이터 조립
+        const replies: CommentWithAuthor[] = (repliesByParentId.get(commentData.id) || []).map(replyData => {
+          let replyAuthorInfo = {
+            userName: '사용자',
+            profileImageUrl: ''
+          };
+          
+          // 익명 답글 처리
+          if (replyData.isAnonymous || !replyData.authorId) {
+            if (replyData.anonymousAuthor?.nickname) {
+              replyAuthorInfo.userName = replyData.anonymousAuthor.nickname;
+            } else {
+              replyAuthorInfo.userName = '익명';
+            }
+          } else if (!replyData.status.isDeleted) {
+            const cachedInfo = userInfoMap.get(replyData.authorId);
+            if (cachedInfo) {
+              replyAuthorInfo = cachedInfo;
+            }
+          }
+          
+          return {
+            ...replyData,
+            author: replyAuthorInfo,
+            replies: []
+          };
+        });
         
         return {
           ...commentData,
           author: authorInfo,
-          replies: repliesPlaceholder
+          replies: replies
         };
       });
 
@@ -680,14 +724,13 @@ export default function PostDetailScreen() {
       // 전체 댓글 저장
       setAllComments(commentsData);
       
-      // 처음에는 5개만 표시 (페이지네이션)
+      // 처음에는 10개만 표시 (페이지네이션)
       setComments(commentsData.slice(0, displayedCommentsCount));
       
       // 실제 로드된 댓글 수로 게시글 카운트 동기화 (댓글 + 대댓글)
       const actualCommentCount = commentsData.reduce((count, comment) => {
         let total = 1; // 부모 댓글
-        const replyCount = (comment.replies as any)?.__replyCount || 0;
-        total += replyCount; // 대댓글들
+        total += comment.replies?.length || 0; // 대댓글들
         return count + total;
       }, 0);
       
@@ -1628,24 +1671,12 @@ export default function PostDetailScreen() {
           )}
         </View>
 
-        {/* 대댓글 보기 버튼 */}
-        {!isDeleted && (() => {
-          const replyCount = (comment.replies as any)?.__replyCount || 0;
-          if (replyCount > 0) {
-            return (
-              <TouchableOpacity 
-                style={styles.viewRepliesButton}
-                onPress={() => router.push(`/board/${type}/${boardCode}/${postId}/comments/${comment.id}`)}
-              >
-                <Ionicons name="chatbubble-outline" size={14} color="#3b82f6" />
-                <Text style={styles.viewRepliesButtonText}>
-                  대댓글 {replyCount}개 보기
-                </Text>
-              </TouchableOpacity>
-            );
-          }
-          return null;
-        })()}
+        {/* 대댓글 표시 */}
+        {!isDeleted && comment.replies && comment.replies.length > 0 && level === 0 && (
+          <View style={styles.repliesContainer}>
+            {comment.replies.map((reply) => renderComment(reply, 1, authorName))}
+          </View>
+        )}
       </View>
     );
   };
@@ -2702,25 +2733,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#ef4444',
     marginLeft: 4,
-  },
-  viewRepliesButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 32,
-    marginTop: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#eff6ff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#dbeafe',
-    alignSelf: 'flex-start',
-  },
-  viewRepliesButtonText: {
-    fontSize: 13,
-    color: '#3b82f6',
-    fontWeight: '600',
-    marginLeft: 6,
   },
   
   // 답글 및 익명 모드 스타일
