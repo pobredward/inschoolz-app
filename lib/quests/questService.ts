@@ -355,12 +355,36 @@ export async function trackQuestAction(
  */
 export async function addQuestXP(userId: string, xp: number): Promise<void> {
   try {
+    const { calculateLevelFromTotalExp, getExpRequiredForNextLevel, CUMULATIVE_REQUIREMENTS } = await import('../experience');
+    
     const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    
+    if (!userDoc.exists()) {
+      console.error('❌ 사용자 문서 없음');
+      return;
+    }
+    
+    const userData = userDoc.data();
+    const currentTotalExp = userData.stats?.totalExperience || 0;
+    const newTotalExp = currentTotalExp + xp;
+    
+    // 새로운 레벨 계산
+    const newLevel = calculateLevelFromTotalExp(newTotalExp);
+    const levelStartExp = CUMULATIVE_REQUIREMENTS[newLevel] || 0;
+    const newCurrentExp = newTotalExp - levelStartExp;
+    const newCurrentLevelRequiredXp = getExpRequiredForNextLevel(newLevel);
+    
+    // Firestore 업데이트
     await updateDoc(userRef, {
-      'stats.totalExperience': increment(xp),
-      'stats.currentExp': increment(xp),
+      'stats.totalExperience': newTotalExp,
+      'stats.currentExp': newCurrentExp,
+      'stats.level': newLevel,
+      'stats.currentLevelRequiredXp': newCurrentLevelRequiredXp,
     });
-    console.log(`✅ 경험치 ${xp} 추가됨`);
+    
+    console.log(`✅ 경험치 ${xp} 추가됨 (${currentTotalExp} → ${newTotalExp})`);
+    console.log(`📊 레벨: ${userData.stats?.level || 1} → ${newLevel}`);
   } catch (error) {
     console.error('❌ 경험치 추가 오류:', error);
   }
