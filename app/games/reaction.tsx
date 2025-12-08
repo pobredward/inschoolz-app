@@ -20,6 +20,7 @@ import { useAuthStore } from '../../store/authStore';
 import { updateGameScore, getUserGameStats } from '../../lib/games';
 import { getExperienceSettings } from '../../lib/experience';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuest } from '../../providers/QuestProvider';
 
 type GameState = 'waiting' | 'ready' | 'active' | 'finished';
 
@@ -37,6 +38,7 @@ interface RankingUser {
 
 export default function ReactionGameScreen() {
   const { user, setupRealtimeUserListener } = useAuthStore();
+  const { trackAction } = useQuest();
   const insets = useSafeAreaInsets();
   const [gameState, setGameState] = useState<GameState>('waiting');
   const [currentAttempt, setCurrentAttempt] = useState(1);
@@ -253,6 +255,14 @@ export default function ReactionGameScreen() {
       
       const result = await updateGameScore(user.uid, 'reactionGame', score, reactionTime);
       console.log('finishGame - updateGameScore 결과:', result);
+      
+      // 퀘스트 트래킹: 게임 플레이 (7단계)
+      try {
+        await trackAction('play_game');
+        console.log('✅ 퀘스트 트래킹: 게임 플레이 (반응속도)');
+      } catch (questError) {
+        console.error('❌ 퀘스트 트래킹 오류:', questError);
+      }
       
       if (result.success) {
         // 경험치 얼럿 표시

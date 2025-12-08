@@ -38,6 +38,7 @@ import { SafeProfileImage } from '../../../../components/SafeProfileImage';
 import { formatRelativeTime, formatAbsoluteTime, toTimestamp } from '../../../../utils/timeUtils';
 import { BlockedUserContent } from '../../../../components/ui/BlockedUserContent';
 import { checkSuspensionStatus } from '@/lib/auth/suspension-check';
+import { useQuest } from '@/providers/QuestProvider';
 
 const parseContentText = (content: string) => {
   if (!content) return '';
@@ -174,6 +175,7 @@ export default function PostDetailScreen() {
   }>();
   
   const { user } = useAuthStore();
+  const { trackAction } = useQuest();
   const { getPost, getBoard } = usePostCacheStore();
   const insets = useSafeAreaInsets();
   const scrollViewRef = React.useRef<ScrollView>(null);
@@ -345,6 +347,14 @@ export default function PostDetailScreen() {
         
         setIsLiked(true);
         setLikeCount(prev => prev + 1);
+        
+        // 퀘스트 트래킹: 좋아요 누르기 (6단계)
+        try {
+          await trackAction('give_like');
+          console.log('✅ 퀘스트 트래킹: 좋아요 (게시글)');
+        } catch (questError) {
+          console.error('❌ 퀘스트 트래킹 오류:', questError);
+        }
       }
     } catch (error) {
       console.error('좋아요 처리 실패:', error);
@@ -1042,6 +1052,14 @@ export default function PostDetailScreen() {
       const { createComment } = await import('../../../../lib/boards');
       const newCommentId = await createComment(post.id, newComment, user.uid, isAnonymous);
       
+      // 퀘스트 트래킹: 댓글 작성 (5단계)
+      try {
+        await trackAction('create_comment');
+        console.log('✅ 퀘스트 트래킹: 댓글 작성');
+      } catch (questError) {
+        console.error('❌ 퀘스트 트래킹 오류:', questError);
+      }
+      
       // 입력 필드 먼저 초기화 (사용자 경험 개선)
       const commentContentForExp = newComment;
       setNewComment('');
@@ -1426,6 +1444,16 @@ export default function PostDetailScreen() {
 
     try {
       const result = await toggleCommentLike(postId, commentId, user.uid);
+      
+      // 퀘스트 트래킹: 좋아요 누르기 (6단계) - 좋아요 추가 시에만
+      if (result.liked) {
+        try {
+          await trackAction('give_like');
+          console.log('✅ 퀘스트 트래킹: 좋아요 (댓글)');
+        } catch (questError) {
+          console.error('❌ 퀘스트 트래킹 오류:', questError);
+        }
+      }
       
       // 좋아요 상태 즉시 업데이트
       setCommentLikeStatuses(prev => ({

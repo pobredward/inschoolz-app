@@ -21,6 +21,7 @@ import {
   toggleFavoriteSchool, 
   setMainSchool 
 } from '../lib/schools';
+import { useQuest } from '../providers/QuestProvider';
 
 interface FavoriteSchoolsManagementModalProps {
   visible: boolean;
@@ -37,6 +38,7 @@ export default function FavoriteSchoolsManagementModal({
 }: FavoriteSchoolsManagementModalProps) {
   const router = useRouter();
   const { user } = useAuthStore();
+  const { trackAction } = useQuest();
   const [activeTab, setActiveTab] = useState<TabType>('manage');
   const [favoriteSchools, setFavoriteSchools] = useState<School[]>([]);
   const [mainSchoolId, setMainSchoolId] = useState<string>('');
@@ -114,6 +116,14 @@ export default function FavoriteSchoolsManagementModal({
       
       if (onUpdate) {
         onUpdate();
+      }
+      
+      // 퀘스트 트래킹: 즐겨찾기 학교 추가 (2단계)
+      try {
+        await trackAction('favorite_school');
+        console.log('✅ 퀘스트 트래킹: 즐겨찾기 학교 추가');
+      } catch (questError) {
+        console.error('❌ 퀘스트 트래킹 오류:', questError);
       }
       
       Alert.alert('성공', `${school.KOR_NAME}이(가) 즐겨찾기에 추가되었습니다.`);

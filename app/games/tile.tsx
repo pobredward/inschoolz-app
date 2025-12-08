@@ -17,6 +17,7 @@ import { updateGameScore, getUserGameStats } from '../../lib/games';
 import { useAuthStore } from '../../store/authStore';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { useQuest } from '../../providers/QuestProvider';
 
 type GameState = 'waiting' | 'playing' | 'finished';
 
@@ -44,6 +45,7 @@ const tileSize = Math.floor(availableWidth / tilesPerRow);
 
 export default function TileGameScreen() {
   const { user } = useAuthStore();
+  const { trackAction } = useQuest();
   const insets = useSafeAreaInsets();
   const [gameState, setGameState] = useState<GameState>('waiting');
   const [tiles, setTiles] = useState<Tile[]>([]);
@@ -240,6 +242,15 @@ export default function TileGameScreen() {
       // 움직임 횟수를 점수로 전달 (경험치 계산용)
       console.log(`타일 게임 완료 - 움직임 횟수: ${moves}번`);
       const result = await updateGameScore(user.uid, 'tileGame', moves);
+      
+      // 퀘스트 트래킹: 게임 플레이 (7단계)
+      try {
+        await trackAction('play_game');
+        console.log('✅ 퀘스트 트래킹: 게임 플레이 (타일)');
+      } catch (questError) {
+        console.error('❌ 퀘스트 트래킹 오류:', questError);
+      }
+      
       if (result.success) {
         let message = `움직임 횟수: ${moves}번`;
         

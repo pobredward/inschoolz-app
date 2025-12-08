@@ -18,6 +18,7 @@ import { useAuthStore } from '../../store/authStore';
 import { updateGameScore, getUserGameStats } from '../../lib/games';
 import { englishWords, WordPair } from '../../data/english-words';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuest } from '../../providers/QuestProvider';
 
 type GameState = 'waiting' | 'playing' | 'finished';
 
@@ -30,6 +31,7 @@ interface RankingUser {
 
 export default function TypingGameScreen() {
   const { user } = useAuthStore();
+  const { trackAction } = useQuest();
   const insets = useSafeAreaInsets();
   
   // 게임 상태
@@ -220,6 +222,14 @@ export default function TypingGameScreen() {
       console.log('🎮 게임 종료 - 점수:', score);
       const result = await updateGameScore(user.uid, 'typingGame', score, score);
       console.log('🎮 updateGameScore 결과:', result);
+      
+      // 퀘스트 트래킹: 게임 플레이 (7단계)
+      try {
+        await trackAction('play_game');
+        console.log('✅ 퀘스트 트래킹: 게임 플레이 (타이핑)');
+      } catch (questError) {
+        console.error('❌ 퀘스트 트래킹 오류:', questError);
+      }
       
       if (result.success) {
         if (result.leveledUp && result.oldLevel && result.newLevel) {

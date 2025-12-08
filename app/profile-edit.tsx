@@ -22,9 +22,11 @@ import { getAllRegions, getDistrictsByRegion } from '../lib/regions';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { formatPhoneNumberForInput, extractPhoneNumbers, padBirthValue, filterNumericOnly } from '../utils/formatters';
+import { useQuest } from '../providers/QuestProvider';
 
 export default function ProfileEditScreen() {
   const { user, setUser } = useAuthStore();
+  const { trackAction } = useQuest();
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [regionsLoading, setRegionsLoading] = useState(false);
@@ -205,12 +207,15 @@ export default function ProfileEditScreen() {
 
     // 유효성 검사
     if (!formData.userName.trim()) {
-      Alert.alert('오류', '사용자 이름은 필수입니다.');
+      Alert.alert('오류', '닉네임은 필수입니다.');
       return;
     }
 
     setLoading(true);
     try {
+      // 기존 닉네임과 비교하여 변경 여부 확인
+      const isNicknameChanged = user.profile?.userName !== formData.userName;
+      
       // 생년월일 숫자 변환
       const birthYear = formData.birthYear ? parseInt(formData.birthYear) : undefined;
       const birthMonth = formData.birthMonth ? parseInt(formData.birthMonth) : undefined;
@@ -231,26 +236,38 @@ export default function ProfileEditScreen() {
       });
 
       // 로컬 상태 업데이트
-      if (user) {
-        setUser({
-          ...user,
-          profile: {
-            ...user.profile,
-            userName: formData.userName,
-            realName: formData.realName,
-            birthYear: birthYear || 0,
-            birthMonth: birthMonth || 0,
-            birthDay: birthDay || 0,
-            gender: formData.gender,
-            phoneNumber: formData.phoneNumber,
-            profileImageUrl: formData.profileImageUrl,
-          },
-          regions: {
-            sido: formData.sido,
-            sigungu: formData.sigungu,
-            address: formData.address,
-          }
-        });
+      const updatedUser = {
+        ...user,
+        profile: {
+          ...user.profile,
+          userName: formData.userName,
+          realName: formData.realName,
+          birthYear: birthYear || 0,
+          birthMonth: birthMonth || 0,
+          birthDay: birthDay || 0,
+          gender: formData.gender,
+          phoneNumber: formData.phoneNumber,
+          profileImageUrl: formData.profileImageUrl,
+        },
+        regions: {
+          sido: formData.sido,
+          sigungu: formData.sigungu,
+          address: formData.address,
+        }
+      };
+      
+      setUser(updatedUser);
+
+      // 퀘스트 트래킹: 닉네임 변경 시에만 (1단계)
+      if (isNicknameChanged) {
+        console.log('🎯 닉네임이 변경됨, 퀘스트 트래킹 시작');
+        try {
+          await trackAction('nickname_change');
+          console.log('✅ 퀘스트 트래킹 완료');
+        } catch (questError) {
+          console.error('❌ 퀘스트 트래킹 오류:', questError);
+          // 퀘스트 트래킹 실패는 무시하고 계속 진행
+        }
       }
 
       Alert.alert('성공', '프로필이 성공적으로 업데이트되었습니다.');
@@ -372,12 +389,12 @@ export default function ProfileEditScreen() {
           <Text style={styles.sectionTitle}>기본 정보</Text>
           
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>사용자 이름 *</Text>
+            <Text style={styles.label}>닉네임 *</Text>
             <TextInput
               style={styles.input}
               value={formData.userName}
               onChangeText={(text) => handleChange('userName', text)}
-              placeholder="사용자 이름을 입력하세요"
+              placeholder="닉네임을 입력하세요"
               placeholderTextColor="#9CA3AF"
             />
           </View>

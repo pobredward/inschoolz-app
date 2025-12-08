@@ -25,6 +25,7 @@ import {
   toggleFavoriteSchool, 
   setMainSchool 
 } from '../../lib/schools';
+import { useQuest } from '../../providers/QuestProvider';
 
 // 파스텔 그린 색상 팔레트
 const pastelGreenColors = {
@@ -70,6 +71,7 @@ function CustomHeader({ title, onBack, onAdd, insets }: {
 export default function FavoriteSchoolsScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const { trackAction } = useQuest();
   const insets = useSafeAreaInsets();
   const [favoriteSchools, setFavoriteSchools] = useState<School[]>([]);
   const [mainSchoolId, setMainSchoolId] = useState<string>('');
@@ -151,6 +153,15 @@ export default function FavoriteSchoolsScreen() {
       await toggleFavoriteSchool(user.uid, school.id);
       await loadFavoriteSchools();
       handleCloseModal();
+      
+      // 퀘스트 트래킹: 즐겨찾기 학교 추가 (2단계)
+      try {
+        await trackAction('favorite_school');
+        console.log('✅ 퀘스트 트래킹: 즐겨찾기 학교 추가');
+      } catch (questError) {
+        console.error('❌ 퀘스트 트래킹 오류:', questError);
+      }
+      
       Alert.alert('성공', `${school.KOR_NAME}이(가) 즐겨찾기에 추가되었습니다.`);
     } catch (error) {
       console.error('학교 추가 오류:', error);

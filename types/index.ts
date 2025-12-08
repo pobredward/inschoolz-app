@@ -500,6 +500,149 @@ export interface SystemSettings {
     weeklyBonusXP: number;
     streakBonus: number;
   };
+}
+
+// 퀘스트 관련 타입 정의
+export type QuestType = 
+  | 'tutorial'      // 튜토리얼 체인
+  | 'fame'          // 인기도 체인
+  | 'writer'        // 작가 체인
+  | 'game'          // 게임 체인
+  | 'social'        // 소셜 체인
+  | 'attendance'    // 출석 체인
+  | 'school'        // 학교 체인
+  | 'level'         // 레벨 체인
+  | 'ultimate';     // 종합 체인
+
+export type QuestStatus = 'locked' | 'available' | 'in_progress' | 'completed';
+
+// 개별 퀘스트 단계 인터페이스
+export interface QuestStep {
+  id: string;                    // 퀘스트 단계 ID (예: 'tutorial_1')
+  step: number;                  // 단계 번호 (1-10)
+  title: string;                 // 퀘스트명
+  description: string;           // 설명
+  storyText: string;             // 스토리 텍스트
+  
+  // 목표 조건
+  objective: {
+    type: 'profile_complete' | 'school_register' | 'favorite_school' | 'visit_board' | 'create_post' | 
+          'create_comment' | 'give_like' | 'play_game' | 'attendance' | 
+          'visit_other_board' | 'consecutive_attendance' | 'get_likes' | 
+          'get_comments' | 'get_followers' | 'reach_ranking' | 'level_up' | 
+          'custom';
+    target: number;              // 목표 수치
+    current?: number;            // 현재 진행도 (동적)
+    customCheck?: string;        // 커스텀 체크 함수명
+  };
+  
+  // 보상
+  rewards: {
+    xp: number;
+    badge?: string;              // 배지 ID
+    title?: string;              // 칭호
+    frame?: string;              // 프레임
+    effect?: string;             // 이펙트
+    item?: string;               // 아이템 (상자 등)
+  };
+  
+  // 상태
+  status: QuestStatus;
+  completedAt?: FirebaseTimestamp;
+  
+  // UI 관련
+  icon?: string;                 // 아이콘 (이모지)
+  color?: string;                // 색상
+}
+
+// 퀘스트 체인 인터페이스
+export interface QuestChain {
+  id: string;                    // 체인 ID (예: 'tutorial')
+  type: QuestType;
+  name: string;                  // 체인 이름
+  description: string;           // 체인 설명
+  icon: string;                  // 체인 아이콘
+  
+  steps: QuestStep[];            // 단계 목록
+  
+  totalSteps: number;            // 총 단계 수
+  currentStep: number;           // 현재 단계 (0부터 시작, 완료 시 totalSteps)
+  
+  // 완료 보상
+  completionRewards: {
+    xp: number;
+    badge?: string;
+    title?: string;
+    frame?: string;
+    effect?: string;
+    items?: string[];
+  };
+  
+  // 상태
+  status: 'locked' | 'available' | 'in_progress' | 'completed';
+  startedAt?: FirebaseTimestamp;
+  completedAt?: FirebaseTimestamp;
+  
+  // 잠금 조건
+  unlockConditions?: {
+    level?: number;
+    completedChains?: string[];  // 완료해야 하는 다른 체인들
+    customCheck?: string;
+  };
+}
+
+// 사용자 퀘스트 진행 상태
+export interface UserQuestProgress {
+  userId: string;
+  
+  // 진행 중인 체인들
+  chains: {
+    [chainId: string]: {
+      currentStep: number;
+      status: QuestStatus;
+      startedAt: FirebaseTimestamp;
+      completedAt?: FirebaseTimestamp;
+      
+      // 각 단계별 진행도
+      stepProgress: {
+        [stepId: string]: {
+          status: QuestStatus;
+          progress: number;       // 현재 진행도
+          target: number;         // 목표 수치
+          completedAt?: FirebaseTimestamp;
+        };
+      };
+    };
+  };
+  
+  // 완료한 체인 목록
+  completedChains: string[];
+  
+  // 획득한 보상들
+  earnedRewards: {
+    badges: string[];
+    titles: string[];
+    frames: string[];
+    effects: string[];
+  };
+  
+  // 선택한 보상들 (프로필에 표시)
+  activeRewards: {
+    title?: string;
+    frame?: string;
+    effect?: string;
+    badges?: string[];           // 최대 5개
+  };
+  
+  // 통계
+  stats: {
+    totalQuestsCompleted: number;
+    totalChainsCompleted: number;
+    totalXpEarned: number;
+  };
+  
+  updatedAt: FirebaseTimestamp;
+  createdAt: FirebaseTimestamp;
 } 
 
 // 알림 타입 정의

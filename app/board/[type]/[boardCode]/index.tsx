@@ -25,6 +25,7 @@ import { useAuthStore } from '../../../../store/authStore';
 import { usePostCacheStore } from '../../../../store/postCacheStore';
 import PostListItem from '../../../../components/PostListItem';
 import { toTimestamp } from '../../../../utils/timeUtils';
+import { useQuest } from '../../../../providers/QuestProvider';
 
 // 기본 텍스트 처리 함수
 const parseContentText = (content: string) => {
@@ -109,6 +110,7 @@ export default function BoardScreen() {
   const router = useRouter();
   const { type, boardCode } = useLocalSearchParams();
   const { user } = useAuthStore();
+  const { trackAction } = useQuest();
   const insets = useSafeAreaInsets();
   const [posts, setPosts] = useState<Post[]>([]);
   const [board, setBoard] = useState<Board | null>(null);
@@ -117,6 +119,7 @@ export default function BoardScreen() {
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<SortOption>('latest'); // 정렬 상태 추가
   const [showSortSelector, setShowSortSelector] = useState(false); // 정렬 모달 상태 추가
+  const [questTracked, setQuestTracked] = useState(false); // 퀘스트 트래킹 중복 방지
 
   // 차단된 사용자 목록 로드
   const loadBlockedUsers = useCallback(async () => {
@@ -154,6 +157,26 @@ export default function BoardScreen() {
       }
       
       setBoard(foundBoard);
+      
+      // 퀘스트 트래킹: 게시판 방문 (3단계, 9단계)
+      if (user?.uid && !questTracked) {
+        try {
+          // 3단계: 모든 게시판 방문 (내 학교 포함)
+          await trackAction('visit_board', { boardId: foundBoard.id });
+          console.log('✅ 퀘스트 트래킹: 게시판 방문 (3단계)');
+          
+          // 9단계: 다른 학교 게시판 방문 (추가 체크)
+          const isOtherSchool = type === 'school' && foundBoard.schoolId && foundBoard.schoolId !== user.school?.id;
+          if (isOtherSchool) {
+            await trackAction('visit_other_board', { boardId: foundBoard.id, isOtherSchool: true });
+            console.log('✅ 퀘스트 트래킹: 다른 학교 게시판 방문 (9단계)');
+          }
+          
+          setQuestTracked(true);
+        } catch (error) {
+          console.error('❌ 퀘스트 트래킹 오류:', error);
+        }
+      }
       
       // 게시글 목록 가져오기
       let postsData: Post[] = [];

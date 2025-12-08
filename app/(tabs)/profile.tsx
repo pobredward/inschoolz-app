@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, RefreshControl, Alert, ActivityIndicator, Linking } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, RefreshControl, Alert, ActivityIndicator, Linking, Animated } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { checkAttendance, UserAttendance } from '../../lib/attendance';
@@ -14,6 +14,8 @@ import FollowersModal from '../../components/FollowersModal';
 import { SafeProfileImage } from '../../components/SafeProfileImage';
 import { deleteAccount } from '../../lib/auth';
 import { useRewardedAd } from '../../components/ads/AdMobAds';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useQuest } from '../../providers/QuestProvider';
 
 export default function ProfileScreen() {
   const { 
@@ -24,6 +26,7 @@ export default function ProfileScreen() {
     loadAttendanceData, 
     performAttendanceCheck 
   } = useAuthStore();
+  const { trackAction } = useQuest();
   const [refreshing, setRefreshing] = useState(false);
   const [userData, setUserData] = useState<User | null>(null);
   const [userStats, setUserStats] = useState({
@@ -54,6 +57,9 @@ export default function ProfileScreen() {
   const [followingCount, setFollowingCount] = useState(0);
   const [isFollowersModalVisible, setIsFollowersModalVisible] = useState(false);
   const [followersModalType, setFollowersModalType] = useState<'followers' | 'following'>('followers');
+  
+  // 애니메이션을 위한 Animated Value
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
 
 
   // 리워드 광고 제한 상태
@@ -267,6 +273,17 @@ export default function ProfileScreen() {
     }
   }, [user?.uid, loadAdWatchData]);
 
+  // Shimmer 애니메이션 효과
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(shimmerAnim, {
+        toValue: 1,
+        duration: 2000,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, [shimmerAnim]);
+
   const loadData = useCallback(async () => {
     if (!user?.uid) {
       console.log('로그인되지 않아 프로필 데이터 로드를 건너뜁니다.');
@@ -361,6 +378,20 @@ export default function ProfileScreen() {
     try {
       setLoading(true);
       const result = await performAttendanceCheck(user.uid);
+
+      // 퀘스트 트래킹: 출석체크 (8단계, 10단계)
+      try {
+        await trackAction('attendance');
+        console.log('✅ 퀘스트 트래킹: 출석체크');
+        
+        // 3일 이상 연속 출석 시 consecutive_attendance 트래킹 (10단계)
+        if (result.streak >= 3) {
+          await trackAction('consecutive_attendance');
+          console.log('✅ 퀘스트 트래킹: 연속 출석', result.streak);
+        }
+      } catch (questError) {
+        console.error('❌ 퀘스트 트래킹 오류:', questError);
+      }
 
       // 사용자 통계 다시 로드 (안전한 호출)
       try {
@@ -578,347 +609,516 @@ export default function ProfileScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
-      {/* 프로필 헤더 */}
-      <View style={styles.profileHeader}>
-        <View style={styles.profileImageContainer}>
-          <SafeProfileImage
-            uri={user.profile?.profileImageUrl}
-            size={80}
-            style={styles.profileImage}
-          />
-        </View>
-        <Text style={styles.userName}>{user.profile?.userName || '익명'}</Text>
-        <Text style={styles.userEmail}>{user.email}</Text>
-        
-        {/* 레벨 및 경험치 */}
-        <View style={styles.levelContainer}>
-            <Text style={styles.levelText}>Lv.{userStats.level}</Text>
-            <View style={styles.expBar}>
-              <View style={styles.expBarBackground}>
-                <View 
-                  style={[
-                    styles.expBarFill, 
-                    { width: `${Math.min((userStats.currentExp / userStats.nextLevelXP) * 100, 100)}%` }
-                  ]} 
-                />
-              </View>
-              <Text style={styles.expText}>
-                {userStats.currentExp}/{userStats.nextLevelXP} XP
-              </Text>
+      {/* 게이미파이 프로필 카드 */}
+      <View style={styles.profileCard}>
+        {/* 상단 그라디언트 헤더 */}
+        <LinearGradient
+          colors={['#10B981', '#059669', '#14B8A6']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.gradientHeader}
+        >
+          {/* 빠른 액션 버튼들 */}
+          <View style={styles.quickActionsContainer}>
+            <TouchableOpacity 
+              style={styles.quickActionButton}
+              onPress={() => router.push('/profile-edit')}
+            >
+              <Text style={styles.quickActionIcon}>✏️</Text>
+              <Text style={styles.quickActionText}>수정</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.quickActionButton}
+              onPress={() => router.push('/favorite-schools')}
+            >
+              <Text style={styles.quickActionIcon}>🏫</Text>
+              <Text style={styles.quickActionText}>학교</Text>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+
+        {/* 프로필 정보 영역 */}
+        <View style={styles.profileContent}>
+          {/* 아바타와 레벨 */}
+          <View style={styles.profileImageWrapper}>
+            <View style={styles.profileImageContainer}>
+              <SafeProfileImage
+                uri={user.profile?.profileImageUrl}
+                size={96}
+                style={styles.profileImage}
+              />
+            </View>
+            <View style={styles.levelBadge}>
+              <LinearGradient
+                colors={['#FBBF24', '#F59E0B']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.levelBadgeGradient}
+              >
+                <Text style={styles.levelBadgeText}>Lv.{userStats.level}</Text>
+              </LinearGradient>
+            </View>
+          </View>
+
+          {/* 프로필 정보 */}
+          <View style={styles.profileInfo}>
+            <Text style={styles.userName}>{user.profile?.userName || '익명'}</Text>
+            <Text style={styles.userSchool}>
+              🏫 {userData?.school?.name || '학교 미설정'}
+            </Text>
+            
+            {/* 팔로워/팔로잉 - 게임 스타일 */}
+            <View style={styles.followContainer}>
+              <TouchableOpacity 
+                style={styles.followCard}
+                onPress={() => {
+                  setFollowersModalType('followers');
+                  setIsFollowersModalVisible(true);
+                }}
+              >
+                <LinearGradient
+                  colors={['#ECFDF5', '#D1FAE5']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.followCardGradient}
+                >
+                  <Text style={styles.followLabel}>팔로워</Text>
+                  <Text style={styles.followCount}>{followersCount}</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.followCard}
+                onPress={() => {
+                  setFollowersModalType('following');
+                  setIsFollowersModalVisible(true);
+                }}
+              >
+                <LinearGradient
+                  colors={['#F0FDFA', '#CCFBF1']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.followCardGradient}
+                >
+                  <Text style={styles.followLabel}>팔로잉</Text>
+                  <Text style={styles.followCount}>{followingCount}</Text>
+                </LinearGradient>
+              </TouchableOpacity>
             </View>
             
-            {/* 리워드 광고 버튼 */}
-            <TouchableOpacity 
-              style={[
-                styles.rewardedAdButton,
-                { 
-                  backgroundColor: canWatchAd() && isLoaded ? '#f59e0b' : 
-                                  canWatchAd() && isLoading ? '#fbbf24' : '#9ca3af',
-                  opacity: canWatchAd() ? 1 : 0.7
-                }
-              ]}
-              onPress={handleWatchRewardedAd}
-              disabled={!canWatchAd()}
-            >
-              <Text style={styles.rewardedAdButtonText}>
-                {adWatchCount >= adSettings.dailyLimit 
-                  ? '🚫 일일 제한' 
-                  : !canWatchAd() 
-                    ? `⏰ ${formatTime(timeUntilNextAd)}`
-                    : isLoading 
-                      ? `⏳ 잠시만 기다려주세요... (${loadingTime}초, ${loadAttempts}/3)`
-                      : isLoaded
-                        ? `🎁 +${adSettings.experienceReward} XP`
-                        : `🎁 +${adSettings.experienceReward} XP`
-                }
-              </Text>
-              {canWatchAd() && adWatchCount < adSettings.dailyLimit && (
-                <Text style={styles.rewardedAdSubText}>
-                  {isLoaded ? '✅ 준비됨! 1분 시청 후 보상' : 
-                   isLoading ? `⏳ 광고 로딩 중... 잠시만 대기해주세요 (${loadingTime}초 경과, ${loadAttempts}/3 시도)` : '👆 클릭하여 시청하기 (1분 후 보상)'} • {adSettings.dailyLimit - adWatchCount}회 남음
+            {/* 경험치 바 - 게임 스타일 */}
+            <View style={styles.expContainer}>
+              <View style={styles.expHeader}>
+                <Text style={styles.expLabel}>⚡ 경험치</Text>
+                <Text style={styles.expValue}>
+                  {userStats.currentExp.toLocaleString()} / {userStats.nextLevelXP.toLocaleString()} XP
                 </Text>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* 팔로워/팔로잉 정보 */}
-          <View style={styles.followContainer}>
-            <TouchableOpacity 
-              style={styles.followButton}
-              onPress={() => {
-                setFollowersModalType('followers');
-                setIsFollowersModalVisible(true);
-              }}
-            >
-              <Text style={styles.followCount}>{followersCount}</Text>
-              <Text style={styles.followLabel}>팔로워</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.followButton}
-              onPress={() => {
-                setFollowersModalType('following');
-                setIsFollowersModalVisible(true);
-              }}
-            >
-              <Text style={styles.followCount}>{followingCount}</Text>
-              <Text style={styles.followLabel}>팔로잉</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* 기본 정보 */}
-        <View style={styles.infoSection}>
-          <Text style={styles.sectionTitle}>📋 기본 정보</Text>
-          <View style={styles.infoCard}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>이름:</Text>
-              <Text style={styles.infoValue}>{userData?.profile?.realName || '미설정'}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>성별:</Text>
-              <Text style={styles.infoValue}>{userData?.profile?.gender || '미설정'}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>생년월일:</Text>
-              <Text style={styles.infoValue}>
-                {userData?.profile?.birthYear && userData?.profile?.birthMonth && userData?.profile?.birthDay
-                  ? `${userData.profile.birthYear}년 ${userData.profile.birthMonth}월 ${userData.profile.birthDay}일`
-                  : '미설정'
-                }
-              </Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>연락처:</Text>
-              <Text style={styles.infoValue}>
-                {formatPhoneNumber(userData?.profile?.phoneNumber || '')}
-              </Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>학교:</Text>
-              <Text style={styles.infoValue}>{userData?.school?.name || '미설정'}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>주소:</Text>
-              <Text style={styles.infoValue}>
-                {(() => {
-                  const parts = [
-                    userData?.regions?.sido,
-                    userData?.regions?.sigungu, 
-                    userData?.regions?.address
-                  ].filter(Boolean);
-                  return parts.length > 0 ? parts.join(' ') : '미설정';
-                })()}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* 출석체크 */}
-        <View style={styles.attendanceSection}>
-          <View style={styles.attendanceHeader}>
-            <Text style={styles.attendanceTitle}>📅 출석체크</Text>
-            <View style={styles.attendanceStats}>
-              <Text style={styles.streakText}>
-                {attendanceData?.streak && attendanceData.streak > 0 
-                  ? `🔥 연속 ${attendanceData.streak}일`
-                  : '연속 출석 없음'}
-              </Text>
-              <Text style={styles.totalText}>총 {attendanceData?.totalCount || 0}일</Text>
-            </View>
-          </View>
-          
-          <TouchableOpacity
-            style={[
-              styles.attendanceButton,
-              attendanceData?.checkedToday && styles.attendanceButtonDisabled
-            ]}
-            onPress={handleAttendanceCheck}
-            disabled={attendanceData?.checkedToday || loading}
-          >
-            <Text style={[
-              styles.attendanceButtonText,
-              attendanceData?.checkedToday && styles.attendanceButtonTextDisabled
-            ]}>
-              {loading ? '처리 중...' : attendanceData?.checkedToday ? '✅ 출석 완료' : '출석체크'}
-            </Text>
-          </TouchableOpacity>
-          
-          {/* 주간 출석 달력 */}
-          <View style={styles.weeklyCalendar}>
-            <Text style={styles.calendarTitle}>이번 주 출석 현황 (월~일)</Text>
-            <View style={styles.calendarGrid}>
-              {weeklyCalendar.map((day, index) => (
-                <View key={index} style={styles.calendarDay}>
-                  <Text style={[
-                    styles.dayText,
-                    day.isToday && styles.todayText
-                  ]}>
-                    {day.day}
-                  </Text>
-                  <View style={[
-                    styles.dayCircle,
-                    day.isChecked && styles.checkedDay,
-                    day.isToday && !day.isChecked && styles.todayCircle
-                  ]}>
-                    <Text style={[
-                      styles.dayNumber,
-                      day.isChecked && styles.checkedDayNumber,
-                      day.isToday && !day.isChecked && styles.todayNumber
-                    ]}>
-                      {day.date}
-                    </Text>
-                  </View>
+              </View>
+              <View style={styles.expBarContainer}>
+                <View style={styles.expBarBackground}>
+                  <LinearGradient
+                    colors={['#34D399', '#10B981', '#14B8A6']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[
+                      styles.expBarFill,
+                      { width: `${Math.min((userStats.currentExp / userStats.nextLevelXP) * 100, 100)}%` }
+                    ]}
+                  >
+                    <Animated.View
+                      style={[
+                        styles.shimmerOverlay,
+                        {
+                          transform: [{
+                            translateX: shimmerAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [-200, 200],
+                            })
+                          }]
+                        }
+                      ]}
+                    />
+                  </LinearGradient>
                 </View>
-              ))}
+              </View>
+            </View>
+
+            {/* 기본 정보 - 컴팩트하게 */}
+            <View style={styles.basicInfoGrid}>
+              <View style={styles.basicInfoColumn}>
+                <View style={styles.basicInfoRow}>
+                  <Text style={styles.basicInfoIcon}>👤</Text>
+                  <Text style={styles.basicInfoText}>{userData?.profile?.realName || '미설정'}</Text>
+                </View>
+                <View style={styles.basicInfoRow}>
+                  <Text style={styles.basicInfoIcon}>
+                    {userData?.profile?.gender === 'male' ? '👨' : 
+                     userData?.profile?.gender === 'female' ? '👩' : '🧑'}
+                  </Text>
+                  <Text style={styles.basicInfoText}>
+                    {userData?.profile?.gender === 'male' ? '남성' : 
+                     userData?.profile?.gender === 'female' ? '여성' :
+                     userData?.profile?.gender === 'other' ? '기타' : '미설정'}
+                  </Text>
+                </View>
+                <View style={styles.basicInfoRow}>
+                  <Text style={styles.basicInfoIcon}>🎂</Text>
+                  <Text style={styles.basicInfoText} numberOfLines={1}>
+                    {userData?.profile?.birthYear 
+                      ? `${userData.profile.birthYear}.${userData.profile.birthMonth}.${userData.profile.birthDay}` 
+                      : '미설정'}
+                  </Text>
+                </View>
+              </View>
+              
+              <View style={styles.basicInfoColumn}>
+                <View style={styles.basicInfoRow}>
+                  <Text style={styles.basicInfoIcon}>📧</Text>
+                  <Text style={styles.basicInfoText} numberOfLines={1}>{user.email || '미설정'}</Text>
+                </View>
+                <View style={styles.basicInfoRow}>
+                  <Text style={styles.basicInfoIcon}>📱</Text>
+                  <Text style={styles.basicInfoText}>{formatPhoneNumber(userData?.profile?.phoneNumber || '') || '미설정'}</Text>
+                </View>
+                <View style={styles.basicInfoRow}>
+                  <Text style={styles.basicInfoIcon}>📍</Text>
+                  <Text style={styles.basicInfoText} numberOfLines={1}>
+                    {(() => {
+                      const parts = [
+                        userData?.regions?.sido,
+                        userData?.regions?.sigungu
+                      ].filter(Boolean);
+                      return parts.length > 0 ? parts.join(' ') : '미설정';
+                    })()}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+      </View>
+
+
+        {/* 출석체크 - 게임 스타일 */}
+        <View style={styles.attendanceSection}>
+          <LinearGradient
+            colors={['#ECFDF5', '#D1FAE5']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.sectionHeader}
+          >
+            <View style={styles.attendanceHeader}>
+              <Text style={styles.sectionTitle}>📅 출석체크</Text>
+              <View style={styles.attendanceStats}>
+                <Text style={styles.streakText}>
+                  {attendanceData?.streak && attendanceData.streak > 0 
+                    ? `🔥 ${attendanceData.streak}일`
+                    : ''}
+                </Text>
+                <Text style={styles.totalText}>총 {attendanceData?.totalCount || 0}일</Text>
+              </View>
+            </View>
+          </LinearGradient>
+          
+          <View style={styles.attendanceContent}>
+            <TouchableOpacity
+              style={[styles.attendanceButton]}
+              onPress={handleAttendanceCheck}
+              disabled={attendanceData?.checkedToday || loading}
+              activeOpacity={0.7}
+            >
+              <LinearGradient
+                colors={attendanceData?.checkedToday 
+                  ? ['#f3f4f6', '#e5e7eb'] 
+                  : ['#3B82F6', '#2563EB']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.attendanceButtonGradient}
+              >
+                <Text style={[
+                  styles.attendanceButtonText,
+                  attendanceData?.checkedToday && styles.attendanceButtonTextDisabled
+                ]}>
+                  {loading ? '처리 중...' : attendanceData?.checkedToday ? '✅ 출석 완료' : '출석체크'}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            
+            {/* 주간 출석 달력 */}
+            <View style={styles.weeklyCalendar}>
+              <Text style={styles.calendarTitle}>이번 주 출석 현황 (월~일)</Text>
+              <View style={styles.calendarGrid}>
+                {weeklyCalendar.map((day, index) => (
+                  <View key={index} style={styles.calendarDay}>
+                    <Text style={[
+                      styles.dayText,
+                      day.isToday && styles.todayText
+                    ]}>
+                      {day.day}
+                    </Text>
+                    <View style={[
+                      styles.dayCircle,
+                      day.isChecked && styles.checkedDay,
+                      day.isToday && !day.isChecked && styles.todayCircle
+                    ]}>
+                      <Text style={[
+                        styles.dayNumber,
+                        day.isChecked && styles.checkedDayNumber,
+                        day.isToday && !day.isChecked && styles.todayNumber
+                      ]}>
+                        {day.date}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
             </View>
           </View>
         </View>
 
-        {/* 활동 통계 */}
+        {/* 활동 통계 - 게임 스타일 */}
         <View style={styles.statsSection}>
-          <Text style={styles.sectionTitle}>📊 활동 통계</Text>
-          <View style={styles.statsGrid}>
+          <LinearGradient
+            colors={['#ECFDF5', '#D1FAE5']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.sectionHeader}
+          >
+            <Text style={styles.sectionTitle}>📊 활동 통계</Text>
+          </LinearGradient>
+          
+          <View style={styles.statsContent}>
             <TouchableOpacity 
               style={styles.statCard}
               onPress={() => router.push('/my-posts')}
+              activeOpacity={0.7}
             >
-              <Text style={styles.statIcon}>📝</Text>
-              <Text style={styles.statLabel}>내가 쓴 글</Text>
+              <LinearGradient
+                colors={['#ECFDF5', '#D1FAE5']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.statCardGradient}
+              >
+                <Text style={styles.statIcon}>📝</Text>
+                <Text style={styles.statTitle}>내가 쓴 글</Text>
+                <Text style={styles.statArrow}>›</Text>
+              </LinearGradient>
             </TouchableOpacity>
+            
             <TouchableOpacity 
               style={styles.statCard}
               onPress={() => router.push('/my-comments')}
+              activeOpacity={0.7}
             >
-              <Text style={styles.statIcon}>💬</Text>
-              <Text style={styles.statLabel}>내 댓글</Text>
+              <LinearGradient
+                colors={['#ECFDF5', '#D1FAE5']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.statCardGradient}
+              >
+                <Text style={styles.statIcon}>💬</Text>
+                <Text style={styles.statTitle}>내 댓글</Text>
+                <Text style={styles.statArrow}>›</Text>
+              </LinearGradient>
             </TouchableOpacity>
+            
             <TouchableOpacity 
               style={styles.statCard}
               onPress={() => router.push('/my-scraps' as any)}
+              activeOpacity={0.7}
             >
-              <Text style={styles.statIcon}>🔖</Text>
-              <Text style={styles.statLabel}>스크랩한 글</Text>
+              <LinearGradient
+                colors={['#ECFDF5', '#D1FAE5']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.statCardGradient}
+              >
+                <Text style={styles.statIcon}>🔖</Text>
+                <Text style={styles.statTitle}>스크랩한 글</Text>
+                <Text style={styles.statArrow}>›</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </View>
 
 
-        {/* 설정 */}
+        {/* 설정 - 게임 스타일 */}
         <View style={styles.menuSection}>
-          <Text style={styles.sectionTitle}>⚙️ 설정</Text>
+          <LinearGradient
+            colors={['#ECFDF5', '#D1FAE5']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.sectionHeader}
+          >
+            <Text style={styles.sectionTitle}>⚙️ 설정</Text>
+          </LinearGradient>
+          
           <View style={styles.menuCard}>
             <TouchableOpacity 
               style={styles.settingButton}
-              onPress={() => router.push('/profile-edit')}
-            >
-              <Text style={styles.settingIcon}>✏️</Text>
-              <Text style={styles.settingText}>프로필 수정</Text>
-              <Text style={styles.settingArrow}>›</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.settingButton}
               onPress={() => router.push('/notifications')}
+              activeOpacity={0.7}
             >
-              <Text style={styles.settingIcon}>🔔</Text>
-              <Text style={styles.settingText}>알림 설정</Text>
-              <Text style={styles.settingArrow}>›</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.settingButton}
-              onPress={() => router.push('/favorite-schools')}
-            >
-              <Text style={styles.settingIcon}>🏫</Text>
-              <Text style={styles.settingText}>즐겨찾기 학교</Text>
-              <Text style={styles.settingArrow}>›</Text>
+              <LinearGradient
+                colors={['#ECFDF5', '#D1FAE5']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.settingButtonGradient}
+              >
+                <Text style={styles.settingIcon}>🔔</Text>
+                <Text style={styles.settingText}>알림 설정</Text>
+                <Text style={styles.settingArrow}>›</Text>
+              </LinearGradient>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.settingButton}
               onPress={() => router.push('/my-reports')}
+              activeOpacity={0.7}
             >
-              <Text style={styles.settingIcon}>🚨</Text>
-              <Text style={styles.settingText}>신고 기록</Text>
-              <Text style={styles.settingArrow}>›</Text>
+              <LinearGradient
+                colors={['#ECFDF5', '#D1FAE5']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.settingButtonGradient}
+              >
+                <Text style={styles.settingIcon}>🚨</Text>
+                <Text style={styles.settingText}>신고 기록</Text>
+                <Text style={styles.settingArrow}>›</Text>
+              </LinearGradient>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.settingButton}
               onPress={() => router.push('/blocked-users')}
+              activeOpacity={0.7}
             >
-              <Text style={styles.settingIcon}>🚫</Text>
-              <Text style={styles.settingText}>차단된 사용자</Text>
-              <Text style={styles.settingArrow}>›</Text>
+              <LinearGradient
+                colors={['#ECFDF5', '#D1FAE5']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.settingButtonGradient}
+              >
+                <Text style={styles.settingIcon}>🚫</Text>
+                <Text style={styles.settingText}>차단된 사용자</Text>
+                <Text style={styles.settingArrow}>›</Text>
+              </LinearGradient>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.settingButton}
               onPress={handleDeleteAccount}
+              activeOpacity={0.7}
             >
-              <Text style={styles.settingIcon}>🗑️</Text>
-              <Text style={styles.settingText}>계정 삭제</Text>
-              <Text style={styles.settingArrow}>›</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.settingButton, styles.signOutButton]}
-              onPress={handleSignOut}
-            >
-              <Text style={styles.settingIcon}>🚪</Text>
-              <Text style={[styles.settingText, styles.signOutText]}>로그아웃</Text>
-              <Text style={styles.settingArrow}>›</Text>
+              <LinearGradient
+                colors={['#FEE2E2', '#FECACA']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.settingButtonGradient}
+              >
+                <Text style={styles.settingIcon}>🗑️</Text>
+                <Text style={[styles.settingText, styles.deleteText]}>계정 삭제</Text>
+                <Text style={styles.settingArrow}>›</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* 정책 및 약관 섹션 */}
+        {/* 정책 및 약관 섹션 - 게임 스타일 */}
         <View style={styles.policySection}>
-          <Text style={styles.sectionTitle}>📋 정책 및 약관</Text>
+          <LinearGradient
+            colors={['#ECFDF5', '#D1FAE5']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.sectionHeader}
+          >
+            <Text style={styles.sectionTitle}>📋 정책 및 약관</Text>
+          </LinearGradient>
+          
           <View style={styles.policyCard}>
             <TouchableOpacity 
               style={styles.policyButton}
               onPress={() => openWebLink('https://www.inschoolz.com/about')}
+              activeOpacity={0.7}
             >
-              <Text style={styles.policyIcon}>ℹ️</Text>
-              <Text style={styles.policyText}>회사소개</Text>
-              <Text style={styles.policyArrow}>›</Text>
+              <LinearGradient
+                colors={['#F9FAFB', '#F3F4F6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.policyButtonGradient}
+              >
+                <Text style={styles.policyIcon}>ℹ️</Text>
+                <Text style={styles.policyText}>회사소개</Text>
+                <Text style={styles.policyArrow}>›</Text>
+              </LinearGradient>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.policyButton}
               onPress={() => openWebLink('https://www.inschoolz.com/terms')}
+              activeOpacity={0.7}
             >
-              <Text style={styles.policyIcon}>📄</Text>
-              <Text style={styles.policyText}>이용약관</Text>
-              <Text style={styles.policyArrow}>›</Text>
+              <LinearGradient
+                colors={['#F9FAFB', '#F3F4F6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.policyButtonGradient}
+              >
+                <Text style={styles.policyIcon}>📄</Text>
+                <Text style={styles.policyText}>이용약관</Text>
+                <Text style={styles.policyArrow}>›</Text>
+              </LinearGradient>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.policyButton}
               onPress={() => openWebLink('https://www.inschoolz.com/privacy')}
+              activeOpacity={0.7}
             >
-              <Text style={styles.policyIcon}>🔒</Text>
-              <Text style={styles.policyText}>개인정보처리방침</Text>
-              <Text style={styles.policyArrow}>›</Text>
+              <LinearGradient
+                colors={['#F9FAFB', '#F3F4F6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.policyButtonGradient}
+              >
+                <Text style={styles.policyIcon}>🔒</Text>
+                <Text style={styles.policyText}>개인정보처리방침</Text>
+                <Text style={styles.policyArrow}>›</Text>
+              </LinearGradient>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.policyButton}
               onPress={() => openWebLink('https://www.inschoolz.com/youth-protection')}
+              activeOpacity={0.7}
             >
-              <Text style={styles.policyIcon}>🛡️</Text>
-              <Text style={styles.policyText}>청소년보호정책</Text>
-              <Text style={styles.policyArrow}>›</Text>
+              <LinearGradient
+                colors={['#F9FAFB', '#F3F4F6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.policyButtonGradient}
+              >
+                <Text style={styles.policyIcon}>🛡️</Text>
+                <Text style={styles.policyText}>청소년보호정책</Text>
+                <Text style={styles.policyArrow}>›</Text>
+              </LinearGradient>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.policyButton}
               onPress={() => openWebLink('https://www.inschoolz.com/help')}
+              activeOpacity={0.7}
             >
-              <Text style={styles.policyIcon}>❓</Text>
-              <Text style={styles.policyText}>고객지원</Text>
-              <Text style={styles.policyArrow}>›</Text>
+              <LinearGradient
+                colors={['#F9FAFB', '#F3F4F6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.policyButtonGradient}
+              >
+                <Text style={styles.policyIcon}>❓</Text>
+                <Text style={styles.policyText}>고객지원</Text>
+                <Text style={styles.policyArrow}>›</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </View>
@@ -947,149 +1147,251 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6b7280',
   },
-  profileHeader: {
+  // 게이미파이 프로필 카드
+  profileCard: {
     backgroundColor: 'white',
-    margin: 20,
-    padding: 20,
-    borderRadius: 12,
-    alignItems: 'center',
+    margin: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 3.84,
+    shadowRadius: 8,
     elevation: 5,
   },
-  profileImageContainer: {
-    marginBottom: 16,
+  gradientHeader: {
+    padding: 16,
+    paddingTop: 24,
+    paddingBottom: 80,
+  },
+  quickActionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  quickActionButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  quickActionIcon: {
+    fontSize: 12,
+  },
+  quickActionText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  profileContent: {
+    marginTop: -60,
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+  },
+  profileImageWrapper: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  profileImageContainer: {
+    borderWidth: 4,
+    borderColor: 'white',
+    borderRadius: 50,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   profileImage: {
-    // SafeProfileImage 컴포넌트가 크기를 관리하므로 여기서는 추가 스타일만
+    // SafeProfileImage 컴포넌트가 크기를 관리
+  },
+  levelBadge: {
+    position: 'absolute',
+    bottom: -8,
+    alignSelf: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  levelBadgeGradient: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  levelBadgeText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  profileInfo: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   userName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#111827',
+    color: '#059669',
+    textAlign: 'center',
     marginBottom: 4,
   },
-  userEmail: {
+  userSchool: {
     fontSize: 14,
     color: '#6b7280',
-    marginBottom: 12,
-  },
-  levelContainer: {
-    alignItems: 'center',
-    width: '100%',
-  },
-  levelText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#10B981',
-    marginBottom: 8,
     textAlign: 'center',
+    marginBottom: 16,
   },
-  expBar: {
-    width: '100%',
-    alignItems: 'center',
+  followContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 16,
   },
-  expBarBackground: {
-    width: '100%',
-    height: 10,
-    backgroundColor: '#e5e7eb',
-    borderRadius: 5,
-    overflow: 'hidden',
-    marginBottom: 8,
+  followCard: {
+    flex: 1,
+    maxWidth: 140,
   },
-  expBarFill: {
-    height: '100%',
-    backgroundColor: '#10B981',
-    borderRadius: 5,
-  },
-  expText: {
-    fontSize: 12,
-    color: '#6b7280',
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  rewardedAdButton: {
-    marginTop: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    alignSelf: 'center',
-  },
-  rewardedAdButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  rewardedAdSubText: {
-    color: 'white',
-    fontSize: 10,
-    opacity: 0.9,
-    textAlign: 'center',
-    marginTop: 2,
-  },
-  infoSection: {
-    margin: 20,
-    padding: 20,
-    backgroundColor: 'white',
+  followCardGradient: {
     borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    padding: 12,
+    borderWidth: 2,
+    borderColor: '#D1FAE5',
+    alignItems: 'center',
   },
-  infoCard: {
-    gap: 8,
+  followLabel: {
+    fontSize: 12,
+    color: '#059669',
+    fontWeight: '600',
+    marginBottom: 4,
   },
-  infoRow: {
+  followCount: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#047857',
+  },
+  expContainer: {
+    marginBottom: 16,
+  },
+  expHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 8,
   },
-  infoLabel: {
-    fontSize: 14,
+  expLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  expValue: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#059669',
+  },
+  expBarContainer: {
+    position: 'relative',
+  },
+  expBarBackground: {
+    height: 16,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+  },
+  expBarFill: {
+    height: '100%',
+    borderRadius: 6,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  shimmerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    width: 200,
+  },
+  basicInfoGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+  },
+  basicInfoColumn: {
+    flex: 1,
+    gap: 8,
+  },
+  basicInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  basicInfoIcon: {
+    fontSize: 12,
+  },
+  basicInfoText: {
+    fontSize: 11,
     color: '#6b7280',
     fontWeight: '500',
+    flex: 1,
   },
-  infoValue: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#374151',
-  },
+  // 출석체크 - 게임 스타일
   attendanceSection: {
     backgroundColor: 'white',
-    margin: 20,
-    padding: 20,
-    borderRadius: 12,
+    margin: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#D1FAE5',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 3.84,
+    shadowRadius: 8,
     elevation: 5,
   },
   attendanceHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  attendanceTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   attendanceStats: {
     alignItems: 'flex-end',
@@ -1098,28 +1400,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
     color: '#f59e0b',
-    marginBottom: 2,
   },
   totalText: {
-    fontSize: 12,
-    color: '#6b7280',
+    fontSize: 11,
+    color: '#059669',
+    marginTop: 2,
+  },
+  attendanceContent: {
+    padding: 12,
   },
   attendanceButton: {
-    backgroundColor: '#2563eb',
-    borderRadius: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  attendanceButtonGradient: {
     padding: 16,
     alignItems: 'center',
-    marginBottom: 20,
+    borderRadius: 12,
   },
   attendanceButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  attendanceButtonDisabled: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
   },
   attendanceButtonTextDisabled: {
     color: '#6b7280',
@@ -1179,122 +1482,117 @@ const styles = StyleSheet.create({
   todayNumber: {
     color: '#10B981',
   },
+  // 활동 통계 - 게임 스타일
   statsSection: {
     backgroundColor: 'white',
-    margin: 20,
-    padding: 20,
-    borderRadius: 12,
+    margin: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#D1FAE5',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 3.84,
+    shadowRadius: 8,
     elevation: 5,
   },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+  sectionHeader: {
+    padding: 16,
+    borderBottomWidth: 2,
+    borderBottomColor: '#D1FAE5',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#047857',
+  },
+  statsContent: {
+    padding: 12,
     gap: 12,
   },
   statCard: {
-    backgroundColor: '#f9fafb',
     borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    width: '48%',
+    overflow: 'hidden',
   },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2563eb',
+  statCardGradient: {
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#D1FAE5',
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   statIcon: {
-    fontSize: 24,
-    marginBottom: 8,
-    textAlign: 'center',
+    fontSize: 20,
+    marginRight: 12,
   },
-  statLabel: {
-    fontSize: 14,
-    color: '#374151',
-    fontWeight: '500',
-    textAlign: 'center',
+  statTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#047857',
+    flex: 1,
   },
+  statArrow: {
+    fontSize: 20,
+    color: '#34D399',
+    fontWeight: 'bold',
+  },
+  
+  // 설정 - 게임 스타일
   menuSection: {
     backgroundColor: 'white',
-    margin: 20,
-    padding: 20,
-    borderRadius: 12,
+    margin: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#D1FAE5',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 3.84,
+    shadowRadius: 8,
     elevation: 5,
   },
   menuCard: {
+    padding: 12,
     gap: 8,
   },
   settingButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  settingButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#D1FAE5',
     borderRadius: 12,
-    padding: 16,
-    width: '100%',
   },
   settingIcon: {
-    fontSize: 16,
+    fontSize: 20,
     marginRight: 12,
   },
   settingText: {
     fontSize: 16,
-    color: '#374151',
+    color: '#047857',
+    fontWeight: '600',
     flex: 1,
   },
   settingArrow: {
-    fontSize: 16,
-    color: '#9ca3af',
-    marginLeft: 'auto',
+    fontSize: 20,
+    color: '#34D399',
+    fontWeight: 'bold',
   },
-  signOutButton: {
-    backgroundColor: '#fef2f2',
-    borderWidth: 1,
-    borderColor: '#fecaca',
+  deleteText: {
+    color: '#DC2626',
   },
-  signOutText: {
-    color: '#ef4444',
-  },
-  menuItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-    padding: 16,
-  },
-  menuText: {
-    fontSize: 16,
-    color: '#374151',
-    flex: 1,
-    marginLeft: 12,
-  },
-  signOutItem: {
-    backgroundColor: '#fef2f2',
-    borderWidth: 1,
-    borderColor: '#fecaca',
-  },
-   sectionTitle: {
-     fontSize: 18,
-     fontWeight: 'bold',
-     marginBottom: 12,
-     color: '#111827',
-   },
-   loginRequiredContainer: {
+  loginRequiredContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1329,67 +1627,55 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  followContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    marginTop: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 60,
-  },
-  followButton: {
-    alignItems: 'center',
-    padding: 8,
-  },
-  followCount: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  followLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
 
-   policySection: {
-     backgroundColor: 'white',
-     margin: 20,
-     padding: 20,
-     borderRadius: 12,
-     shadowColor: '#000',
-     shadowOffset: {
-       width: 0,
-       height: 2,
-     },
-     shadowOpacity: 0.1,
-     shadowRadius: 3.84,
-     elevation: 5,
-   },
-   policyCard: {
-     gap: 8,
-   },
-   policyButton: {
-     flexDirection: 'row',
-     alignItems: 'center',
-     backgroundColor: '#f9fafb',
-     borderRadius: 12,
-     padding: 16,
-     width: '100%',
-   },
-   policyIcon: {
-     fontSize: 16,
-     marginRight: 12,
-   },
-   policyText: {
-     fontSize: 16,
-     color: '#374151',
-     flex: 1,
-   },
-   policyArrow: {
-     fontSize: 16,
-     color: '#9ca3af',
-     marginLeft: 'auto',
-   },
+  // 정책 및 약관 - 게임 스타일
+  policySection: {
+    backgroundColor: 'white',
+    margin: 16,
+    marginBottom: 24,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#D1FAE5',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  policyCard: {
+    padding: 12,
+    gap: 8,
+  },
+  policyButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  policyButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+  },
+  policyIcon: {
+    fontSize: 18,
+    marginRight: 12,
+  },
+  policyText: {
+    fontSize: 15,
+    color: '#374151',
+    fontWeight: '500',
+    flex: 1,
+  },
+  policyArrow: {
+    fontSize: 20,
+    color: '#9CA3AF',
+    fontWeight: 'bold',
+  },
 
  }); 

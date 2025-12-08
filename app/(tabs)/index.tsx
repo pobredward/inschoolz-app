@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { ScrollView, View, Text, TouchableOpacity, StyleSheet, RefreshControl, Alert, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { ScrollView, View, Text, TouchableOpacity, StyleSheet, RefreshControl, Alert, ActivityIndicator, Animated } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { usePostCacheStore } from '../../store/postCacheStore';
@@ -54,6 +55,9 @@ export default function HomeScreen() {
   const [popularPosts, setPopularPosts] = useState<Post[]>([]);
   const [rankingPreview, setRankingPreview] = useState<RankingPreview | null>(null);
   const [loading, setLoading] = useState(false);
+  
+  // Shimmer 애니메이션
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
 
 
   // 경험치 진행률 계산 - user.stats의 개별 필드를 의존성으로 사용하여 실시간 업데이트 보장
@@ -136,6 +140,17 @@ export default function HomeScreen() {
       loadUserData();
     }
   }, [user?.uid, authLoading]);
+
+  // Shimmer 애니메이션 효과
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(shimmerAnim, {
+        toValue: 1,
+        duration: 2000,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, [shimmerAnim]);
 
   const onRefresh = async () => {
     if (!user?.uid) return;
@@ -224,107 +239,202 @@ export default function HomeScreen() {
     return (
       <SafeScreenContainer scrollable={true}>
         <View style={styles.header}>
-          <Text style={styles.title}>📚 Inschoolz</Text>
-          <Text style={styles.subtitle}>학생들을 위한 커뮤니티</Text>
+          <LinearGradient
+            colors={['#10B981', '#059669', '#14B8A6']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.headerGradient}
+          >
+            <Text style={styles.title}>📚 Inschoolz</Text>
+            <Text style={styles.subtitleWhite}>학생들을 위한 커뮤니티</Text>
+          </LinearGradient>
         </View>
 
         <View style={styles.loginPrompt}>
-          <Ionicons name="person-circle-outline" size={64} color="#9CA3AF" />
+          <Ionicons name="person-circle-outline" size={64} color="#10B981" />
           <Text style={styles.loginPromptTitle}>로그인이 필요합니다</Text>
           <Text style={styles.loginPromptDescription}>
             Inschoolz의 모든 기능을 이용하려면 로그인해주세요.
           </Text>
-          <TouchableOpacity style={styles.loginButton} onPress={navigateToLogin}>
-            <Text style={styles.loginButtonText}>로그인하기</Text>
+          <TouchableOpacity style={styles.loginButton} onPress={navigateToLogin} activeOpacity={0.8}>
+            <LinearGradient
+              colors={['#10B981', '#059669']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.loginButtonGradient}
+            >
+              <Text style={styles.loginButtonText}>로그인하기</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
 
-      {/* 로그인 없이도 볼 수 있는 컨텐츠 */}
+      {/* 로그인 없이도 볼 수 있는 컨텐츠 - 게임 스타일 */}
         
         {/* 인기 게시글 */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>🔥 인기 게시글</Text>
-            <TouchableOpacity onPress={() => navigateToCommunity('national')}>
-              <Text style={styles.moreButton}>더보기</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {popularPosts.length > 0 ? (
-            popularPosts.map((post, index) => (
-              <PostListItem
-                key={post.id}
-                post={post}
-                onPress={navigateToPost}
-                typeBadgeText="전국"
-                boardBadgeText={(post as any).boardName || post.boardCode}
-              />
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>아직 인기 게시글이 없습니다</Text>
+          <View style={styles.sectionCard}>
+            <LinearGradient
+              colors={['#ECFDF5', '#D1FAE5']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.sectionHeaderGradient}
+            >
+              <Text style={styles.sectionTitle}>🔥 인기 게시글</Text>
+              <TouchableOpacity onPress={() => navigateToCommunity('national')}>
+                <Text style={styles.moreButton}>더보기 ›</Text>
+              </TouchableOpacity>
+            </LinearGradient>
+            
+            <View style={styles.sectionContent}>
+              {popularPosts.length > 0 ? (
+                popularPosts.map((post, index) => (
+                  <PostListItem
+                    key={post.id}
+                    post={post}
+                    onPress={navigateToPost}
+                    typeBadgeText="전국"
+                    boardBadgeText={(post as any).boardName || post.boardCode}
+                  />
+                ))
+              ) : (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyStateText}>아직 인기 게시글이 없습니다</Text>
+                </View>
+              )}
             </View>
-          )}
+          </View>
         </View>
         
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🎮 미니게임</Text>
-          <View style={styles.gameGrid}>
-            <TouchableOpacity 
-              style={styles.gameCard}
-              onPress={() => Alert.alert('로그인 필요', '게임을 플레이하려면 로그인해주세요.')}
+          <View style={styles.sectionCard}>
+            <LinearGradient
+              colors={['#ECFDF5', '#D1FAE5']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.sectionHeaderGradient}
             >
-              <Text style={styles.gameIcon}>⚡</Text>
-              <Text style={styles.gameTitle}>반응속도</Text>
-            </TouchableOpacity>
+              <Text style={styles.sectionTitle}>🎮 미니게임</Text>
+            </LinearGradient>
             
-            <TouchableOpacity 
-              style={styles.gameCard}
-              onPress={() => Alert.alert('로그인 필요', '게임을 플레이하려면 로그인해주세요.')}
-            >
-              <Text style={styles.gameIcon}>🧩</Text>
-              <Text style={styles.gameTitle}>타일 맞추기</Text>
-            </TouchableOpacity>
+            <View style={styles.sectionContent}>
+              <View style={styles.gameGrid}>
+                <TouchableOpacity 
+                  style={styles.gameCard}
+                  onPress={() => Alert.alert('로그인 필요', '게임을 플레이하려면 로그인해주세요.')}
+                  activeOpacity={0.7}
+                >
+                  <LinearGradient
+                    colors={['#FEF3C7', '#FDE68A']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.gameCardGradient}
+                  >
+                    <Text style={styles.gameIcon}>⚡</Text>
+                    <Text style={styles.gameTitle}>반응속도</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.gameCard}
+                  onPress={() => Alert.alert('로그인 필요', '게임을 플레이하려면 로그인해주세요.')}
+                  activeOpacity={0.7}
+                >
+                  <LinearGradient
+                    colors={['#E9D5FF', '#DDD6FE']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.gameCardGradient}
+                  >
+                    <Text style={styles.gameIcon}>🧩</Text>
+                    <Text style={styles.gameTitle}>타일 맞추기</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.gameCard}
-              onPress={() => Alert.alert('준비 중', '곧 출시될 예정입니다! 🚀')}
-            >
-              <Text style={styles.gameIcon}>🧮</Text>
-              <Text style={styles.gameTitle}>빠른 계산</Text>
-            </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.gameCard}
+                  onPress={() => Alert.alert('준비 중', '곧 출시될 예정입니다! 🚀')}
+                  activeOpacity={0.7}
+                >
+                  <LinearGradient
+                    colors={['#DBEAFE', '#BFDBFE']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.gameCardGradient}
+                  >
+                    <Text style={styles.gameIcon}>🧮</Text>
+                    <Text style={styles.gameTitle}>빠른 계산</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📝 커뮤니티</Text>
-          <View style={styles.communityGrid}>
-            <TouchableOpacity 
-              style={styles.communityCard}
-              onPress={() => navigateToCommunity('national')}
+          <View style={styles.sectionCard}>
+            <LinearGradient
+              colors={['#ECFDF5', '#D1FAE5']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.sectionHeaderGradient}
             >
-              <Text style={styles.communityIcon}>🌍</Text>
-              <Text style={styles.communityTitle}>전국</Text>
-              <Text style={styles.communityDesc}>전국 학생들과 소통</Text>
-            </TouchableOpacity>
+              <Text style={styles.sectionTitle}>📝 커뮤니티</Text>
+            </LinearGradient>
             
-            <TouchableOpacity 
-              style={styles.communityCard}
-              onPress={() => navigateToCommunity('regional')}
-            >
-              <Text style={styles.communityIcon}>🏘️</Text>
-              <Text style={styles.communityTitle}>지역</Text>
-              <Text style={styles.communityDesc}>로그인 후 이용</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.communityCard}
-              onPress={() => navigateToCommunity('school')}
-            >
-              <Text style={styles.communityIcon}>🏫</Text>
-              <Text style={styles.communityTitle}>학교</Text>
-              <Text style={styles.communityDesc}>로그인 후 이용</Text>
-            </TouchableOpacity>
+            <View style={styles.sectionContent}>
+              <View style={styles.communityGrid}>
+                <TouchableOpacity 
+                  style={styles.communityCard}
+                  onPress={() => navigateToCommunity('national')}
+                  activeOpacity={0.7}
+                >
+                  <LinearGradient
+                    colors={['#ECFDF5', '#D1FAE5']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.communityCardGradient}
+                  >
+                    <Text style={styles.communityIcon}>🌍</Text>
+                    <Text style={styles.communityTitle}>전국</Text>
+                    <Text style={styles.communityDesc}>전국 학생들과 소통</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.communityCard}
+                  onPress={() => navigateToCommunity('regional')}
+                  activeOpacity={0.7}
+                >
+                  <LinearGradient
+                    colors={['#ECFDF5', '#D1FAE5']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.communityCardGradient}
+                  >
+                    <Text style={styles.communityIcon}>🏘️</Text>
+                    <Text style={styles.communityTitle}>지역</Text>
+                    <Text style={styles.communityDesc}>로그인 후 이용</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.communityCard}
+                  onPress={() => navigateToCommunity('school')}
+                  activeOpacity={0.7}
+                >
+                  <LinearGradient
+                    colors={['#ECFDF5', '#D1FAE5']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.communityCardGradient}
+                  >
+                    <Text style={styles.communityIcon}>🏫</Text>
+                    <Text style={styles.communityTitle}>학교</Text>
+                    <Text style={styles.communityDesc}>로그인 후 이용</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
       </SafeScreenContainer>
@@ -353,103 +463,177 @@ export default function HomeScreen() {
       // 성능 최적화를 위한 스크롤 옵션
       scrollEventThrottle={16}
     >
-      {/* 헤더 */}
+      {/* 헤더 - 게임 스타일 */}
       <View style={styles.header}>
-        <Text style={styles.title}>📚 Inschoolz</Text>
-        <View style={styles.userInfo}>
-          <Text style={styles.userName}>{user.profile?.userName || '익명'}</Text>
-          <View style={styles.expBar}>
-            <View style={styles.expBarBackground}>
-              <View style={[styles.expBarFill, { width: `${expProgress.percentage}%` }]} />
-            </View>
-            <Text style={styles.expText}>
-              Lv.{user.stats?.level || 1} ({expProgress.current}/{expProgress.required})
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* 출석 체크 */}
-      <View style={styles.section}>
-        <View style={styles.attendanceCard}>
-          <Text style={styles.attendanceTitle}>📅 출석 체크</Text>
-          {attendanceData?.checkedToday ? (
-            <Text style={styles.attendanceDesc}>
-              {attendanceData.streak > 0 
-                ? `오늘 출석 완료! 연속 ${attendanceData.streak}일째 출석 중! 🔥`
-                : '오늘 출석 완료! 출석체크로 경험치를 받으세요!'}
-            </Text>
-          ) : (
-            <Text style={styles.attendanceDesc}>
-              출석체크로 경험치를 받으세요!
-            </Text>
-          )}
-          <TouchableOpacity 
-            style={[
-              styles.attendanceButton,
-              { 
-                backgroundColor: attendanceData?.checkedToday ? '#10b981' : '#2563eb',
-                opacity: isCheckingAttendance ? 0.7 : 1
-              }
-            ]}
-            onPress={handleAttendanceCheck}
-            disabled={attendanceData?.checkedToday || isCheckingAttendance}
-          >
-            <Text style={styles.attendanceButtonText}>
-              {isCheckingAttendance 
-                ? '처리중...' 
-                : attendanceData?.checkedToday 
-                  ? '✅ 출석 완료' 
-                  : '출석 체크하기 (+10 XP)'
-              }
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* 인기 게시글 */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>🔥 인기 게시글</Text>
-          <TouchableOpacity onPress={() => navigateToCommunity('national')}>
-            <Text style={styles.moreButton}>더보기</Text>
-          </TouchableOpacity>
-        </View>
+        <LinearGradient
+          colors={['#10B981', '#059669', '#14B8A6']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.headerGradient}
+        >
+          <Text style={styles.title}>📚 Inschoolz</Text>
+        </LinearGradient>
         
-        {popularPosts.length > 0 ? (
-          popularPosts.map((post, index) => (
-            <PostListItem
-              key={post.id}
-              post={post}
-              onPress={navigateToPost}
-              typeBadgeText="전국"
-              boardBadgeText={(post as any).boardName || post.boardCode}
-            />
-          ))
-        ) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>아직 인기 게시글이 없습니다</Text>
-          </View>
-        )}
-      </View>
-
-      {/* 급식 정보 */}
-      {user?.school?.id && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>🍽️ 오늘의 급식</Text>
-            <TouchableOpacity 
-              onPress={() => router.push('/meals')}
-              style={styles.viewAllButton}
-            >
-              <Text style={styles.viewAllText}>전체보기</Text>
-              <Ionicons name="chevron-forward" size={16} color="#22c55e" />
-            </TouchableOpacity>
+        <View style={styles.userInfo}>
+          <View style={styles.userNameContainer}>
+            <Text style={styles.userName}>{user.profile?.userName || '익명'}</Text>
+            <View style={styles.levelBadge}>
+              <LinearGradient
+                colors={['#FBBF24', '#F59E0B']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.levelBadgeGradient}
+              >
+                <Text style={styles.levelBadgeText}>Lv.{user.stats?.level || 1}</Text>
+              </LinearGradient>
+            </View>
           </View>
           
-          {todayMeals.length > 0 ? (
-            <View style={styles.mealsContainer}>
-              {todayMeals.map((meal, index) => (
+          <View style={styles.expContainer}>
+            <View style={styles.expHeader}>
+              <Text style={styles.expLabel}>⚡ 경험치</Text>
+              <Text style={styles.expValue}>
+                {expProgress.current.toLocaleString()} / {expProgress.required.toLocaleString()} XP
+              </Text>
+            </View>
+            <View style={styles.expBarContainer}>
+              <View style={styles.expBarBackground}>
+                <LinearGradient
+                  colors={['#34D399', '#10B981', '#14B8A6']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[styles.expBarFill, { width: `${expProgress.percentage}%` }]}
+                >
+                  <Animated.View
+                    style={[
+                      styles.shimmerOverlay,
+                      {
+                        transform: [{
+                          translateX: shimmerAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [-200, 200],
+                          })
+                        }]
+                      }
+                    ]}
+                  />
+                </LinearGradient>
+              </View>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {/* 출석 체크 - 게임 스타일 */}
+      <View style={styles.section}>
+        <View style={styles.attendanceCard}>
+          <LinearGradient
+            colors={['#ECFDF5', '#D1FAE5']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.attendanceHeader}
+          >
+            <Text style={styles.attendanceTitle}>📅 출석 체크</Text>
+            {attendanceData?.streak && attendanceData.streak > 0 && (
+              <View style={styles.streakBadge}>
+                <Text style={styles.streakText}>🔥 {attendanceData.streak}일</Text>
+              </View>
+            )}
+          </LinearGradient>
+          
+          <View style={styles.attendanceContent}>
+            <Text style={styles.attendanceDesc}>
+              {attendanceData?.checkedToday 
+                ? '오늘 출석 완료! 매일 출석하고 경험치를 받으세요!' 
+                : '출석체크로 경험치를 받으세요!'}
+            </Text>
+            
+            <TouchableOpacity 
+              style={styles.attendanceButton}
+              onPress={handleAttendanceCheck}
+              disabled={attendanceData?.checkedToday || isCheckingAttendance}
+              activeOpacity={0.7}
+            >
+              <LinearGradient
+                colors={attendanceData?.checkedToday 
+                  ? ['#10B981', '#059669'] 
+                  : ['#3B82F6', '#2563EB']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.attendanceButtonGradient}
+              >
+                <Text style={styles.attendanceButtonText}>
+                  {isCheckingAttendance 
+                    ? '처리중...' 
+                    : attendanceData?.checkedToday 
+                      ? '✅ 출석 완료' 
+                      : '출석 체크하기 (+10 XP)'
+                  }
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* 인기 게시글 - 게임 스타일 */}
+      <View style={styles.section}>
+        <View style={styles.sectionCard}>
+          <LinearGradient
+            colors={['#ECFDF5', '#D1FAE5']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.sectionHeaderGradient}
+          >
+            <Text style={styles.sectionTitle}>🔥 인기 게시글</Text>
+            <TouchableOpacity onPress={() => navigateToCommunity('national')}>
+              <Text style={styles.moreButton}>더보기 ›</Text>
+            </TouchableOpacity>
+          </LinearGradient>
+          
+          <View style={styles.sectionContent}>
+            {popularPosts.length > 0 ? (
+              popularPosts.map((post, index) => (
+                <PostListItem
+                  key={post.id}
+                  post={post}
+                  onPress={navigateToPost}
+                  typeBadgeText="전국"
+                  boardBadgeText={(post as any).boardName || post.boardCode}
+                />
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>아직 인기 게시글이 없습니다</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </View>
+
+      {/* 급식 정보 - 게임 스타일 */}
+      {user?.school?.id && (
+        <View style={styles.section}>
+          <View style={styles.sectionCard}>
+            <LinearGradient
+              colors={['#ECFDF5', '#D1FAE5']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.sectionHeaderGradient}
+            >
+              <Text style={styles.sectionTitle}>🍽️ 오늘의 급식</Text>
+              <TouchableOpacity 
+                onPress={() => router.push('/meals')}
+                style={styles.viewAllButton}
+              >
+                <Text style={styles.viewAllText}>전체보기 ›</Text>
+              </TouchableOpacity>
+            </LinearGradient>
+            
+            <View style={styles.sectionContent}>
+              {todayMeals.length > 0 ? (
+                <View style={styles.mealsContainer}>
+                  {todayMeals.map((meal, index) => (
                 <TouchableOpacity 
                   key={meal.id}
                   style={[styles.mealCard, index > 0 && styles.mealCardMargin]}
@@ -486,95 +670,181 @@ export default function HomeScreen() {
                       ))}
                     </View>
                   </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          ) : (
-            <TouchableOpacity 
-              style={styles.mealCard}
-              onPress={() => router.push('/meals')}
-            >
-              <View style={styles.mealCardContent}>
-                <Ionicons name="restaurant-outline" size={24} color="#22c55e" />
-                <View style={styles.mealTextContent}>
-                  <Text style={styles.mealTitle}>{user.school.name} 급식</Text>
-                  <Text style={styles.mealSubtitle}>오늘의 메뉴를 확인해보세요</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                  </TouchableOpacity>
+                ))}
               </View>
-            </TouchableOpacity>
-          )}
+            ) : (
+              <TouchableOpacity 
+                style={styles.mealCard}
+                onPress={() => router.push('/meals')}
+              >
+                <View style={styles.mealCardContent}>
+                  <Ionicons name="restaurant-outline" size={24} color="#22c55e" />
+                  <View style={styles.mealTextContent}>
+                    <Text style={styles.mealTitle}>{user.school.name} 급식</Text>
+                    <Text style={styles.mealSubtitle}>오늘의 메뉴를 확인해보세요</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                </View>
+              </TouchableOpacity>
+            )}
+            </View>
+          </View>
         </View>
       )}
 
-      {/* 미니게임 */}
+      {/* 미니게임 - 게임 스타일 */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>🎮 미니게임</Text>
-        <View style={styles.gameGrid}>
-          <TouchableOpacity 
-            style={styles.gameCard}
-            onPress={() => navigateToGame('reaction')}
+        <View style={styles.sectionCard}>
+          <LinearGradient
+            colors={['#ECFDF5', '#D1FAE5']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.sectionHeaderGradient}
           >
-            <Text style={styles.gameIcon}>⚡</Text>
-            <Text style={styles.gameTitle}>반응속도</Text>
-          </TouchableOpacity>
+            <Text style={styles.sectionTitle}>🎮 미니게임</Text>
+          </LinearGradient>
           
-          <TouchableOpacity 
-            style={styles.gameCard}
-            onPress={() => navigateToGame('tile')}
-          >
-            <Text style={styles.gameIcon}>🧩</Text>
-            <Text style={styles.gameTitle}>타일 맞추기</Text>
-          </TouchableOpacity>
+          <View style={styles.sectionContent}>
+            <View style={styles.gameGrid}>
+              <TouchableOpacity 
+                style={styles.gameCard}
+                onPress={() => navigateToGame('reaction')}
+                activeOpacity={0.7}
+              >
+                <LinearGradient
+                  colors={['#FEF3C7', '#FDE68A']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.gameCardGradient}
+                >
+                  <Text style={styles.gameIcon}>⚡</Text>
+                  <Text style={styles.gameTitle}>반응속도</Text>
+                  <Text style={styles.gameXP}>+15 XP</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.gameCard}
+                onPress={() => navigateToGame('tile')}
+                activeOpacity={0.7}
+              >
+                <LinearGradient
+                  colors={['#E9D5FF', '#DDD6FE']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.gameCardGradient}
+                >
+                  <Text style={styles.gameIcon}>🧩</Text>
+                  <Text style={styles.gameTitle}>타일 맞추기</Text>
+                  <Text style={styles.gameXP}>+10 XP</Text>
+                </LinearGradient>
+              </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.gameCard}
-            onPress={() => navigateToGame('math')}
-          >
-            <Text style={styles.gameIcon}>🧮</Text>
-            <Text style={styles.gameTitle}>빠른 계산</Text>
-          </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.gameCard}
+                onPress={() => navigateToGame('math')}
+                activeOpacity={0.7}
+              >
+                <LinearGradient
+                  colors={['#DBEAFE', '#BFDBFE']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.gameCardGradient}
+                >
+                  <Text style={styles.gameIcon}>🧮</Text>
+                  <Text style={styles.gameTitle}>빠른 계산</Text>
+                  <Text style={styles.gameXP}>+15 XP</Text>
+                </LinearGradient>
+              </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.gameCard}
-            onPress={() => navigateToGame('typing')}
-          >
-            <Text style={styles.gameIcon}>⌨️</Text>
-            <Text style={styles.gameTitle}>영단어 타이핑</Text>
-          </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.gameCard}
+                onPress={() => navigateToGame('typing')}
+                activeOpacity={0.7}
+              >
+                <LinearGradient
+                  colors={['#FED7AA', '#FDBA74']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.gameCardGradient}
+                >
+                  <Text style={styles.gameIcon}>⌨️</Text>
+                  <Text style={styles.gameTitle}>영단어 타이핑</Text>
+                  <Text style={styles.gameXP}>+20 XP</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </View>
 
-      {/* 커뮤니티 바로가기 */}
+      {/* 커뮤니티 바로가기 - 게임 스타일 */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>📝 커뮤니티</Text>
-        <View style={styles.communityGrid}>
-          <TouchableOpacity 
-            style={styles.communityCard}
-            onPress={() => navigateToCommunity('national')}
+        <View style={styles.sectionCard}>
+          <LinearGradient
+            colors={['#ECFDF5', '#D1FAE5']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.sectionHeaderGradient}
           >
-            <Text style={styles.communityIcon}>🌍</Text>
-            <Text style={styles.communityTitle}>전국</Text>
-            <Text style={styles.communityDesc}>전국 학생들과 소통</Text>
-          </TouchableOpacity>
+            <Text style={styles.sectionTitle}>📝 커뮤니티</Text>
+          </LinearGradient>
           
-          <TouchableOpacity 
-            style={styles.communityCard}
-            onPress={() => navigateToCommunity('regional')}
-          >
-            <Text style={styles.communityIcon}>🏘️</Text>
-            <Text style={styles.communityTitle}>지역</Text>
-            <Text style={styles.communityDesc}>우리 지역 친구들과 소통</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.communityCard}
-            onPress={() => navigateToCommunity('school')}
-          >
-            <Text style={styles.communityIcon}>🏫</Text>
-            <Text style={styles.communityTitle}>학교</Text>
-            <Text style={styles.communityDesc}>우리 학교만의 공간</Text>
-          </TouchableOpacity>
+          <View style={styles.sectionContent}>
+            <View style={styles.communityGrid}>
+              <TouchableOpacity 
+                style={styles.communityCard}
+                onPress={() => navigateToCommunity('national')}
+                activeOpacity={0.7}
+              >
+                <LinearGradient
+                  colors={['#ECFDF5', '#D1FAE5']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.communityCardGradient}
+                >
+                  <Text style={styles.communityIcon}>🌍</Text>
+                  <Text style={styles.communityTitle}>전국</Text>
+                  <Text style={styles.communityDesc}>전국 학생들과 소통</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.communityCard}
+                onPress={() => navigateToCommunity('regional')}
+                activeOpacity={0.7}
+              >
+                <LinearGradient
+                  colors={['#ECFDF5', '#D1FAE5']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.communityCardGradient}
+                >
+                  <Text style={styles.communityIcon}>🏘️</Text>
+                  <Text style={styles.communityTitle}>지역</Text>
+                  <Text style={styles.communityDesc}>우리 지역 친구들과 소통</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.communityCard}
+                onPress={() => navigateToCommunity('school')}
+                activeOpacity={0.7}
+              >
+                <LinearGradient
+                  colors={['#ECFDF5', '#D1FAE5']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.communityCardGradient}
+                >
+                  <Text style={styles.communityIcon}>🏫</Text>
+                  <Text style={styles.communityTitle}>학교</Text>
+                  <Text style={styles.communityDesc}>우리 학교만의 공간</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </View>
     </SafeScreenContainer>
@@ -593,25 +863,31 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
 
+  // 헤더 - 게임 스타일
   header: {
     backgroundColor: 'white',
     marginHorizontal: 16,
     marginTop: 16,
     marginBottom: 16,
-    padding: 20,
-    borderRadius: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#D1FAE5',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  headerGradient: {
+    padding: 20,
+    paddingBottom: 16,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: 'white',
     textAlign: 'center',
-    marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
@@ -619,33 +895,85 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   userInfo: {
-    marginTop: 16,
+    padding: 16,
+    paddingTop: 12,
+  },
+  userNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
   userName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: '#059669',
   },
-  expSection: {
-    marginTop: 8,
+  levelBadge: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
-  expBar: {
+  levelBadgeGradient: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderWidth: 2,
+    borderColor: 'white',
+    borderRadius: 12,
+  },
+  levelBadgeText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  expContainer: {
+    marginTop: 4,
+  },
+  expHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
     marginBottom: 8,
   },
+  expLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  expValue: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#059669',
+  },
+  expBarContainer: {
+    position: 'relative',
+  },
   expBarBackground: {
-    flex: 1,
-    height: 8,
+    height: 16,
     backgroundColor: '#e5e7eb',
-    borderRadius: 4,
+    borderRadius: 8,
     overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#d1d5db',
   },
   expBarFill: {
     height: '100%',
-    backgroundColor: '#10b981',
-    borderRadius: 4,
+    borderRadius: 6,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  shimmerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    width: 200,
   },
   expText: {
     fontSize: 12,
@@ -672,24 +1000,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 2,
   },
+  // 로그인 프롬프트 - 게임 스타일
   loginPrompt: {
     backgroundColor: 'white',
     marginHorizontal: 16,
     marginTop: 16,
     marginBottom: 24,
     padding: 24,
-    borderRadius: 12,
+    borderRadius: 16,
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#D1FAE5',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   loginPromptTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: '#047857',
     marginTop: 16,
     marginBottom: 8,
   },
@@ -700,64 +1031,126 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   loginButton: {
-    backgroundColor: '#10b981',
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  loginButtonGradient: {
     paddingVertical: 14,
     paddingHorizontal: 30,
-    borderRadius: 8,
     alignItems: 'center',
+    borderRadius: 12,
   },
   loginButtonText: {
     color: 'white',
     fontWeight: 'bold',
     fontSize: 16,
   },
+  subtitleWhite: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  // 섹션 - 게임 스타일
   section: {
     marginHorizontal: 16,
-    marginBottom: 24,
+    marginBottom: 20,
   },
-  sectionHeader: {
+  sectionCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#D1FAE5',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  sectionHeaderGradient: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    padding: 16,
+    borderBottomWidth: 2,
+    borderBottomColor: '#D1FAE5',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 12,
+    color: '#047857',
+  },
+  sectionContent: {
+    padding: 12,
   },
   moreButton: {
     fontSize: 14,
-    color: '#10b981',
-    fontWeight: '500',
+    color: '#059669',
+    fontWeight: '600',
   },
+  // 출석체크 - 게임 스타일
   attendanceCard: {
     backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#D1FAE5',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  attendanceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 2,
+    borderBottomColor: '#D1FAE5',
   },
   attendanceTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 8,
+    color: '#047857',
+  },
+  streakBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#FDE68A',
+  },
+  streakText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#F59E0B',
+  },
+  attendanceContent: {
+    padding: 16,
   },
   attendanceDesc: {
     fontSize: 14,
     color: '#6b7280',
     marginBottom: 16,
+    textAlign: 'center',
   },
   attendanceButton: {
-    paddingVertical: 12,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  attendanceButtonGradient: {
+    paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 8,
     alignItems: 'center',
+    borderRadius: 12,
   },
   attendanceButtonText: {
     color: 'white',
@@ -857,37 +1250,38 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     textAlign: 'center',
   },
+  // 커뮤니티 - 게임 스타일
   communityGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
   },
   communityCard: {
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
     flex: 1,
     minWidth: 100,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  communityCardGradient: {
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#D1FAE5',
+    borderRadius: 12,
   },
   communityIcon: {
-    fontSize: 32,
+    fontSize: 36,
     marginBottom: 8,
   },
   communityTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1f2937',
+    color: '#047857',
     marginBottom: 4,
   },
   communityDesc: {
-    fontSize: 12,
-    color: '#6b7280',
+    fontSize: 11,
+    color: '#059669',
     textAlign: 'center',
   },
   rankingGrid: {
@@ -915,28 +1309,26 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     marginBottom: 8,
   },
+  // 게임 - 게임 스타일
   gameGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
   },
   gameCard: {
-    backgroundColor: 'white',
-    padding: 16,
+    width: '48%',
     borderRadius: 12,
-    alignItems: 'center',
-    width: '31%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    overflow: 'hidden',
   },
-  gameCardDisabled: {
-    opacity: 0.6,
+  gameCardGradient: {
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    borderRadius: 12,
   },
   gameIcon: {
-    fontSize: 32,
+    fontSize: 36,
     marginBottom: 8,
   },
   gameTitle: {
@@ -944,26 +1336,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1f2937',
     marginBottom: 4,
+    textAlign: 'center',
   },
-  gameDesc: {
+  gameXP: {
     fontSize: 12,
-    color: '#6b7280',
-    marginBottom: 4,
-  },
-  gamePlayCount: {
-    fontSize: 11,
-    color: '#9ca3af',
+    fontWeight: 'bold',
+    color: '#059669',
   },
   // 급식 관련 스타일
   viewAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
   },
   viewAllText: {
     fontSize: 14,
-    color: '#22c55e',
-    fontWeight: '500',
+    color: '#059669',
+    fontWeight: '600',
   },
   mealsContainer: {
     gap: 12,

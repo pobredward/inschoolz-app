@@ -31,6 +31,7 @@ import SchoolSelector, { SchoolSelectorRef } from '@/components/board/SchoolSele
 import RegionSetupModal from '../../components/RegionSetupModal';
 import SchoolSetupModal from '../../components/SchoolSetupModal';
 import FavoriteSchoolsManagementModal from '../../components/FavoriteSchoolsManagementModal';
+import { useQuest } from '../../providers/QuestProvider';
 
 const parseContentText = (content: string) => {
   if (!content) return '';
@@ -77,6 +78,7 @@ export default function CommunityScreen() {
   const router = useRouter();
   const { tab } = useLocalSearchParams();
   const { user } = useAuthStore();
+  const { trackAction } = useQuest();
   const { saveScrollPosition, getScrollPosition } = useScrollStore();
   const [selectedTab, setSelectedTab] = useState<BoardType>('national');
   const [boards, setBoards] = useState<Board[]>([]);
@@ -512,6 +514,24 @@ export default function CommunityScreen() {
         // 새로 로드: 기존 목록 교체
         setPosts(communityPosts);
         console.log('게시글 초기화:', communityPosts.length, '개');
+        
+        // 퀘스트 트래킹: 커뮤니티 페이지 방문 (3단계, 9단계) - 초기 로드 시에만
+        if (user?.uid && selectedTab === 'school' && schoolId) {
+          try {
+            // 3단계: 학교 커뮤니티 방문
+            await trackAction('visit_board', { schoolId });
+            console.log('✅ 퀘스트 트래킹: 학교 커뮤니티 방문 (3단계)');
+            
+            // 9단계: 다른 학교인지 확인
+            const isOtherSchool = schoolId !== user.school?.id;
+            if (isOtherSchool) {
+              await trackAction('visit_other_board', { schoolId, isOtherSchool: true });
+              console.log('✅ 퀘스트 트래킹: 다른 학교 커뮤니티 방문 (9단계)');
+            }
+          } catch (questError) {
+            console.error('❌ 퀘스트 트래킹 오류:', questError);
+          }
+        }
       }
 
       setLastDoc(result.lastDoc);

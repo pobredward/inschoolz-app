@@ -32,6 +32,7 @@ import RichTextEditor from '@/components/RichTextEditor';
 import { awardPostExperience } from '@/lib/experience-service';
 import { ExperienceModal } from '@/components/ui/ExperienceModal';
 import { checkSuspensionStatus } from '@/lib/auth/suspension-check';
+import { useQuest } from '@/providers/QuestProvider';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -48,6 +49,7 @@ export default function WritePostPage() {
   
   const router = useRouter();
   const { user } = useAuthStore();
+  const { trackAction } = useQuest();
   const insets = useSafeAreaInsets();
   
   const [board, setBoard] = useState<Board | null>(null);
@@ -368,6 +370,14 @@ export default function WritePostPage() {
 
       const docRef = await addDoc(collection(db, 'posts'), postData);
       const postId = docRef.id;
+
+      // 퀘스트 트래킹: 게시글 작성 (4단계)
+      try {
+        await trackAction('create_post');
+        console.log('✅ 퀘스트 트래킹: 게시글 작성');
+      } catch (questError) {
+        console.error('❌ 퀘스트 트래킹 오류:', questError);
+      }
 
       // 경험치 부여
       try {

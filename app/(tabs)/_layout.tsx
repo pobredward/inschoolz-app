@@ -14,6 +14,8 @@ import { db } from '../../lib/firebase';
 import { syncUserExperienceData } from '../../lib/experience';
 import { getUnreadNotificationCount } from '../../lib/notifications';
 import { User } from '../../types';
+import FloatingQuestButton from '../../components/quests/FloatingQuestButton';
+import { useQuestInitializer } from '../../hooks/useQuestInitializer';
 
 // 파스텔 그린 색상 팔레트
 const pastelGreenColors = {
@@ -263,6 +265,9 @@ export default function TabLayout() {
   const segments = useSegments();
   const { user } = useAuthStore();
   
+  // 퀘스트 자동 초기화
+  useQuestInitializer();
+  
   // 현재 활성 탭 감지
   const currentTab = segments[1] || 'index';
 
@@ -272,6 +277,8 @@ export default function TabLayout() {
   return (
     <>
       <CustomHeader />
+      {/* Floating Quest Button - 모든 탭에서 보임 (로그인 여부 무관) */}
+      <FloatingQuestButton />
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: pastelGreenColors[600],

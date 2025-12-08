@@ -525,7 +525,7 @@ export default function RankingScreen() {
                 ? "지역명으로 검색 (예: 서울, 강남구)"
                 : selectedType === 'school'
                 ? "학교명으로 검색"
-                : "사용자 이름으로 검색"
+                : "닉네임으로 검색"
             }
             value={
               (selectedType === 'regional' || selectedType === 'school') 

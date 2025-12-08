@@ -365,7 +365,7 @@ export default function AdminNotificationsScreen() {
                 style={styles.searchInput}
                 value={userSearchQuery}
                 onChangeText={setUserSearchQuery}
-                placeholder="사용자 이름 또는 아이디로 검색..."
+                placeholder="닉네임 또는 아이디로 검색..."
                 placeholderTextColor={pastelGreenColors[400]}
                 onSubmitEditing={handleUserSearch}
                 returnKeyType="search"
