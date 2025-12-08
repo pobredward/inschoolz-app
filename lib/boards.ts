@@ -1058,6 +1058,12 @@ export const toggleCommentLike = async (
         'stats.likeCount': newLikeCount,
         updatedAt: serverTimestamp()
       });
+      
+      // 사용자 좋아요 수 감소
+      const userRef = doc(db, 'users', userId);
+      batch.update(userRef, {
+        'stats.likeCount': increment(-1)
+      });
     } else {
       // 좋아요 추가
       batch.set(likeRef, {
@@ -1071,6 +1077,13 @@ export const toggleCommentLike = async (
         'stats.likeCount': newLikeCount,
         updatedAt: serverTimestamp()
       });
+      
+      // 사용자 좋아요 수 증가
+      const userRef = doc(db, 'users', userId);
+      batch.update(userRef, {
+        'stats.likeCount': increment(1)
+      });
+      
       isLiked = true;
     }
     

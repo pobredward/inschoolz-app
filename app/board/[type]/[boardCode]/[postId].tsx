@@ -330,6 +330,11 @@ export default function PostDetailScreen() {
           'stats.likeCount': increment(-1)
         });
         
+        // 사용자 좋아요 수 감소
+        await updateDoc(doc(db, 'users', user.uid), {
+          'stats.likeCount': increment(-1)
+        });
+        
         setIsLiked(false);
         setLikeCount(prev => Math.max(0, prev - 1));
       } else {
@@ -342,6 +347,11 @@ export default function PostDetailScreen() {
         
         // 게시글 좋아요 수 증가
         await updateDoc(doc(db, 'posts', post.id), {
+          'stats.likeCount': increment(1)
+        });
+        
+        // 사용자 좋아요 수 증가
+        await updateDoc(doc(db, 'users', user.uid), {
           'stats.likeCount': increment(1)
         });
         
@@ -820,6 +830,16 @@ export default function PostDetailScreen() {
                 'status.isDeleted': true,
                 updatedAt: Timestamp.now()
               });
+              
+              // 사용자 게시글 수 감소
+              try {
+                await updateDoc(doc(db, 'users', user.uid), {
+                  'stats.postCount': increment(-1)
+                });
+                console.log('✅ postCount 감소');
+              } catch (countError) {
+                console.error('❌ postCount 감소 오류:', countError);
+              }
               
               Alert.alert('성공', '게시글이 삭제되었습니다.', [
                 { text: '확인', onPress: () => router.back() }

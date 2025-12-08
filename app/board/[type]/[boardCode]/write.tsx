@@ -23,8 +23,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '@/store/authStore';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { addDoc, collection, serverTimestamp, updateDoc, doc, increment } from 'firebase/firestore';
+import { db} from '@/lib/firebase';
 import { getBoard } from '@/lib/boards';
 import { Board } from '@/types';
 import { uploadImage } from '@/lib/firebase';
@@ -370,6 +370,16 @@ export default function WritePostPage() {
 
       const docRef = await addDoc(collection(db, 'posts'), postData);
       const postId = docRef.id;
+
+      // 사용자 게시글 수 증가
+      try {
+        await updateDoc(doc(db, 'users', user.uid), {
+          'stats.postCount': increment(1)
+        });
+        console.log('✅ postCount 증가');
+      } catch (countError) {
+        console.error('❌ postCount 증가 오류:', countError);
+      }
 
       // 퀘스트 트래킹: 게시글 작성 (4단계)
       try {
