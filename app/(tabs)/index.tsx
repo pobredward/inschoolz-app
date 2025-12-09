@@ -534,11 +534,11 @@ export default function HomeScreen() {
             style={styles.attendanceHeader}
           >
             <Text style={styles.attendanceTitle}>📅 출석 체크</Text>
-            {attendanceData?.streak && attendanceData.streak > 0 && (
+            {attendanceData?.streak != null && attendanceData.streak > 0 ? (
               <View style={styles.streakBadge}>
                 <Text style={styles.streakText}>🔥 {attendanceData.streak}일</Text>
               </View>
-            )}
+            ) : null}
           </LinearGradient>
           
           <View style={styles.attendanceContent}>
