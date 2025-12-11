@@ -251,6 +251,16 @@ export default function TileGameScreen() {
         console.error('❌ 퀘스트 트래킹 오류:', questError);
       }
       
+      // 🆕 타일 게임 10번 이하 클리어 퀘스트 트래킹
+      if (moves <= 10) {
+        try {
+          await trackAction('tile_game_clear');
+          console.log(`✅ 타일 게임 ${moves}번 클리어 - 퀘스트 트래킹 완료`);
+        } catch (questError) {
+          console.error('❌ 타일 게임 클리어 퀘스트 트래킹 오류:', questError);
+        }
+      }
+      
       if (result.success) {
         let message = `움직임 횟수: ${moves}번`;
         

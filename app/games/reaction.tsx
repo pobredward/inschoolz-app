@@ -256,10 +256,10 @@ export default function ReactionGameScreen() {
       const result = await updateGameScore(user.uid, 'reactionGame', score, reactionTime);
       console.log('finishGame - updateGameScore 결과:', result);
       
-      // 퀘스트 트래킹: 게임 플레이 (7단계)
+      // 퀘스트 트래킹: 게임 플레이 (4단계) + 반응속도 커스텀 체크 (5, 9단계)
       try {
-        await trackAction('play_game');
-        console.log('✅ 퀘스트 트래킹: 게임 플레이 (반응속도)');
+        await trackAction('play_game', { reactionTime });
+        console.log('✅ 퀘스트 트래킹: 게임 플레이 (반응속도)', { reactionTime });
       } catch (questError) {
         console.error('❌ 퀘스트 트래킹 오류:', questError);
       }

@@ -365,6 +365,17 @@ export default function PostDetailScreen() {
         } catch (questError) {
           console.error('❌ 퀘스트 트래킹 오류:', questError);
         }
+        
+        // 🆕 퀘스트 트래킹: 좋아요 받기 (게시글 작성자)
+        if (post.authorId && post.authorId !== user.uid) {
+          try {
+            const { trackQuestAction } = await import('../../../../lib/quests/questService');
+            await trackQuestAction(post.authorId, 'get_likes');
+            console.log('✅ 퀘스트 트래킹: 좋아요 받기 (게시글 작성자)');
+          } catch (questError) {
+            console.error('❌ 퀘스트 트래킹 오류 (좋아요 받기):', questError);
+          }
+        }
       }
     } catch (error) {
       console.error('좋아요 처리 실패:', error);

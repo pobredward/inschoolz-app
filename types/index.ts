@@ -530,10 +530,15 @@ export interface QuestStep {
           'create_comment' | 'give_like' | 'play_game' | 'attendance' | 
           'visit_other_board' | 'consecutive_attendance' | 'get_likes' | 
           'get_comments' | 'get_followers' | 'reach_ranking' | 'level_up' | 
+          'visit_category' | 'tile_game_moves' | 'nickname_change' |
           'custom';
     target: number;              // 목표 수치
     current?: number;            // 현재 진행도 (동적)
     customCheck?: string;        // 커스텀 체크 함수명
+    metadata?: {                 // 추가 메타데이터
+      categories?: string[];     // 방문해야 할 카테고리들
+      maxMoves?: number;         // 타일 게임 최대 움직임 수
+    };
   };
   
   // 보상

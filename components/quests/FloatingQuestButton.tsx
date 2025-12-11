@@ -13,7 +13,8 @@ import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { useQuest } from '../../providers/QuestProvider';
 import { tutorialChain } from '../../lib/quests/chains/tutorial';
-import { QUEST_GUIDES } from '../../lib/quests/questService';
+import { newbieGrowthChain } from '../../lib/quests/chains/newbie-growth';
+import { QUEST_GUIDES, questChains, chainOrder } from '../../lib/quests/questService';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const BUTTON_SIZE = 60;
@@ -27,9 +28,28 @@ export default function FloatingQuestButton() {
   const [showPreview, setShowPreview] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   
-  // 현재 단계 번호
-  const currentStepNum = questProgress?.chains?.tutorial?.currentStep || 1;
-  const isCompleted = questProgress?.chains?.tutorial?.status === 'completed';
+  // 현재 진행 중인 체인 찾기
+  const getActiveChain = () => {
+    if (!questProgress) return { chainId: 'tutorial', chain: tutorialChain, chainProgress: null };
+    
+    for (const chainId of chainOrder) {
+      const chainProgress = questProgress.chains[chainId];
+      if (chainProgress && chainProgress.status === 'in_progress') {
+        return {
+          chainId,
+          chain: questChains[chainId],
+          chainProgress,
+        };
+      }
+    }
+    
+    // 진행 중인 체인이 없으면 tutorial 반환
+    return { chainId: 'tutorial', chain: tutorialChain, chainProgress: questProgress.chains.tutorial };
+  };
+  
+  const { chainId: activeChainId, chain: activeChain, chainProgress: activeChainProgress } = getActiveChain();
+  const currentStepNum = activeChainProgress?.currentStep || 1;
+  const isCompleted = activeChainProgress?.status === 'completed';
   const progressPercent = currentTarget > 0 ? (currentProgress / currentTarget) * 100 : 0;
   
   // 드래그 위치 상태
@@ -109,7 +129,7 @@ export default function FloatingQuestButton() {
   
   const handleViewDetails = () => {
     setShowPreview(false);
-    router.push('/quests/tutorial');
+    router.push(`/quests/${activeChainId}`);
   };
   
   const handleButtonClick = () => {
@@ -241,11 +261,11 @@ export default function FloatingQuestButton() {
             <View style={styles.previewCard}>
               {/* 헤더 */}
               <View style={styles.previewHeader}>
-                <Text style={styles.chainIcon}>🎓</Text>
+                <Text style={styles.chainIcon}>{activeChain.icon}</Text>
                 <View style={styles.headerText}>
-                  <Text style={styles.chainName}>인스쿨즈 입학기</Text>
+                  <Text style={styles.chainName}>{activeChain.name}</Text>
                   <Text style={styles.stepCounter}>
-                    {isCompleted ? '완료!' : `${currentStepNum} / ${tutorialChain.totalSteps} 단계`}
+                    {isCompleted ? '완료!' : `${currentStepNum} / ${activeChain.totalSteps} 단계`}
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => setShowPreview(false)}>
@@ -259,7 +279,7 @@ export default function FloatingQuestButton() {
                   <Text style={styles.completedEmoji}>🎊</Text>
                   <Text style={styles.completedTitle}>축하합니다!</Text>
                   <Text style={styles.completedText}>
-                    인스쿨즈 입학기를 모두 완료했어요!
+                    {activeChain.name}를 모두 완료했어요!
                   </Text>
                 </View>
               ) : currentStep ? (

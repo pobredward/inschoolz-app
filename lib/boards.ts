@@ -1045,6 +1045,7 @@ export const toggleCommentLike = async (
     
     const commentData = commentDoc.data();
     const currentLikeCount = commentData.stats?.likeCount || 0;
+    const commentAuthorId = commentData.authorId; // 댓글 작성자 ID
     
     const batch = writeBatch(db);
     let isLiked = false;
@@ -1088,6 +1089,17 @@ export const toggleCommentLike = async (
     }
     
     await batch.commit();
+    
+    // 🆕 퀘스트 트래킹: 좋아요 받기 (댓글 작성자에게)
+    if (isLiked && commentAuthorId && commentAuthorId !== userId) {
+      try {
+        const { trackQuestAction } = await import('./quests/questService');
+        await trackQuestAction(commentAuthorId, 'get_likes');
+        console.log('✅ 퀘스트 트래킹: 좋아요 받기 (댓글 작성자)');
+      } catch (questError) {
+        console.error('❌ 퀘스트 트래킹 오류 (좋아요 받기):', questError);
+      }
+    }
     
     // 좋아요 추가 시에만 경험치 지급
     if (isLiked) {
