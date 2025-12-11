@@ -113,7 +113,7 @@ export interface GameStats {
     bestReactionTime?: number; // ms 단위
   };
   tileGame?: {
-    bestReactionTime?: number; // ms 단위 (최소 움직임 횟수)
+    bestMoves?: number; // 최소 움직임 횟수 (낮을수록 좋음)
   };
   flappyBird?: {
     bestReactionTime?: number; // ms 단위

@@ -195,21 +195,33 @@ export const updateGameScore = async (userId: string, gameType: GameType, score:
 
     const userData = userDoc.data() as User;
     
-    // 현재 최저 반응시간 확인 (반응속도 게임의 경우) 또는 최소 움직임 확인 (타일 게임의 경우) 또는 최고 점수 확인 (빠른 계산/영단어 타이핑 게임의 경우)
+    // 최고 기록 확인
+    // - 반응속도 게임: bestReactionTime (낮을수록 좋음)
+    // - 타일 게임: bestMoves (낮을수록 좋음)
+    // - 계산/타이핑 게임: bestReactionTime (높을수록 좋음, 점수)
     const currentBestReactionTime = userData.gameStats?.[gameType]?.bestReactionTime || null;
+    const currentBestMoves = userData.gameStats?.tileGame?.bestMoves || null;
+    
     const isBestReactionTime = gameType === 'reactionGame' && reactionTime && 
       (currentBestReactionTime === null || reactionTime < currentBestReactionTime);
-    const isHighScore = (gameType === 'tileGame' || gameType === 'mathGame' || gameType === 'typingGame') && score && 
-      (currentBestReactionTime === null || (gameType === 'tileGame' ? score < currentBestReactionTime : score > currentBestReactionTime));
+    const isBestMoves = gameType === 'tileGame' && score && 
+      (currentBestMoves === null || score < currentBestMoves);
+    const isHighScore = (gameType === 'mathGame' || gameType === 'typingGame') && score && 
+      (currentBestReactionTime === null || score > currentBestReactionTime);
     
     // 게임 통계 업데이트
     const updateData: Record<string, any> = {};
     
-    // 최저 반응시간 업데이트 (반응속도 게임의 경우) 또는 최소 움직임 업데이트 (타일 게임의 경우) 또는 최고 점수 업데이트 (빠른 계산/영단어 타이핑 게임의 경우)
+    // 각 게임 타입에 맞는 필드 업데이트
     if (isBestReactionTime && reactionTime) {
+      // 반응속도 게임: bestReactionTime
       updateData[`gameStats.${gameType}.bestReactionTime`] = reactionTime;
+    } else if (isBestMoves && score) {
+      // 타일 게임: bestMoves (움직임 횟수)
+      updateData[`gameStats.tileGame.bestMoves`] = score;
     } else if (isHighScore && score) {
-      updateData[`gameStats.${gameType}.bestReactionTime`] = score; // 타일 게임은 최소 움직임 횟수, 빠른 계산/영단어 타이핑 게임은 최고 점수를 저장
+      // 계산/타이핑 게임: bestReactionTime에 점수 저장
+      updateData[`gameStats.${gameType}.bestReactionTime`] = score;
     }
     
     // Firestore 업데이트 (일일 플레이 카운트는 startGamePlay에서 이미 증가시킴)
@@ -218,7 +230,10 @@ export const updateGameScore = async (userId: string, gameType: GameType, score:
     }
     
     // 경험치 계산 및 지급 (게임 타입에 따라 다른 값 사용)
-    const xpEarned = await calculateGameXP(gameType, (gameType === 'tileGame' || gameType === 'mathGame' || gameType === 'typingGame') ? score : (reactionTime || 1000));
+    const xpEarned = await calculateGameXP(
+      gameType, 
+      gameType === 'reactionGame' ? (reactionTime || 1000) : (score || 1000)
+    );
     
     let result: { leveledUp: boolean; oldLevel?: number; newLevel?: number } = { 
       leveledUp: false, 
@@ -290,11 +305,11 @@ export const getUserGameStats = async (userId: string): Promise<GameStatsRespons
       typingGame: activityLimits.dailyCounts?.games?.typingGame || 0,
     };
     
-    // 최저 반응시간 및 최고 점수
+    // 최고 기록 (각 게임 타입에 맞는 필드 참조)
     const bestReactionTimes = {
       flappyBird: userData.gameStats?.flappyBird?.bestReactionTime || null,
       reactionGame: userData.gameStats?.reactionGame?.bestReactionTime || null,
-      tileGame: userData.gameStats?.tileGame?.bestReactionTime || null,
+      tileGame: userData.gameStats?.tileGame?.bestMoves || null,  // 타일은 bestMoves 사용
       mathGame: userData.gameStats?.mathGame?.bestReactionTime || null,
       typingGame: userData.gameStats?.typingGame?.bestReactionTime || null,
     };

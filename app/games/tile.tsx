@@ -31,7 +31,7 @@ interface Tile {
 interface RankingUser {
   id: string;
   nickname: string;
-  bestMoves: number; // 최소 움직임 횟수
+  bestMoves: number; // 최소 움직임 횟수 (낮을수록 좋음)
   schoolName?: string;
 }
 
@@ -88,8 +88,8 @@ export default function TileGameScreen() {
     try {
       const usersQuery = query(
         collection(db, 'users'),
-        where('gameStats.tileGame.bestReactionTime', '>', 0),
-        orderBy('gameStats.tileGame.bestReactionTime', 'asc'),
+        where('gameStats.tileGame.bestMoves', '>', 0),
+        orderBy('gameStats.tileGame.bestMoves', 'asc'),
         limit(10)
       );
       
@@ -98,7 +98,7 @@ export default function TileGameScreen() {
       
       querySnapshot.forEach((doc) => {
         const userData = doc.data();
-        const bestMoves = userData.gameStats?.tileGame?.bestReactionTime;
+        const bestMoves = userData.gameStats?.tileGame?.bestMoves;
         
         if (bestMoves) {
           rankingData.push({
