@@ -19,6 +19,7 @@ import { SafeScreenContainer } from '../../components/SafeScreenContainer';
 import { Ionicons } from '@expo/vector-icons';
 import PostListItem from '../../components/PostListItem';
 import { Timestamp } from 'firebase/firestore';
+import { useQuestTracker } from '../../hooks/useQuestTracker';
 
 // 시간 포맷팅 함수 - 유틸리티 함수 활용
 import { formatSmartTime } from '../../utils/timeUtils';
@@ -38,6 +39,7 @@ export default function HomeScreen() {
     loadAttendanceData, 
     performAttendanceCheck 
   } = useAuthStore();
+  const { trackDailyAttendance } = useQuestTracker();
   const [refreshing, setRefreshing] = useState(false);
   const [todayMeals, setTodayMeals] = useState<MealInfo[]>([]);
   const [userData, setUserData] = useState<any>(null);
@@ -167,8 +169,26 @@ export default function HomeScreen() {
     try {
       const result = await performAttendanceCheck(user.uid);
       
+      // 퀘스트 트래킹: 출석체크 (8단계, 10단계)
+      try {
+        await trackDailyAttendance(result.streak);
+        console.log('✅ 퀘스트 트래킹: 출석체크 완료');
+      } catch (questError) {
+        console.error('❌ 퀘스트 트래킹 오류:', questError);
+        // 출석체크는 성공했으므로 퀘스트 오류는 무시
+      }
+      
       if (result.checkedToday) {
-        Alert.alert('출석 완료!', `경험치 +${result.expGained || 10}을 획득했습니다! 🎉`);
+        let message = `경험치 +${result.expGained || 10}을 획득했습니다! 🎉`;
+        if (result.leveledUp) {
+          message += `\n🎉 레벨업! Lv.${result.oldLevel} → Lv.${result.newLevel}`;
+        }
+        if (result.streak === 7) {
+          message += `\n🔥 7일 연속 출석 달성! 보너스 +50 XP`;
+        } else if (result.streak === 30) {
+          message += `\n🔥 30일 연속 출석 달성! 보너스 +200 XP`;
+        }
+        Alert.alert('출석 완료!', message);
       }
     } catch (error) {
       console.error('출석 체크 오류:', error);
