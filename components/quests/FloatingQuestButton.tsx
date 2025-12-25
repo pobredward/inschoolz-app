@@ -281,6 +281,15 @@ export default function FloatingQuestButton() {
                   <Text style={styles.completedText}>
                     {activeChain.name}를 모두 완료했어요!
                   </Text>
+                  <TouchableOpacity
+                    style={styles.viewAllButton}
+                    onPress={() => {
+                      setShowPreview(false);
+                      router.push('/quests/tutorial');
+                    }}
+                  >
+                    <Text style={styles.viewAllButtonText}>전체 보기</Text>
+                  </TouchableOpacity>
                 </View>
               ) : currentStep ? (
                 // 진행 중인 퀘스트
@@ -499,6 +508,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6B7280',
     textAlign: 'center',
+    marginBottom: 16,
+  },
+  viewAllButton: {
+    marginTop: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: '#3B82F6',
+    borderRadius: 8,
+  },
+  viewAllButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
   currentQuest: {
     marginBottom: 10,

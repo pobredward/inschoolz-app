@@ -220,3 +220,5 @@ export const newbieGrowthChain: QuestChain = {
     completedChains: ['tutorial'],
   },
 };
+
+

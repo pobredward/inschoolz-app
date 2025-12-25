@@ -207,6 +207,8 @@ export async function trackQuestAction(
     boardId?: string;
     isOtherSchool?: boolean;
     tileGameMoves?: number;
+    reactionTime?: number;
+    consecutiveDays?: number;
   }
 ): Promise<{
   completed: boolean;
@@ -303,6 +305,121 @@ export async function trackQuestAction(
         }
         console.log(`✅ 반응속도 ${reactionTime}ms - 250ms 이하 달성!`);
       }
+    }
+    
+    // 🆕 연속 출석 퀘스트 체크 (consecutive_attendance)
+    // 연속 출석 일수를 progress로 사용 (매일 카운트)
+    if (actionType === 'consecutive_attendance' && currentStep.objective.type === 'consecutive_attendance') {
+      const consecutiveDays = metadata?.consecutiveDays || 0;
+      const target = currentStep.objective.target;
+      
+      // 현재 progress를 연속 출석 일수로 업데이트
+      const stepProgressData = chainProgress.stepProgress[currentStep.id] || {
+        status: 'in_progress' as QuestStatus,
+        progress: 0,
+        target: currentStep.objective.target,
+      };
+      
+      // 이미 목표 달성했으면 중복 처리 방지
+      if (stepProgressData.progress >= target) {
+        console.log(`ℹ️ 이미 완료된 퀘스트 - progress: ${stepProgressData.progress}/${target}`);
+        return null;
+      }
+      
+      // progress를 현재 연속 출석 일수로 업데이트 (최대값은 target)
+      const newProgress = Math.min(consecutiveDays, target);
+      const isCompleted = newProgress >= target;
+      
+      console.log(`📊 연속 출석 퀘스트 진행: ${newProgress}/${target} (streak: ${consecutiveDays}일)`);
+      
+      const questRef = doc(db, 'quests', userId);
+      const updateData: Record<string, unknown> = {
+        [`chains.${activeChainId}.stepProgress.${currentStep.id}.progress`]: newProgress,
+        updatedAt: serverTimestamp(),
+      };
+      
+      if (isCompleted) {
+        // 완료 처리
+        updateData[`chains.${activeChainId}.stepProgress.${currentStep.id}.status`] = 'completed';
+        updateData[`chains.${activeChainId}.stepProgress.${currentStep.id}.completedAt`] = serverTimestamp();
+        updateData['stats.totalQuestsCompleted'] = increment(1);
+        updateData['stats.totalXpEarned'] = increment(currentStep.rewards.xp);
+        
+        const nextStepNum = currentStepNum + 1;
+        const isChainComplete = nextStepNum > activeChain.totalSteps;
+        
+        if (isChainComplete) {
+          // 체인 완료
+          updateData[`chains.${activeChainId}.status`] = 'completed';
+          updateData[`chains.${activeChainId}.completedAt`] = serverTimestamp();
+          
+          const completedChainsList = [...(progress.completedChains || []), activeChainId];
+          updateData['completedChains'] = completedChainsList;
+          updateData['stats.totalChainsCompleted'] = increment(1);
+          updateData['stats.totalXpEarned'] = increment(activeChain.completionRewards.xp);
+          
+          // 완료 보상 추가
+          if (activeChain.completionRewards.badge) {
+            updateData['earnedRewards.badges'] = [...(progress.earnedRewards?.badges || []), activeChain.completionRewards.badge];
+          }
+          if (activeChain.completionRewards.title) {
+            updateData['earnedRewards.titles'] = [...(progress.earnedRewards?.titles || []), activeChain.completionRewards.title];
+          }
+          if (activeChain.completionRewards.frame) {
+            updateData['earnedRewards.frames'] = [...(progress.earnedRewards?.frames || []), activeChain.completionRewards.frame];
+          }
+          
+          // 🆕 다음 체인 자동 해금
+          const currentChainIndex = chainOrder.indexOf(activeChainId);
+          const nextChainId = chainOrder[currentChainIndex + 1];
+          
+          if (nextChainId && questChains[nextChainId]) {
+            const nextChain = questChains[nextChainId];
+            const firstStep = nextChain.steps[0];
+            
+            console.log(`✨ 다음 체인 자동 해금: ${nextChain.name} (${nextChainId})`);
+            
+            updateData[`chains.${nextChainId}`] = {
+              currentStep: 1,
+              status: 'in_progress',
+              startedAt: serverTimestamp(),
+              stepProgress: {
+                [firstStep.id]: {
+                  status: 'in_progress',
+                  progress: 0,
+                  target: firstStep.objective.target,
+                },
+              },
+            };
+          }
+          
+          console.log(`🎉 체인 완료: ${activeChain.name}`);
+        } else {
+          // 다음 단계로 이동
+          updateData[`chains.${activeChainId}.currentStep`] = nextStepNum;
+          
+          const nextStep = activeChain.steps.find(s => s.step === nextStepNum);
+          if (nextStep) {
+            updateData[`chains.${activeChainId}.stepProgress.${nextStep.id}`] = {
+              status: 'in_progress',
+              progress: 0,
+              target: nextStep.objective.target,
+            };
+          }
+          
+          console.log(`➡️ 다음 단계로 이동: ${nextStepNum}`);
+        }
+      }
+      
+      await updateDoc(questRef, updateData);
+      
+      return {
+        completed: isCompleted,
+        step: currentStep,
+        newProgress,
+        target,
+        rewards: isCompleted ? currentStep.rewards : undefined,
+      };
     }
     
     // 진행도 업데이트

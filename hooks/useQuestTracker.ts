@@ -106,12 +106,13 @@ export function useQuestTracker() {
   const trackDailyAttendance = useCallback(async (consecutiveDays?: number) => {
     if (!user) return;
     
-    // 일반 출석
+    // 일반 출석 (8단계용)
     await trackAction('attendance');
     
-    // 연속 출석 체크 (3일 이상)
-    if (consecutiveDays && consecutiveDays >= 3) {
-      await trackAction('consecutive_attendance');
+    // 연속 출석 체크 (10단계용) - streak 값을 메타데이터로 전달
+    // 퀘스트 서비스에서 조건 확인 후 처리
+    if (consecutiveDays !== undefined) {
+      await trackAction('consecutive_attendance', { consecutiveDays });
     }
   }, [trackAction, user]);
   

@@ -33,7 +33,13 @@ interface QuestContextType {
   } | null;
   
   // 액션
-  trackAction: (actionType: QuestActionType, metadata?: { boardId?: string; isOtherSchool?: boolean }) => Promise<void>;
+  trackAction: (actionType: QuestActionType, metadata?: { 
+    boardId?: string; 
+    isOtherSchool?: boolean; 
+    reactionTime?: number; 
+    tileGameMoves?: number;
+    consecutiveDays?: number;
+  }) => Promise<void>;
   refreshProgress: () => Promise<void>;
 }
 
@@ -142,7 +148,13 @@ export function QuestProvider({ children }: QuestProviderProps) {
   // 퀘스트 액션 추적
   const trackAction = useCallback(async (
     actionType: QuestActionType,
-    metadata?: { boardId?: string; isOtherSchool?: boolean; reactionTime?: number; tileGameMoves?: number }
+    metadata?: { 
+      boardId?: string; 
+      isOtherSchool?: boolean; 
+      reactionTime?: number; 
+      tileGameMoves?: number;
+      consecutiveDays?: number;
+    }
   ) => {
     if (!user?.uid) return;
     

@@ -7,23 +7,33 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
-import { getUserQuestProgress, QUEST_GUIDES } from '../../lib/quests/questService';
-import { newbieGrowthChain } from '../../lib/quests/chains/newbie-growth';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { 
+  getUserQuestProgress, 
+  QUEST_GUIDES, 
+  questChains, 
+  chainOrder,
+} from '../../lib/quests/questService';
 import { QuestStep, UserQuestProgress } from '../../types';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 export default function NewbieGrowthQuestPage() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const insets = useSafeAreaInsets();
   
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState<UserQuestProgress | null>(null);
-  const [steps, setSteps] = useState<QuestStep[]>([]);
+  const [expandedChains, setExpandedChains] = useState<string[]>([]);
   
   useEffect(() => {
     loadQuestData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid]);
   
   const loadQuestData = async () => {
@@ -33,29 +43,21 @@ export default function NewbieGrowthQuestPage() {
       setLoading(true);
       const userProgress = await getUserQuestProgress(user.uid);
       
+      console.log('📊 퀘스트 진행 상황:', {
+        chains: userProgress?.chains,
+        chainOrder,
+      });
+      
       if (userProgress) {
         setProgress(userProgress);
         
-        // 단계별 진행도 업데이트
-        const updatedSteps = newbieGrowthChain.steps.map(step => {
-          const chainProgress = userProgress.chains['newbie-growth'];
-          const stepProgress = chainProgress?.stepProgress[step.id];
-          
-          if (stepProgress) {
-            return {
-              ...step,
-              objective: {
-                ...step.objective,
-                current: stepProgress.progress,
-              },
-              status: stepProgress.status,
-            };
-          }
-          
-          return step;
-        });
+        // 진행 중인 체인 찾기
+        const activeChainId = getActiveChainId(userProgress);
+        console.log('🎯 활성 체인:', activeChainId);
+        setExpandedChains([activeChainId]);
         
-        setSteps(updatedSteps);
+        // 자동 해금 체크
+        await checkAndUnlockNextChain(userProgress);
       }
     } catch (error) {
       console.error('퀘스트 데이터 로드 오류:', error);
@@ -65,31 +67,208 @@ export default function NewbieGrowthQuestPage() {
     }
   };
   
-  const renderProgressBar = () => {
-    if (!progress) return null;
+  const getActiveChainId = (questProgress: UserQuestProgress) => {
+    // 진행 중인 체인 찾기
+    for (const chainId of chainOrder) {
+      const chainProgress = questProgress.chains[chainId];
+      if (chainProgress && chainProgress.status === 'in_progress') {
+        console.log('✅ 진행 중인 체인 발견:', chainId);
+        return chainId;
+      }
+    }
     
-    const chainProgress = progress.chains['newbie-growth'];
-    const completedSteps = steps.filter(s => s.status === 'completed').length;
-    const progressPercent = (completedSteps / newbieGrowthChain.totalSteps) * 100;
+    // 진행 중인 체인이 없으면 첫 번째 체인 반환 (보통은 tutorial)
+    console.log('⚠️ 진행 중인 체인 없음, 첫 번째 체인 반환:', chainOrder[0]);
+    return chainOrder[0];
+  };
+  
+  const checkAndUnlockNextChain = async (questProgress: UserQuestProgress) => {
+    if (!user?.uid) return;
+    
+    const tutorialProgress = questProgress.chains.tutorial;
+    const newbieProgress = questProgress.chains['newbie-growth'];
+    
+    console.log('🔍 자동 해금 체크:', {
+      tutorial: tutorialProgress?.status,
+      'newbie-growth': newbieProgress?.status,
+    });
+    
+    if (tutorialProgress?.status === 'completed' && !newbieProgress) {
+      console.log('🔓 tutorial 완료됨, newbie-growth 자동 생성 중...');
+      
+      try {
+        const nextChain = questChains['newbie-growth'];
+        const firstStep = nextChain.steps[0];
+        
+        const questRef = doc(db, 'quests', user.uid);
+        await updateDoc(questRef, {
+          [`chains.newbie-growth`]: {
+            currentStep: 1,
+            status: 'in_progress',
+            startedAt: serverTimestamp(),
+            stepProgress: {
+              [firstStep.id]: {
+                status: 'in_progress',
+                progress: 0,
+                target: firstStep.objective.target,
+              },
+            },
+          },
+          updatedAt: serverTimestamp(),
+        });
+        
+        console.log('✅ newbie-growth 체인 생성 완료!');
+        
+        // 상태 새로고침
+        await loadQuestData();
+      } catch (error) {
+        console.error('❌ newbie-growth 생성 오류:', error);
+      }
+    }
+  };
+  
+  const toggleChain = (chainId: string) => {
+    setExpandedChains(prev =>
+      prev.includes(chainId)
+        ? prev.filter(id => id !== chainId)
+        : [...prev, chainId]
+    );
+  };
+  
+  const renderChainCard = (chainId: string) => {
+    const chain = questChains[chainId];
+    
+    if (!chain) {
+      console.error(`❌ 체인 정의를 찾을 수 없음: ${chainId}`);
+      return null;
+    }
+    
+    const chainProgress = progress?.chains[chainId];
+    const isExpanded = expandedChains.includes(chainId);
+    const isActive = chainProgress?.status === 'in_progress';
+    const isCompleted = chainProgress?.status === 'completed';
+    const isLocked = !chainProgress || chainProgress.status === 'locked';
+    
+    console.log(`🔖 체인 렌더링 [${chainId}]:`, {
+      chainName: chain.name,
+      status: chainProgress?.status || 'undefined',
+      isActive,
+      isCompleted,
+      isLocked,
+      isExpanded,
+      hasProgress: !!chainProgress,
+    });
+    
+    // 완료된 단계 수 계산
+    const completedSteps = chain.steps.filter(step => {
+      const stepProgress = chainProgress?.stepProgress[step.id];
+      return stepProgress?.status === 'completed';
+    }).length;
+    
+    const currentStepNum = chainProgress?.currentStep || 0;
+    const progressPercent = (currentStepNum / chain.totalSteps) * 100;
     
     return (
-      <View style={styles.overallProgress}>
-        <View style={styles.progressHeader}>
-          <Text style={styles.progressTitle}>전체 진행도</Text>
-          <Text style={styles.progressText}>
-            {completedSteps} / {newbieGrowthChain.totalSteps}
-          </Text>
-        </View>
-        <View style={styles.progressBarContainer}>
-          <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
-        </View>
+      <View
+        key={chainId}
+        style={[
+          styles.chainCard,
+          isActive && styles.chainCardActive,
+          isCompleted && styles.chainCardCompleted,
+        ]}
+      >
+        {/* 체인 헤더 */}
+        <TouchableOpacity
+          onPress={() => !isLocked && toggleChain(chainId)}
+          disabled={isLocked}
+          style={styles.chainHeader}
+        >
+          <View style={styles.chainIconContainer}>
+            <Text style={[styles.chainIcon, isLocked && styles.lockedIcon]}>
+              {isLocked ? '🔒' : chain.icon}
+            </Text>
+          </View>
+          
+          <View style={styles.chainInfo}>
+            <View style={styles.chainTitleRow}>
+              <Text style={styles.chainTitle}>{chain.name}</Text>
+              {isActive && <Text style={styles.chainBadgeActive}>진행 중</Text>}
+              {isCompleted && <Text style={styles.chainBadgeCompleted}>완료</Text>}
+              {isLocked && <Text style={styles.chainBadgeLocked}>잠김</Text>}
+            </View>
+            <Text style={styles.chainDescription}>{chain.description}</Text>
+            
+            {/* 진행도 바 */}
+            {!isLocked && (
+              <>
+                <View style={styles.chainProgressHeader}>
+                  <Text style={styles.chainProgressLabel}>진행도</Text>
+                  <Text style={styles.chainProgressValue}>
+                    {completedSteps} / {chain.totalSteps}
+                  </Text>
+                </View>
+                <View style={styles.chainProgressBar}>
+                  <View
+                    style={[
+                      styles.chainProgressFill,
+                      {
+                        width: `${progressPercent}%`,
+                        backgroundColor: isCompleted ? '#10B981' : '#3B82F6',
+                      },
+                    ]}
+                  />
+                </View>
+              </>
+            )}
+          </View>
+          
+          {!isLocked && (
+            <Text style={[styles.expandIcon, isExpanded && styles.expandIconRotated]}>
+              ▼
+            </Text>
+          )}
+        </TouchableOpacity>
         
-        {chainProgress?.status === 'completed' && (
-          <View style={styles.completionBanner}>
-            <Text style={styles.completionIcon}>🎉</Text>
-            <View style={styles.completionText}>
-              <Text style={styles.completionTitle}>체인 완료!</Text>
-              <Text style={styles.completionSubtitle}>축하합니다! 새내기를 졸업했어요!</Text>
+        {/* 체인 상세 (펼쳤을 때) */}
+        {isExpanded && !isLocked && (
+          <View style={styles.chainContent}>
+            {/* 퀘스트 단계들 */}
+            <View style={styles.stepsContainer}>
+              {chain.steps.map((step) => renderStep(step, chainProgress))}
+            </View>
+            
+            {/* 완료 보상 */}
+            <View style={[
+              styles.completionCard,
+              isCompleted && styles.completionCardCompleted
+            ]}>
+              <Text style={styles.completionTitle}>
+                {isCompleted ? '🎉 체인 완료 보상' : '🏆 완료 시 획득 가능'}
+              </Text>
+              <View style={styles.completionRewardsList}>
+                <View style={styles.completionRewardItem}>
+                  <Text style={styles.completionRewardIcon}>⭐</Text>
+                  <Text style={styles.completionRewardText}>
+                    {chain.completionRewards.xp} XP
+                  </Text>
+                </View>
+                {chain.completionRewards.title && (
+                  <View style={styles.completionRewardItem}>
+                    <Text style={styles.completionRewardIcon}>👑</Text>
+                    <Text style={styles.completionRewardText}>
+                      칭호: {chain.completionRewards.title}
+                    </Text>
+                  </View>
+                )}
+                {chain.completionRewards.badge && (
+                  <View style={styles.completionRewardItem}>
+                    <Text style={styles.completionRewardIcon}>🎖️</Text>
+                    <Text style={styles.completionRewardText}>
+                      배지: {chain.completionRewards.badge}
+                    </Text>
+                  </View>
+                )}
+              </View>
             </View>
           </View>
         )}
@@ -97,93 +276,128 @@ export default function NewbieGrowthQuestPage() {
     );
   };
   
-  const renderStep = (step: QuestStep, index: number) => {
-    const isCompleted = step.status === 'completed';
-    const isInProgress = step.status === 'in_progress';
-    const isAvailable = step.status === 'available' || step.status === 'in_progress';
-    const isLocked = step.status === 'locked';
+  const renderStep = (step: QuestStep, chainProgress: UserQuestProgress['chains'][string]) => {
+    const stepProgress = chainProgress?.stepProgress[step.id];
+    const isCompleted = stepProgress?.status === 'completed';
+    const isInProgress = stepProgress?.status === 'in_progress';
+    const isLocked = !stepProgress || stepProgress.status === 'locked';
     
-    const progressValue = step.objective.current || 0;
+    const progressValue = stepProgress?.progress || 0;
     const targetValue = step.objective.target;
-    const stepProgressPercent = (progressValue / targetValue) * 100;
+    const stepProgressPercent = targetValue > 0 ? (progressValue / targetValue) * 100 : 0;
     
     // 가이드 정보
-    const guide = QUEST_GUIDES[step.objective.type];
+    const guide = QUEST_GUIDES[step.id];
+    
+    if (isLocked) {
+      return (
+        <View key={step.id} style={styles.stepCardLocked}>
+          <View style={styles.stepHeader}>
+            <Text style={styles.stepIcon}>🔒</Text>
+            <View style={styles.stepInfo}>
+              <Text style={styles.stepNumber}>단계 {step.step}</Text>
+              <Text style={styles.lockedLabel}>잠김</Text>
+            </View>
+          </View>
+        </View>
+      );
+    }
     
     return (
-      <View key={step.id} style={[
-        styles.stepCard,
-        isInProgress && styles.stepCardActive,
-        isLocked && styles.stepCardLocked,
-      ]}>
+      <View
+        key={step.id}
+        style={[
+          styles.stepCard,
+          isCompleted && styles.stepCardCompleted,
+          isInProgress && styles.stepCardInProgress,
+        ]}
+      >
+        {/* 단계 헤더 */}
         <View style={styles.stepHeader}>
-          <View style={[
-            styles.stepNumber,
-            isCompleted && styles.stepNumberCompleted,
-            isInProgress && styles.stepNumberActive,
-            isLocked && styles.stepNumberLocked,
-          ]}>
-            <Text style={[
-              styles.stepNumberText,
-              (isInProgress || isCompleted) && styles.stepNumberTextActive,
-            ]}>
-              {isCompleted ? '✓' : (step.icon || step.step)}
-            </Text>
+          <View style={styles.stepIconContainer}>
+            <Text style={styles.stepIcon}>{step.icon || '🎯'}</Text>
+            {isCompleted && (
+              <View style={styles.completedBadge}>
+                <Text style={styles.completedBadgeText}>✓</Text>
+              </View>
+            )}
           </View>
           
           <View style={styles.stepInfo}>
             <View style={styles.stepTitleRow}>
-              <Text style={styles.stepLabel}>{step.step}단계</Text>
-              {isInProgress && <View style={styles.badge}><Text style={styles.badgeText}>진행 중</Text></View>}
-              {isCompleted && <View style={styles.badgeCompleted}><Text style={styles.badgeTextCompleted}>완료</Text></View>}
-              {isLocked && <View style={styles.badgeLocked}><Text style={styles.badgeTextLocked}>🔒 잠김</Text></View>}
+              <Text style={styles.stepNumber}>단계 {step.step}</Text>
+              {isCompleted && <Text style={styles.completedLabel}>완료</Text>}
+              {isInProgress && <Text style={styles.inProgressLabel}>진행 중</Text>}
             </View>
             <Text style={styles.stepTitle}>{step.title}</Text>
             <Text style={styles.stepDescription}>{step.description}</Text>
-            <Text style={styles.stepStory}>{step.storyText}</Text>
           </View>
         </View>
         
-        {/* 진행도 바 */}
-        {!isCompleted && !isLocked && (
-          <View style={styles.stepProgressContainer}>
-            <View style={styles.stepProgressHeader}>
-              <Text style={styles.stepProgressLabel}>진행도</Text>
-              <Text style={styles.stepProgressText}>{progressValue} / {targetValue}</Text>
+        {/* 진행 중인 경우 추가 정보 */}
+        {isInProgress && (
+          <View style={styles.inProgressSection}>
+            {/* 스토리 텍스트 */}
+            <View style={styles.storySection}>
+              <Text style={styles.storyText}>&quot;{step.storyText}&quot;</Text>
             </View>
-            <View style={styles.stepProgressBar}>
-              <View style={[styles.stepProgressBarFill, { width: `${Math.min(stepProgressPercent, 100)}%` }]} />
+            
+            {/* 가이드 */}
+            {guide && (
+              <View style={styles.guideSection}>
+                <View style={styles.guideHeader}>
+                  <Text style={styles.guideEmoji}>📍</Text>
+                  <Text style={styles.guideTitle}>어떻게 하나요?</Text>
+                </View>
+                <Text style={styles.guideHowTo}>{guide.howTo}</Text>
+              </View>
+            )}
+            
+            {/* 진행도 바 */}
+            <View style={styles.stepProgressSection}>
+              <View style={styles.stepProgressHeader}>
+                <Text style={styles.stepProgressLabel}>진행도</Text>
+                <Text style={styles.stepProgressValue}>
+                  {progressValue} / {targetValue}
+                </Text>
+              </View>
+              <View style={styles.stepProgressBar}>
+                <View
+                  style={[
+                    styles.stepProgressFill,
+                    { 
+                      width: `${stepProgressPercent}%`,
+                      backgroundColor: step.color || '#3B82F6',
+                    },
+                  ]}
+                />
+              </View>
             </View>
           </View>
         )}
         
-        {/* 보상 */}
-        <View style={styles.rewards}>
-          <View style={styles.rewardItem}>
-            <Text style={styles.rewardIcon}>⭐</Text>
-            <Text style={styles.rewardText}>+{step.rewards.xp} XP</Text>
+        {/* 보상 섹션 */}
+        <View style={styles.rewardsSection}>
+          <Text style={styles.rewardsTitle}>보상</Text>
+          <View style={styles.rewardsList}>
+            <View style={styles.rewardItem}>
+              <Text style={styles.rewardIcon}>⭐</Text>
+              <Text style={styles.rewardText}>{step.rewards.xp} XP</Text>
+            </View>
+            {step.rewards.badge && (
+              <View style={styles.rewardItem}>
+                <Text style={styles.rewardIcon}>🎖️</Text>
+                <Text style={styles.rewardText}>배지</Text>
+              </View>
+            )}
+            {step.rewards.title && (
+              <View style={styles.rewardItem}>
+                <Text style={styles.rewardIcon}>👑</Text>
+                <Text style={styles.rewardText}>{step.rewards.title}</Text>
+              </View>
+            )}
           </View>
-          {step.rewards.badge && (
-            <View style={styles.rewardItem}>
-              <Text style={styles.rewardIcon}>🏅</Text>
-              <Text style={styles.rewardText}>배지</Text>
-            </View>
-          )}
-          {step.rewards.title && (
-            <View style={styles.rewardItem}>
-              <Text style={styles.rewardIcon}>👑</Text>
-              <Text style={styles.rewardText}>{step.rewards.title}</Text>
-            </View>
-          )}
         </View>
-        
-        {/* 가이드 */}
-        {isInProgress && guide && (
-          <View style={styles.guideContainer}>
-            <Text style={styles.guideIcon}>💡</Text>
-            <Text style={styles.guideText}>{guide}</Text>
-          </View>
-        )}
       </View>
     );
   };
@@ -191,70 +405,36 @@ export default function NewbieGrowthQuestPage() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#10B981" />
-        <Text style={styles.loadingText}>퀘스트 정보 불러오는 중...</Text>
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text style={styles.loadingText}>퀘스트 불러오는 중...</Text>
       </View>
     );
   }
   
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="dark-content" />
       {/* 헤더 */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← 뒤로</Text>
+          <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerIcon}>{newbieGrowthChain.icon}</Text>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerIcon}>🎮</Text>
           <View>
-            <Text style={styles.headerTitle}>{newbieGrowthChain.name}</Text>
-            <Text style={styles.headerSubtitle}>{newbieGrowthChain.description}</Text>
+            <Text style={styles.headerTitle}>퀘스트</Text>
+            <Text style={styles.headerDescription}>모든 퀘스트 체인을 확인하세요</Text>
           </View>
         </View>
-        <View style={styles.headerSpacer} />
       </View>
       
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        {renderProgressBar()}
+      {/* 컨텐츠 */}
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.chainsContainer}>
+          {chainOrder.map(chainId => renderChainCard(chainId))}
+        </View>
         
-        {steps.map((step, index) => renderStep(step, index))}
-        
-        {/* 체인 완료 보상 */}
-        {progress?.chains['newbie-growth']?.status !== 'completed' && (
-          <View style={styles.chainRewards}>
-            <Text style={styles.chainRewardsTitle}>🎁 체인 완료 보상</Text>
-            <View style={styles.chainRewardsGrid}>
-              <View style={styles.chainRewardItem}>
-                <Text style={styles.chainRewardIcon}>⭐</Text>
-                <Text style={styles.chainRewardText}>+{newbieGrowthChain.completionRewards.xp} XP</Text>
-              </View>
-              {newbieGrowthChain.completionRewards.badge && (
-                <View style={styles.chainRewardItem}>
-                  <Text style={styles.chainRewardIcon}>🏅</Text>
-                  <Text style={styles.chainRewardText}>{newbieGrowthChain.completionRewards.badge}</Text>
-                </View>
-              )}
-              {newbieGrowthChain.completionRewards.title && (
-                <View style={styles.chainRewardItem}>
-                  <Text style={styles.chainRewardIcon}>👑</Text>
-                  <Text style={styles.chainRewardText}>{newbieGrowthChain.completionRewards.title}</Text>
-                </View>
-              )}
-              {newbieGrowthChain.completionRewards.frame && (
-                <View style={styles.chainRewardItem}>
-                  <Text style={styles.chainRewardIcon}>🖼️</Text>
-                  <Text style={styles.chainRewardText}>{newbieGrowthChain.completionRewards.frame}</Text>
-                </View>
-              )}
-              {newbieGrowthChain.completionRewards.items && newbieGrowthChain.completionRewards.items.length > 0 && (
-                <View style={styles.chainRewardItem}>
-                  <Text style={styles.chainRewardIcon}>📦</Text>
-                  <Text style={styles.chainRewardText}>{newbieGrowthChain.completionRewards.items.length}개 상자</Text>
-                </View>
-              )}
-            </View>
-          </View>
-        )}
+        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
@@ -263,181 +443,233 @@ export default function NewbieGrowthQuestPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#F9FAFB',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#F9FAFB',
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 14,
+    marginTop: 12,
+    fontSize: 16,
     color: '#6B7280',
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#ffffff',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    backgroundColor: 'white',
+    paddingBottom: 20,
+    paddingHorizontal: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   backButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    marginBottom: 12,
   },
   backButtonText: {
-    fontSize: 16,
-    color: '#4B5563',
-    fontWeight: '500',
+    fontSize: 28,
+    color: '#3B82F6',
   },
-  headerCenter: {
-    flex: 1,
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
   },
   headerIcon: {
-    fontSize: 28,
+    fontSize: 48,
+    marginRight: 12,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: 'bold',
     color: '#111827',
+    marginBottom: 4,
   },
-  headerSubtitle: {
-    fontSize: 12,
+  headerDescription: {
+    fontSize: 14,
     color: '#6B7280',
-  },
-  headerSpacer: {
-    width: 60,
   },
   content: {
     flex: 1,
   },
-  contentContainer: {
-    padding: 16,
+  chainsContainer: {
+    padding: 20,
   },
-  overallProgress: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
+  chainCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
     marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowRadius: 4,
     elevation: 2,
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  progressTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  progressText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  progressBarContainer: {
-    height: 12,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 6,
     overflow: 'hidden',
   },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#10B981',
-    borderRadius: 6,
+  chainCardActive: {
+    borderWidth: 2,
+    borderColor: '#3B82F6',
   },
-  completionBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#D1FAE5',
-    borderWidth: 1,
+  chainCardCompleted: {
+    borderWidth: 2,
     borderColor: '#10B981',
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 12,
   },
-  completionIcon: {
-    fontSize: 32,
+  chainHeader: {
+    flexDirection: 'row',
+    padding: 20,
+    alignItems: 'center',
+  },
+  chainIconContainer: {
+    width: 60,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
   },
-  completionText: {
+  chainIcon: {
+    fontSize: 48,
+  },
+  lockedIcon: {
+    opacity: 0.5,
+  },
+  chainInfo: {
     flex: 1,
   },
-  completionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#065F46',
+  chainTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
   },
-  completionSubtitle: {
+  chainTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginRight: 8,
+  },
+  chainBadgeActive: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#3B82F6',
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  chainBadgeCompleted: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#10B981',
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  chainBadgeLocked: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6B7280',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  chainDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 12,
+  },
+  chainProgressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  chainProgressLabel: {
     fontSize: 13,
-    color: '#047857',
-    marginTop: 2,
+    color: '#6B7280',
+  },
+  chainProgressValue: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#3B82F6',
+  },
+  chainProgressBar: {
+    height: 8,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  chainProgressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  expandIcon: {
+    fontSize: 18,
+    color: '#6B7280',
+    marginLeft: 8,
+  },
+  expandIconRotated: {
+    transform: [{ rotate: '180deg' }],
+  },
+  chainContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  stepsContainer: {
+    marginBottom: 12,
   },
   stepCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: 'white',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
     borderWidth: 2,
     borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    marginBottom: 12,
   },
-  stepCardActive: {
+  stepCardCompleted: {
+    backgroundColor: '#F0FDF4',
     borderColor: '#10B981',
-    shadowColor: '#10B981',
-    shadowOpacity: 0.2,
-    elevation: 4,
+  },
+  stepCardInProgress: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#3B82F6',
   },
   stepCardLocked: {
-    opacity: 0.5,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 16,
+    opacity: 0.6,
   },
   stepHeader: {
     flexDirection: 'row',
     marginBottom: 12,
   },
-  stepNumber: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
+  stepIconContainer: {
+    position: 'relative',
     marginRight: 12,
   },
-  stepNumberCompleted: {
-    backgroundColor: '#D1FAE5',
+  stepIcon: {
+    fontSize: 40,
   },
-  stepNumberActive: {
+  completedBadge: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
     backgroundColor: '#10B981',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  stepNumberLocked: {
-    backgroundColor: '#E5E7EB',
-  },
-  stepNumberText: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#9CA3AF',
-  },
-  stepNumberTextActive: {
-    color: '#ffffff',
+  completedBadgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   stepInfo: {
     flex: 1,
@@ -447,80 +679,109 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
-  stepLabel: {
-    fontSize: 11,
+  stepNumber: {
+    fontSize: 12,
     fontWeight: '600',
     color: '#6B7280',
     marginRight: 8,
   },
-  badge: {
-    backgroundColor: '#D1FAE5',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-  },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#047857',
-  },
-  badgeCompleted: {
-    backgroundColor: '#D1FAE5',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-  },
-  badgeTextCompleted: {
-    fontSize: 10,
+  completedLabel: {
+    fontSize: 11,
     fontWeight: '600',
     color: '#10B981',
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
   },
-  badgeLocked: {
+  inProgressLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#3B82F6',
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  lockedLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6B7280',
     backgroundColor: '#F3F4F6',
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  badgeTextLocked: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#6B7280',
+    borderRadius: 10,
   },
   stepTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: 'bold',
     color: '#111827',
     marginBottom: 4,
   },
   stepDescription: {
     fontSize: 13,
-    color: '#4B5563',
-    marginBottom: 4,
-  },
-  stepStory: {
-    fontSize: 12,
     color: '#6B7280',
-    fontStyle: 'italic',
   },
-  stepProgressContainer: {
-    marginTop: 12,
+  inProgressSection: {
+    // gap 제거: React Native 호환성
+  },
+  storySection: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  storyText: {
+    fontSize: 13,
+    color: '#4B5563',
+    fontStyle: 'italic',
+    lineHeight: 18,
+  },
+  guideSection: {
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  guideHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  guideEmoji: {
+    fontSize: 14,
+    marginRight: 6,
+  },
+  guideTitle: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#92400E',
+  },
+  guideHowTo: {
+    fontSize: 12,
+    color: '#B45309',
+    lineHeight: 18,
+  },
+  stepProgressSection: {
+    marginTop: 4,
   },
   stepProgressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 8,
   },
   stepProgressLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#4B5563',
+    color: '#374151',
   },
-  stepProgressText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#10B981',
+  stepProgressValue: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#3B82F6',
   },
   stepProgressBar: {
     height: 8,
@@ -528,89 +789,78 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     overflow: 'hidden',
   },
-  stepProgressBarFill: {
+  stepProgressFill: {
     height: '100%',
-    backgroundColor: '#10B981',
     borderRadius: 4,
   },
-  rewards: {
+  rewardsSection: {
+    marginTop: 12,
+  },
+  rewardsTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  rewardsList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 12,
+    marginHorizontal: -4,
   },
   rewardItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FEF3C7',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    margin: 4,
   },
   rewardIcon: {
-    fontSize: 14,
+    fontSize: 12,
+    marginRight: 4,
   },
   rewardText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#92400E',
   },
-  guideContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#D1FAE5',
-    borderWidth: 1,
-    borderColor: '#10B981',
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 12,
-  },
-  guideIcon: {
-    fontSize: 18,
-    marginRight: 8,
-  },
-  guideText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#047857',
-    lineHeight: 18,
-  },
-  chainRewards: {
-    backgroundColor: '#D1FAE5',
-    borderWidth: 2,
-    borderColor: '#10B981',
+  completionCard: {
+    backgroundColor: 'white',
+    padding: 20,
     borderRadius: 12,
-    padding: 16,
-    marginTop: 16,
+    borderWidth: 2,
+    borderColor: '#F59E0B',
   },
-  chainRewardsTitle: {
+  completionCardCompleted: {
+    backgroundColor: '#FEF3C7',
+  },
+  completionTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#065F46',
+    fontWeight: 'bold',
+    color: '#111827',
     marginBottom: 12,
+    textAlign: 'center',
   },
-  chainRewardsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+  completionRewardsList: {
+    // gap 제거
   },
-  chainRewardItem: {
+  completionRewardItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: '#10B981',
+    backgroundColor: 'white',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
   },
-  chainRewardIcon: {
-    fontSize: 16,
+  completionRewardIcon: {
+    fontSize: 20,
+    marginRight: 12,
   },
-  chainRewardText: {
-    fontSize: 12,
+  completionRewardText: {
+    fontSize: 14,
     fontWeight: '600',
-    color: '#065F46',
+    color: '#111827',
+    flex: 1,
   },
 });

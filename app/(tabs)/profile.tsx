@@ -16,6 +16,7 @@ import { deleteAccount } from '../../lib/auth';
 import { useRewardedAd } from '../../components/ads/AdMobAds';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQuest } from '../../providers/QuestProvider';
+import { useQuestTracker } from '../../hooks/useQuestTracker';
 
 export default function ProfileScreen() {
   const { 
@@ -27,6 +28,7 @@ export default function ProfileScreen() {
     performAttendanceCheck 
   } = useAuthStore();
   const { trackAction } = useQuest();
+  const { trackDailyAttendance } = useQuestTracker();
   const [refreshing, setRefreshing] = useState(false);
   const [userData, setUserData] = useState<User | null>(null);
   const [userStats, setUserStats] = useState({
@@ -381,14 +383,9 @@ export default function ProfileScreen() {
 
       // 퀘스트 트래킹: 출석체크 (8단계, 10단계)
       try {
-        await trackAction('attendance');
-        console.log('✅ 퀘스트 트래킹: 출석체크');
-        
-        // 3일 이상 연속 출석 시 consecutive_attendance 트래킹 (10단계)
-        if (result.streak >= 3) {
-          await trackAction('consecutive_attendance');
-          console.log('✅ 퀘스트 트래킹: 연속 출석', result.streak);
-        }
+        // trackDailyAttendance 함수를 사용하여 일관성 유지
+        await trackDailyAttendance(result.streak);
+        console.log('✅ 퀘스트 트래킹: 출석체크 완료', result.streak);
       } catch (questError) {
         console.error('❌ 퀘스트 트래킹 오류:', questError);
       }
