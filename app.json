@@ -2,7 +2,7 @@
   "expo": {
     "name": "인스쿨즈",
     "slug": "inschoolz-app",
-    "version": "1.6.3",
+    "version": "1.6.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "inschoolzapp",
@@ -12,7 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.onmindlab.inschoolz",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "buildNumber": "12",
+      "buildNumber": "13",
       "infoPlist": {
         "UIBackgroundModes": [
           "remote-notification"
