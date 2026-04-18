@@ -79,6 +79,7 @@ export interface School {
   HOMEPAGE?: string;
   memberCount?: number;
   favoriteCount?: number;
+  isActive?: boolean; // 관리자가 설정하는 활성화 상태
 }
 
 // 사용자 프로필 인터페이스 (통일된 구조)

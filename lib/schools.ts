@@ -160,7 +160,7 @@ export const checkSchoolAccess = async (
 };
 
 /**
- * 사용자의 즐겨찾기 학교 목록 가져오기 (메인 학교 자동 추가 포함)
+ * 사용자의 즐겨찾기 학교 목록 가져오기 (메인 학교 자동 추가 포함, 비활성화된 학교 제외)
  */
 export const getUserFavoriteSchools = async (userId: string): Promise<School[]> => {
   try {
@@ -211,13 +211,16 @@ export const getUserFavoriteSchools = async (userId: string): Promise<School[]> 
       return [];
     }
     
-    // 즐겨찾기 학교 정보 조회
+    // 즐겨찾기 학교 정보 조회 (활성화된 학교만)
     const favoriteSchools: School[] = [];
     
     for (const schoolId of favoriteSchoolIds) {
       const school = await getSchoolById(schoolId);
-      if (school) {
+      // isActive가 false가 아닌 경우만 포함 (undefined는 활성화로 간주)
+      if (school && school.isActive !== false) {
         favoriteSchools.push(school);
+      } else if (school && school.isActive === false) {
+        console.log('비활성화된 즐겨찾기 학교 필터링:', school.KOR_NAME);
       }
     }
     
@@ -246,7 +249,8 @@ export const getSchoolById = async (schoolId: string): Promise<School | null> =>
         REGION: schoolData.REGION,
         HOMEPAGE: schoolData.HOMEPAGE,
         memberCount: schoolData.memberCount || 0,
-        favoriteCount: schoolData.favoriteCount || 0
+        favoriteCount: schoolData.favoriteCount || 0,
+        isActive: schoolData.isActive
       } as School;
     } else {
       return null;
@@ -448,9 +452,9 @@ export const getMainSchool = async (userId: string): Promise<School | null> => {
 }; 
 
 /**
- * 게시글 수 기준으로 인기 학교 목록 가져오기
+ * 게시글 수 기준으로 인기 학교 목록 가져오기 (비활성화된 학교 제외)
  */
-export const getPopularSchools = async (limit = 10): Promise<School[]> => {
+export const getPopularSchools = async (limitCount = 10): Promise<School[]> => {
   try {
     // posts 컬렉션에서 학교별 게시글 수 집계
     const postsRef = collection(db, 'posts');
@@ -473,15 +477,18 @@ export const getPopularSchools = async (limit = 10): Promise<School[]> => {
     // 게시글 수 기준으로 정렬 (내림차순)
     const sortedSchoolIds = Array.from(schoolPostCounts.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, limit)
+      .slice(0, limitCount * 2) // 더 많이 가져와서 비활성화 제외 후 충분한 수를 확보
       .map(([schoolId]) => schoolId);
     
-    // 학교 정보 조회
+    // 학교 정보 조회 (활성화된 학교만)
     const popularSchools: School[] = [];
     
     for (const schoolId of sortedSchoolIds) {
+      if (popularSchools.length >= limitCount) break;
+      
       const school = await getSchoolById(schoolId);
-      if (school) {
+      // isActive가 false가 아닌 경우만 포함 (undefined는 활성화로 간주)
+      if (school && school.isActive !== false) {
         // 앱의 School 타입에 맞게 변환
         popularSchools.push({
           id: school.id,
@@ -490,28 +497,67 @@ export const getPopularSchools = async (limit = 10): Promise<School[]> => {
           REGION: school.REGION,
           HOMEPAGE: school.HOMEPAGE,
           memberCount: school.memberCount,
-          favoriteCount: school.favoriteCount
+          favoriteCount: school.favoriteCount,
+          isActive: school.isActive
         });
       }
+    }
+    
+    // 게시글 수 기준으로 충분하지 않다면 memberCount 기준으로 보완
+    if (popularSchools.length < limitCount) {
+      const remainingLimit = limitCount - popularSchools.length;
+      const existingIds = new Set(popularSchools.map(s => s.id));
+      
+      const schoolsRef = collection(db, 'schools');
+      const q = query(
+        schoolsRef,
+        orderBy('memberCount', 'desc'),
+        limit(remainingLimit * 2) // 비활성화 제외를 고려하여 더 많이 가져오기
+      );
+      const querySnapshot = await getDocs(q);
+      
+      querySnapshot.forEach((doc) => {
+        if (popularSchools.length >= limitCount) return;
+        
+        const schoolData = doc.data();
+        // 이미 포함된 학교가 아니고, 활성화된 학교이며, 멤버가 있는 경우만 추가
+        if (!existingIds.has(doc.id) && 
+            schoolData.isActive !== false && 
+            schoolData.memberCount > 0) {
+          popularSchools.push({
+            id: doc.id,
+            KOR_NAME: schoolData.KOR_NAME,
+            ADDRESS: schoolData.ADDRESS,
+            REGION: schoolData.REGION,
+            HOMEPAGE: schoolData.HOMEPAGE,
+            memberCount: schoolData.memberCount || 0,
+            favoriteCount: schoolData.favoriteCount || 0,
+            isActive: schoolData.isActive
+          });
+        }
+      });
     }
     
     return popularSchools;
   } catch (error) {
     console.error('인기 학교 목록 조회 오류:', error);
-    // 오류 발생 시 memberCount 기준으로 인기 학교 반환
+    // 오류 발생 시 memberCount 기준으로 활성화된 인기 학교 반환
     try {
       const schoolsRef = collection(db, 'schools');
       const q = query(
         schoolsRef,
         orderBy('memberCount', 'desc'),
-        limit(limit)
+        limit(limitCount * 2) // 비활성화 제외를 고려하여 더 많이 가져오기
       );
       const querySnapshot = await getDocs(q);
       const schools: School[] = [];
       
       querySnapshot.forEach((doc) => {
+        if (schools.length >= limitCount) return;
+        
         const schoolData = doc.data();
-        if (schoolData.memberCount > 0) {
+        // 활성화된 학교이며 멤버가 있는 경우만 추가
+        if (schoolData.isActive !== false && schoolData.memberCount > 0) {
           schools.push({
             id: doc.id,
             KOR_NAME: schoolData.KOR_NAME,
@@ -519,7 +565,8 @@ export const getPopularSchools = async (limit = 10): Promise<School[]> => {
             REGION: schoolData.REGION,
             HOMEPAGE: schoolData.HOMEPAGE,
             memberCount: schoolData.memberCount || 0,
-            favoriteCount: schoolData.favoriteCount || 0
+            favoriteCount: schoolData.favoriteCount || 0,
+            isActive: schoolData.isActive
           });
         }
       });
@@ -541,7 +588,7 @@ export interface RegionInfo {
   postCount: number;
 }
 
-export const getPopularRegions = async (limit = 12): Promise<RegionInfo[]> => {
+export const getPopularRegions = async (limitCount = 12): Promise<RegionInfo[]> => {
   try {
     // posts 컬렉션에서 지역별 게시글 수 집계
     const postsRef = collection(db, 'posts');
@@ -574,7 +621,7 @@ export const getPopularRegions = async (limit = 12): Promise<RegionInfo[]> => {
     // 게시글 수 기준으로 정렬 (내림차순)
     const sortedRegions = Array.from(regionPostCounts.values())
       .sort((a, b) => b.postCount - a.postCount)
-      .slice(0, limit);
+      .slice(0, limitCount);
     
     return sortedRegions;
   } catch (error) {
